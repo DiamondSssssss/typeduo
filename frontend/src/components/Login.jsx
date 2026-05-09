@@ -37,10 +37,19 @@ function Login({ onAuthSuccess }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
+      const text = await response.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (_error) {
+        data = {};
+      }
 
       if (!response.ok) {
-        throw new Error(data.message || "Authentication failed.");
+        if (response.status === 502) {
+          throw new Error("Server is temporarily unavailable (502). Please try again shortly.");
+        }
+        throw new Error(data.message || `Authentication failed (${response.status}).`);
       }
 
       if (typeof data.token === "string" && data.token.trim() !== "") {
@@ -57,11 +66,17 @@ function Login({ onAuthSuccess }) {
   };
 
   return (
-    <div style={styles.card}>
-      <h2>{mode === "login" ? "Login" : "Register"}</h2>
-      <form onSubmit={handleSubmit} style={styles.form}>
+    <div className="card">
+      <h2 className="title">{mode === "login" ? "Welcome to TypeDuo" : "Create account"}</h2>
+      <p className="subtitle">
+        {mode === "login"
+          ? "Sign in to continue your typing boss battle."
+          : "Join now and play cooperative typing battles."}
+      </p>
+      <form onSubmit={handleSubmit} className="form">
         {mode === "register" && (
           <input
+            className="input"
             name="username"
             placeholder="Username"
             value={form.username}
@@ -71,6 +86,7 @@ function Login({ onAuthSuccess }) {
           />
         )}
         <input
+          className="input"
           type="email"
           name="email"
           placeholder="Email"
@@ -79,6 +95,7 @@ function Login({ onAuthSuccess }) {
           required
         />
         <input
+          className="input"
           type="password"
           name="password"
           placeholder="Password"
@@ -87,14 +104,15 @@ function Login({ onAuthSuccess }) {
           minLength={6}
           required
         />
-        <button type="submit" disabled={loading}>
+        <button className="btn btn-primary" type="submit" disabled={loading}>
           {loading ? "Please wait..." : mode === "login" ? "Login" : "Register"}
         </button>
       </form>
 
-      {error ? <p style={styles.error}>{error}</p> : null}
+      {error ? <p className="error-text">{error}</p> : null}
 
       <button
+        className="btn btn-ghost"
         type="button"
         onClick={() => {
           setMode((prev) => (prev === "login" ? "register" : "login"));
@@ -108,25 +126,5 @@ function Login({ onAuthSuccess }) {
     </div>
   );
 }
-
-const styles = {
-  card: {
-    maxWidth: 360,
-    margin: "0 auto",
-    padding: 16,
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    display: "grid",
-    gap: 12,
-  },
-  form: {
-    display: "grid",
-    gap: 10,
-  },
-  error: {
-    color: "crimson",
-    margin: 0,
-  },
-};
 
 export default Login;

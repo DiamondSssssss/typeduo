@@ -52,50 +52,39 @@ function RoomLobby({ socket, currentUser, roomState, onGameStarted }) {
   };
 
   return (
-    <div style={styles.card}>
-      <h2>Room Lobby</h2>
-      <p style={{ margin: 0 }}>
+    <div className="card">
+      <h2 className="title">Room Lobby</h2>
+      <p className="subtle-row">
         Socket: {canInteract ? "connected" : "disconnected"} | Players:{" "}
         {playersCount}/2
       </p>
-      {roomState?.code ? <p style={{ margin: 0 }}>Room Code: {roomState.code}</p> : null}
+      {roomState?.code ? <p className="subtle-row">Room Code: {roomState.code}</p> : null}
       {!inRoom ? (
         <>
-          <button onClick={createRoom} disabled={!canInteract}>
+          <button className="btn btn-primary" onClick={createRoom} disabled={!canInteract}>
             Create Room
           </button>
           <input
+            className="input"
             value={roomCodeInput}
             onChange={(e) => setRoomCodeInput(e.target.value)}
             placeholder="Enter room code"
             maxLength={6}
           />
-          <button onClick={joinRoom} disabled={!canInteract || !roomCodeInput.trim()}>
+          <button
+            className="btn btn-secondary"
+            onClick={joinRoom}
+            disabled={!canInteract || !roomCodeInput.trim()}
+          >
             Join Room
           </button>
         </>
       ) : (
-        <p style={{ margin: 0 }}>Waiting for room to fill...</p>
+        <p className="subtle-row">Waiting for room to fill...</p>
       )}
-      {status ? <p style={styles.status}>{status}</p> : null}
+      {status ? <p className="status-text">{status}</p> : null}
     </div>
   );
 }
-
-const styles = {
-  card: {
-    maxWidth: 420,
-    margin: "0 auto",
-    padding: 16,
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    display: "grid",
-    gap: 10,
-  },
-  status: {
-    margin: 0,
-    color: "#444",
-  },
-};
 
 export default RoomLobby;

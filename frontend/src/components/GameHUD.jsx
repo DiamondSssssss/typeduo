@@ -10,24 +10,24 @@ function GameHUD({ gamePayload }) {
   const bossState = gamePayload?.bossState || "attack";
 
   return (
-    <div style={styles.card}>
-      <h2>Game Session</h2>
-      <p style={{ margin: 0 }}>Shared HP: {sharedHP}</p>
-      <p style={{ margin: 0 }}>Boss HP: {bossHP}</p>
-      <p style={{ margin: 0 }}>Boss State: {bossState}</p>
-      <p style={{ margin: 0 }}>
+    <div className="card hud-card">
+      <h2 className="title">Game Session</h2>
+      <p className="subtle-row">Shared HP: {sharedHP}</p>
+      <p className="subtle-row">Boss HP: {bossHP}</p>
+      <p className="subtle-row">Boss State: {bossState}</p>
+      <p className="subtle-row">
         Word: [{typed}]
         {remaining}
       </p>
       {gameOver ? (
-        <p style={styles.gameOver}>
+        <p className="game-over">
           Game Over - Winner: {gameOver.winner} (HP: {gameOver.sharedHP} | Boss:{" "}
           {gameOver.bossHP})
         </p>
       ) : null}
-      <div>
+      <div className="players-box">
         <strong>Players</strong>
-        <ul>
+        <ul className="players-list">
           {players.map((player) => (
             <li key={player.socketId}>
               {player.username} - role: {player.role}
@@ -35,35 +35,12 @@ function GameHUD({ gamePayload }) {
           ))}
         </ul>
       </div>
-      <p style={{ margin: 0, color: "#666" }}>
+      <p className="subtle-row">
         Phaser playground is active below.
       </p>
-      <div id="game-root" style={styles.gameRoot} />
+      <div id="game-root" className="game-root" />
     </div>
   );
 }
-
-const styles = {
-  card: {
-    maxWidth: 500,
-    margin: "16px auto",
-    padding: 16,
-    border: "1px solid #ddd",
-    borderRadius: 8,
-  },
-  gameRoot: {
-    marginTop: 12,
-    width: 960,
-    maxWidth: "100%",
-    minHeight: 540,
-    border: "1px solid #1f2937",
-    background: "#0f172a",
-  },
-  gameOver: {
-    margin: "8px 0 0",
-    color: "#b91c1c",
-    fontWeight: 700,
-  },
-};
 
 export default GameHUD;

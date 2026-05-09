@@ -74,19 +74,21 @@ function App() {
 
   if (!currentUser) {
     return (
-      <main style={styles.main}>
-        <h1>TypeDuo</h1>
+      <main className="app-shell">
+        <h1 className="brand">TypeDuo</h1>
         <Login onAuthSuccess={setCurrentUser} />
       </main>
     );
   }
 
   return (
-    <main style={styles.main}>
-      <h1>TypeDuo</h1>
-      <p style={{ marginTop: 0 }}>
-        Signed in as <strong>{currentUser.username || currentUser.email}</strong> | Socket:{" "}
-        {socketConnected ? "connected" : "connecting..."}
+    <main className="app-shell">
+      <h1 className="brand">TypeDuo</h1>
+      <p className="session-line">
+        Signed in as <strong>{currentUser.username || currentUser.email}</strong> | Socket status:{" "}
+        <span className={socketConnected ? "online" : "offline"}>
+          {socketConnected ? "connected" : "connecting..."}
+        </span>
       </p>
       {!gamePayload ? (
         <RoomLobby
@@ -101,15 +103,5 @@ function App() {
     </main>
   );
 }
-
-const styles = {
-  main: {
-    minHeight: "100vh",
-    maxWidth: 900,
-    margin: "0 auto",
-    padding: 20,
-    fontFamily: "Arial, sans-serif",
-  },
-};
 
 export default App;

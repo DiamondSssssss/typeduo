@@ -1,0 +1,179 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #e8ecff;
+  background: radial-gradient(circle at top left, #1f2458 0%, #0d102b 42%, #070914 100%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.brand {
+  margin: 0 0 16px;
+  font-size: clamp(2rem, 2.4vw, 2.6rem);
+  line-height: 1.1;
+  letter-spacing: 0.3px;
+  background: linear-gradient(90deg, #8cc8ff, #be96ff 50%, #7df6dd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.card {
+  width: min(100%, 460px);
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(162, 174, 255, 0.24);
+  background: rgba(17, 22, 49, 0.72);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 14px 45px rgba(0, 0, 0, 0.35);
+}
+
+.hud-card {
+  width: min(100%, 720px);
+  margin-top: 16px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.subtitle {
+  margin: -4px 0 6px;
+  color: #bdc4ef;
+  font-size: 0.95rem;
+}
+
+.form {
+  display: grid;
+  gap: 10px;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid rgba(166, 178, 248, 0.35);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 0.95rem;
+  color: #eff2ff;
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.input:focus {
+  border-color: #7aa2ff;
+  box-shadow: 0 0 0 3px rgba(122, 162, 255, 0.24);
+}
+
+.btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-primary {
+  color: #081129;
+  background: linear-gradient(135deg, #8cc8ff, #7df6dd);
+  box-shadow: 0 8px 24px rgba(85, 216, 255, 0.3);
+}
+
+.btn-secondary {
+  color: #fff;
+  background: linear-gradient(135deg, #6f85ff, #9a75ff);
+  box-shadow: 0 8px 24px rgba(120, 104, 255, 0.33);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #c7cff6;
+  border: 1px solid rgba(199, 207, 246, 0.35);
+}
+
+.error-text {
+  margin: 0;
+  color: #ff9393;
+}
+
+.status-text,
+.subtle-row {
+  margin: 0;
+  color: #c8cfef;
+}
+
+.session-line {
+  margin-top: -4px;
+  margin-bottom: 14px;
+  color: #c8cfef;
+}
+
+.online {
+  color: #66f0b3;
+}
+
+.offline {
+  color: #ff9a9a;
+}
+
+.players-box {
+  border: 1px solid rgba(170, 183, 255, 0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.players-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.game-root {
+  margin-top: 12px;
+  width: 960px;
+  max-width: 100%;
+  min-height: 540px;
+  border: 1px solid rgba(141, 160, 255, 0.35);
+  border-radius: 10px;
+  background: #0f172a;
+}
+
+.game-over {
+  margin: 8px 0 0;
+  color: #ff9a9a;
+  font-weight: 700;
+}
