@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  typeduo-backend:
+    image: ${DOCKERHUB_USER}/typeduo-backend:latest
+    container_name: typeduo-backend
+    ports:
+      - "5010:5000"
+    env_file:
+      - ./backend/.env
+    restart: always
+
+  typeduo-frontend:
+    image: ${DOCKERHUB_USER}/typeduo-frontend:latest
+    container_name: typeduo-frontend
+    ports:
+      - "25570:80"
+    restart: always
