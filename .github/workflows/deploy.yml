@@ -45,6 +45,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/typeduo-frontend:latest
           build-args: |
             VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_SOCKET_URL=${{ secrets.VITE_SOCKET_URL }}
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/typeduo-frontend:latest
           cache-to: type=inline
 
