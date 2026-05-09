@@ -7,7 +7,7 @@ services:
     ports:
       - "5010:5000"
     env_file:
-      - ./backend/.env
+      - .env
     restart: always
 
   typeduo-frontend:
