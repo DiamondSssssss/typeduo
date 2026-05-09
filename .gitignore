@@ -1,0 +1,14 @@
+# Biến môi trường (Chặn ở mọi thư mục)
+**/.env
+**/.env.*
+
+# Thư mục thư viện
+**/node_modules/
+
+# Thư mục build
+**/dist/
+**/build/
+
+# Rác hệ thống
+.DS_Store
+npm-debug.log
