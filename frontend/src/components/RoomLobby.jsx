@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { BOSS_LIST } from "../game/bosses/bossConfigs";
 
 function DifficultyStars({ n }) {
@@ -12,10 +12,11 @@ function DifficultyStars({ n }) {
 
 function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted, onLeaveRoom }) {
   const [roomCodeInput, setRoomCodeInput] = useState("");
-  const [status, setStatus]   = useState("");
-  const [copied, setCopied]   = useState(false);
+  const [status, setStatus]     = useState("");
+  const [copied, setCopied]     = useState(false);
   const [creating, setCreating] = useState(false);
   const [joining,  setJoining]  = useState(false);
+  const [starting, setStarting] = useState(false);
 
   const canInteract  = Boolean(socket?.connected);
   const inRoom       = Boolean(roomState?.code);
@@ -25,11 +26,15 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
   const mySocketId   = socket?.id;
   const isHost       = roomState?.hostSocketId === mySocketId;
   const selectedBoss = roomState?.selectedBoss || "watcher";
-  const myRole       = players.find(p => p.socketId === mySocketId)?.role;
+  const myPlayer     = players.find(p => p.socketId === mySocketId);
+  const myRole       = myPlayer?.role;
+  const myReady      = myPlayer?.ready || false;
+  const nonHostPlayers = players.filter(p => p.socketId !== roomState?.hostSocketId);
+  const allNonHostReady = nonHostPlayers.length > 0 && nonHostPlayers.every(p => p.ready);
 
   useEffect(() => {
     if (!socket) return;
-    const handle = (payload) => { setStatus("2 players connected. Starting battle..."); onGameStarted(payload); };
+    const handle = (payload) => { onGameStarted(payload); };
     socket.on("startGame", handle);
     return () => socket.off("startGame", handle);
   }, [onGameStarted, socket]);
@@ -73,6 +78,22 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
     });
   };
 
+  const toggleReady = useCallback(() => {
+    if (!socket || !roomState?.code) return;
+    socket.emit("player_ready", { code: roomState.code }, (res) => {
+      if (!res?.ok) setStatus(res?.message || "Could not update ready state.");
+    });
+  }, [socket, roomState?.code]);
+
+  const startGame = useCallback(() => {
+    if (!socket || !roomState?.code || starting) return;
+    setStarting(true);
+    socket.emit("start_game", { code: roomState.code }, (res) => {
+      setStarting(false);
+      if (!res?.ok) setStatus(res?.message || "Could not start game.");
+    });
+  }, [socket, roomState?.code, starting]);
+
   const copyCode = async () => {
     if (!roomState?.code) return;
     try { await navigator.clipboard.writeText(roomState.code); setCopied(true); }
@@ -98,8 +119,8 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
           )}
         </div>
 
-        {/* Boss selection (host only, before game starts) */}
-        {isHost && playersCount < 2 && (
+        {/* Boss selection — host can pick at any time before the game starts */}
+        {isHost && (
           <div className="boss-select-section">
             <p className="boss-select-label">Choose your boss</p>
             <div className="boss-select-grid">
@@ -120,8 +141,8 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
           </div>
         )}
 
-        {/* Current boss (when not host or second player joined) */}
-        {(!isHost || playersCount >= 2) && (
+        {/* Current boss for non-host players */}
+        {!isHost && (
           <div className="boss-chosen-banner" style={{ "--boss-color": currentBoss.color }}>
             <span className="boss-chosen-label">Fighting</span>
             <strong className="boss-chosen-name">{currentBoss.name}</strong>
@@ -140,24 +161,66 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
           </div>
         </div>
 
-        {/* Players */}
+        {/* Players with ready status */}
         <div className="players-row">
-          {players.map(p => (
-            <span key={p.socketId} className={`player-chip player-chip--${p.role}`} title={`${p.username} · ${p.role}`}>
-              <span className="player-dot" />
-              <strong>{p.username}</strong>
-              <span style={{ color: "var(--text-muted)" }}>{p.role}</span>
-            </span>
-          ))}
+          {players.map(p => {
+            const isThisHost = p.socketId === roomState?.hostSocketId;
+            return (
+              <span key={p.socketId} className={`player-chip player-chip--${p.role}`} title={`${p.username} · ${p.role}`}>
+                <span className="player-dot" />
+                <strong>{p.username}</strong>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>{p.role}</span>
+                {isThisHost
+                  ? <span className="ready-badge ready-badge--host">HOST</span>
+                  : p.ready
+                  ? <span className="ready-badge ready-badge--ready">✓ Ready</span>
+                  : <span className="ready-badge ready-badge--waiting">…</span>
+                }
+              </span>
+            );
+          })}
         </div>
 
-        {playersCount < 2 ? (
+        {/* Waiting for P2 */}
+        {playersCount < 2 && (
           <div className="spinner-row">
             <span className="spinner" aria-hidden="true" />
             <span>Waiting for player 2 to join…</span>
           </div>
-        ) : (
-          <p className="status-text">Both players ready. Starting battle…</p>
+        )}
+
+        {/* Ready-check phase — once both players are in */}
+        {playersCount >= 2 && (
+          <div className="ready-check-row">
+            {/* Non-host: toggle ready */}
+            {!isHost && (
+              <button
+                type="button"
+                className={`btn ${myReady ? "btn-ready-active" : "btn-ready"}`}
+                onClick={toggleReady}
+              >
+                {myReady ? "✓ Ready!" : "Click when ready"}
+              </button>
+            )}
+
+            {/* Host: start game (enabled only when all non-host players are ready) */}
+            {isHost && (
+              <button
+                type="button"
+                className="btn btn-primary btn-start"
+                onClick={startGame}
+                disabled={!allNonHostReady || starting}
+                title={!allNonHostReady ? "Waiting for the other player to be ready…" : ""}
+              >
+                {starting ? "Starting…" : allNonHostReady ? "▶ Start Game" : "Waiting for player…"}
+              </button>
+            )}
+
+            {/* Non-host waiting message after they click ready */}
+            {!isHost && myReady && (
+              <p className="status-text" style={{ margin: 0 }}>Waiting for the host to start the game…</p>
+            )}
+          </div>
         )}
 
         {/* Concept box */}

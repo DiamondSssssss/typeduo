@@ -28,6 +28,7 @@ const buildPlayer = (socketId, username, role) => ({
   facing:      { x: 0, y: 0 },
   wordsTyped:  0,
   damageDealt: 0,
+  ready:       false,
 });
 
 const resetRoomToWaiting = (io, room) => {
@@ -83,30 +84,6 @@ const registerSocketHandlers = (io) => {
       room.players.push(buildPlayer(socket.id, username, "typer"));
       socket.join(roomCode);
       io.to(roomCode).emit("room_update", toPublicRoomState(room));
-
-      if (room.players.length === MAX_PLAYERS_PER_ROOM) {
-        const bossConfig = getBoss(room.selectedBoss);
-        room.status  = "in_game";
-        room.game    = createInitialGameState(bossConfig);
-        const g      = room.game;
-        const startPayload = {
-          roomCode,
-          bossId:   room.selectedBoss,
-          players:  room.players.map(playerStateForClient),
-          sharedHP: g.sharedHP, sharedMaxHP: g.sharedMaxHP,
-          bossHP:   g.bossHP,   bossMaxHP:   g.bossMaxHP,
-          bossState: g.bossState,
-          stateEndsAt: g.stateEndsAt,
-          countdownRemaining: Math.max(0, g.stateEndsAt - Date.now()),
-          currentWord: g.currentWord, currentWordPhase: g.currentWordPhase,
-          typedProgress: 0, streak: 0,
-          character: g.character,
-          boss: { x: g.boss.x, y: g.boss.y, attackType: g.boss.attackType, windingUp: false, windUpRemaining: 0, columnState: null, phase: 0 },
-        };
-        io.to(roomCode).emit("startGame", startPayload);
-        emitGameState(io, room, bossConfig);
-        startGameLoop(io, room, bossConfig);
-      }
       cb?.({ ok: true, room: toPublicRoomState(room), bossList: BOSS_LIST });
     });
 
@@ -120,6 +97,54 @@ const registerSocketHandlers = (io) => {
       room.selectedBoss = boss.id;
       io.to(roomCode).emit("room_update", toPublicRoomState(room));
       cb?.({ ok: true, selectedBoss: boss.id });
+    });
+
+    // Toggle this player's ready state (non-host players signal they're ready)
+    socket.on("player_ready", ({ code }, cb) => {
+      const roomCode = (code || "").toUpperCase().trim();
+      const room     = rooms.get(roomCode);
+      if (!room) { cb?.({ ok: false, message: "Room not found." }); return; }
+      if (room.status !== "waiting") { cb?.({ ok: false }); return; }
+      const player = room.players.find((p) => p.socketId === socket.id);
+      if (!player) { cb?.({ ok: false, message: "Not in room." }); return; }
+      player.ready = !player.ready;
+      io.to(roomCode).emit("room_update", toPublicRoomState(room));
+      cb?.({ ok: true, ready: player.ready });
+    });
+
+    // Host explicitly starts the game once non-host players are ready
+    socket.on("start_game", ({ code }, cb) => {
+      const roomCode = (code || "").toUpperCase().trim();
+      const room     = rooms.get(roomCode);
+      if (!room) { cb?.({ ok: false, message: "Room not found." }); return; }
+      if (room.hostSocketId !== socket.id) { cb?.({ ok: false, message: "Only the host can start." }); return; }
+      if (room.status !== "waiting") { cb?.({ ok: false, message: "Game already started." }); return; }
+      if (room.players.length < MAX_PLAYERS_PER_ROOM) { cb?.({ ok: false, message: "Still waiting for a player." }); return; }
+      const nonHost = room.players.filter((p) => p.socketId !== room.hostSocketId);
+      if (!nonHost.every((p) => p.ready)) { cb?.({ ok: false, message: "Not all players are ready." }); return; }
+
+      const bossConfig = getBoss(room.selectedBoss);
+      room.status = "in_game";
+      room.game   = createInitialGameState(bossConfig);
+      const g     = room.game;
+      const startPayload = {
+        roomCode,
+        bossId:   room.selectedBoss,
+        players:  room.players.map(playerStateForClient),
+        sharedHP: g.sharedHP, sharedMaxHP: g.sharedMaxHP,
+        bossHP:   g.bossHP,   bossMaxHP:   g.bossMaxHP,
+        bossState:          g.bossState,
+        stateEndsAt:        g.stateEndsAt,
+        countdownRemaining: Math.max(0, g.stateEndsAt - Date.now()),
+        currentWord: g.currentWord, currentWordPhase: g.currentWordPhase,
+        typedProgress: 0, streak: 0,
+        character: g.character,
+        boss: { x: g.boss.x, y: g.boss.y, attackType: g.boss.attackType, windingUp: false, windUpRemaining: 0, columnState: null, phase: 0 },
+      };
+      io.to(roomCode).emit("startGame", startPayload);
+      emitGameState(io, room, bossConfig);
+      startGameLoop(io, room, bossConfig);
+      cb?.({ ok: true });
     });
 
     socket.on("leave_room", ({ code }, cb) => {

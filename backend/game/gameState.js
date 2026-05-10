@@ -5,7 +5,9 @@ const toPublicRoomState = (room) => ({
   code:         room.code,
   hostSocketId: room.hostSocketId,
   selectedBoss: room.selectedBoss,
-  players:      room.players.map(({ socketId, username, role }) => ({ socketId, username, role })),
+  players:      room.players.map(({ socketId, username, role, ready }) => ({
+    socketId, username, role, ready: ready || false,
+  })),
   status:       room.status,
 });
 
