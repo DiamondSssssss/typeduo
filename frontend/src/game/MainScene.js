@@ -28,6 +28,16 @@ const diamondPts = (r) => [
   { x: -r * 0.55,y: -r * 0.38 },
 ];
 
+// Regular octagon rotated by 22.5° for the crystal/glacier boss
+const octaPts = (r) => {
+  const pts = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+  }
+  return pts;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default class MainScene extends Phaser.Scene {
   constructor() {
@@ -146,6 +156,10 @@ export default class MainScene extends Phaser.Scene {
       this._drawDiamondBoss(col, S, isRoar || isStun);
     } else if (vis.shape === "spider") {
       this._drawSpiderBoss(col, S, isRoar || isStun);
+    } else if (vis.shape === "flame") {
+      this._drawFlameBoss(col, S, isRoar || isStun);
+    } else if (vis.shape === "crystal") {
+      this._drawCrystalBoss(col, S, isRoar || isStun);
     }
 
     if (this.bossLabel) this.bossLabel.setText(vis.label || "BOSS");
@@ -255,6 +269,98 @@ export default class MainScene extends Phaser.Scene {
     this.bossEyeGfx.fillCircle(0, 14, 3.5);
   }
 
+  _drawFlameBoss(col, S, alt) {
+    const R = S.body, R2 = S.border;
+
+    // Outer glow ring
+    this.bossBorderGfx.lineStyle(4.5, col.border, 0.9);
+    this.bossBorderGfx.strokeCircle(0, 0, R2);
+    this.bossBorderGfx.lineStyle(1.5, col.border, 0.3);
+    this.bossBorderGfx.strokeCircle(0, 0, R2 + 10);
+
+    // Amorphous blob: overlapping circles to suggest molten mass
+    this.bossBodyGfx.fillStyle(col.body, 0.95);
+    this.bossBodyGfx.fillCircle(0,   0,   R);
+    this.bossBodyGfx.fillStyle(col.outer, 0.75);
+    this.bossBodyGfx.fillCircle(-18, -14, R * 0.60);
+    this.bossBodyGfx.fillCircle( 16, -16, R * 0.55);
+    this.bossBodyGfx.fillStyle(col.outer, 0.55);
+    this.bossBodyGfx.fillCircle( -8,  18, R * 0.65);
+    this.bossBodyGfx.fillCircle( 22,  12, R * 0.45);
+
+    // Molten inner glow
+    this.bossBodyGfx.fillStyle(col.eye, 0.30);
+    this.bossBodyGfx.fillCircle(0, 0, R * 0.50);
+
+    // Aggressive twin eyes
+    this.bossEyeGfx.fillStyle(col.eye, 0.98);
+    this.bossEyeGfx.fillCircle(-17, -9, 8);
+    this.bossEyeGfx.fillCircle( 17, -9, 8);
+    this.bossEyeGfx.fillStyle(0x000000, 0.82);
+    this.bossEyeGfx.fillCircle(-15, -8, 4.5);
+    this.bossEyeGfx.fillCircle( 19, -8, 4.5);
+    // Molten core
+    this.bossEyeGfx.fillStyle(col.core, 0.9);
+    this.bossEyeGfx.fillCircle(0, 12, 10);
+    this.bossEyeGfx.fillStyle(0xffffff, 0.45);
+    this.bossEyeGfx.fillCircle(0, 12, 4);
+  }
+
+  _drawCrystalBoss(col, S, alt) {
+    const R = S.body, R2 = S.border;
+    const inner = octaPts(R);
+    const outer = octaPts(R2);
+    const outerXL = octaPts(R2 + 10);
+
+    // Faint fill behind outer octagon
+    this.bossBorderGfx.fillStyle(col.body, 0.20);
+    this.bossBorderGfx.fillPoints(outer, true);
+    // Outer border strokes
+    this.bossBorderGfx.lineStyle(3.5, col.border, 0.95);
+    this.bossBorderGfx.strokePoints(outer, true, true);
+    this.bossBorderGfx.lineStyle(1.2, col.border, 0.30);
+    this.bossBorderGfx.strokePoints(outerXL, true, true);
+
+    // Body fill
+    this.bossBodyGfx.fillStyle(col.body, 0.95);
+    this.bossBodyGfx.fillPoints(inner, true);
+    // Inner highlight facet
+    this.bossBodyGfx.fillStyle(col.outer, 0.55);
+    this.bossBodyGfx.fillPoints(octaPts(R * 0.55), true);
+
+    // Snowflake / cross lines through the crystal
+    this.bossExtraGfx.lineStyle(1.8, col.border, 0.45);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI;
+      this.bossExtraGfx.lineBetween(
+        Math.cos(a) * R2, Math.sin(a) * R2,
+        Math.cos(a + Math.PI) * R2, Math.sin(a + Math.PI) * R2,
+      );
+    }
+    // Diagonal shorter cross
+    this.bossExtraGfx.lineStyle(1.0, col.border, 0.28);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI + Math.PI / 8;
+      this.bossExtraGfx.lineBetween(
+        Math.cos(a) * R * 0.8, Math.sin(a) * R * 0.8,
+        Math.cos(a + Math.PI) * R * 0.8, Math.sin(a + Math.PI) * R * 0.8,
+      );
+    }
+
+    // Dual ice-cold eyes
+    this.bossEyeGfx.fillStyle(col.eye, 0.98);
+    this.bossEyeGfx.fillCircle(-18, -8, 8);
+    this.bossEyeGfx.fillCircle( 18, -8, 8);
+    this.bossEyeGfx.fillStyle(0x000000, 0.75);
+    this.bossEyeGfx.fillCircle(-16, -7, 4.5);
+    this.bossEyeGfx.fillCircle( 20, -7, 4.5);
+    // Crystal core shard
+    this.bossEyeGfx.fillStyle(col.core, 0.90);
+    this.bossEyeGfx.fillCircle(0, 12, 10);
+    this.bossEyeGfx.fillStyle(0xffffff, 0.60);
+    this.bossEyeGfx.fillCircle(0, 12, 4.5);
+  }
+
   _drawBossAura(dt) {
     this.bossAuraAngle += 36 * dt;
     const ang = this.bossAuraAngle * Math.PI / 180;
@@ -274,7 +380,16 @@ export default class MainScene extends Phaser.Scene {
       this.bossAuraGfx.lineStyle(2, col, 0.28);
       const d = diamondPts(R3).map(p => ({ x: p.x * Math.cos(ang) - p.y * Math.sin(ang), y: p.x * Math.sin(ang) + p.y * Math.cos(ang) }));
       this.bossAuraGfx.strokePoints(d, true, true);
+    } else if (vis.shape === "crystal") {
+      // Slow-rotating octagon aura — looks like a spinning ice crystal
+      this.bossAuraGfx.lineStyle(2, col, 0.28);
+      const d = octaPts(R3).map(p => ({ x: p.x * Math.cos(ang) - p.y * Math.sin(ang), y: p.x * Math.sin(ang) + p.y * Math.cos(ang) }));
+      this.bossAuraGfx.strokePoints(d, true, true);
+      this.bossAuraGfx.lineStyle(1.2, col, 0.12);
+      const d2 = octaPts(R3 + 10).map(p => ({ x: p.x * Math.cos(-ang * 0.6) - p.y * Math.sin(-ang * 0.6), y: p.x * Math.sin(-ang * 0.6) + p.y * Math.cos(-ang * 0.6) }));
+      this.bossAuraGfx.strokePoints(d2, true, true);
     } else {
+      // Flame / spider / fallback: pulsing circles
       this.bossAuraGfx.lineStyle(2, col, 0.28);
       this.bossAuraGfx.strokeCircle(0, 0, R3);
       this.bossAuraGfx.lineStyle(1.2, col, 0.13);
@@ -596,9 +711,10 @@ export default class MainScene extends Phaser.Scene {
     }
     this.bossFlash.clear();
     this.bossFlash.fillStyle(0xffffff, 0.55);
-    if (this.bossVisual?.shape === "hex")  this.bossFlash.fillPoints(hexPts(80, Math.PI / 6), true);
+    if (this.bossVisual?.shape === "hex")     this.bossFlash.fillPoints(hexPts(80, Math.PI / 6), true);
     else if (this.bossVisual?.shape === "diamond") this.bossFlash.fillPoints(diamondPts(80), true);
-    else this.bossFlash.fillCircle(0, 0, 70);
+    else if (this.bossVisual?.shape === "crystal") this.bossFlash.fillPoints(octaPts(78), true);
+    else this.bossFlash.fillCircle(0, 0, 70); // flame, spider, fallback
     this.bossFlash.x = bx; this.bossFlash.y = by;
     this.tweens.add({ targets: this.bossFlash, alpha: 0, duration: 220, ease: "cubic.out", onComplete: () => this.bossFlash?.clear() });
     this.tweens.add({ targets: this.bossCont, x: { from: bx - 6, to: bx }, duration: 180, ease: "back.out" });
@@ -678,9 +794,19 @@ export default class MainScene extends Phaser.Scene {
           this._updateRoleBadge();
           this._bindKeyboard();
         }
-        // Sync projectiles
+        // Sync projectiles with extrapolation data
         const active = new Set();
-        (state.projectiles || []).forEach(proj => { active.add(proj.id); this._getOrCreateProjectile(proj.id, proj.x, proj.y, proj.type || "normal"); });
+        const recvTime = performance.now();
+        (state.projectiles || []).forEach(proj => {
+          active.add(proj.id);
+          const sp = this._getOrCreateProjectile(proj.id, proj.x, proj.y, proj.type || "normal");
+          sp._serverX  = proj.x;
+          sp._serverY  = proj.y;
+          sp._vx       = proj.vx  || 0;
+          sp._vy       = proj.vy  || 0;
+          sp._gravity  = proj.gravity || 0;
+          sp._recvTime = recvTime;
+        });
         this.projectileSprites.forEach((sp, id) => { if (!active.has(id)) { sp.destroy(); this.projectileSprites.delete(id); } });
       },
 
@@ -785,21 +911,32 @@ export default class MainScene extends Phaser.Scene {
       st.sprite.alpha = st.base + Math.sin(st.phase) * 0.18;
     });
 
-    // Boss lerp + aura
-    this.bossX = Phaser.Math.Linear(this.bossX, this.bossTX, 0.05);
-    this.bossY = Phaser.Math.Linear(this.bossY, this.bossTY, 0.05);
+    // Extrapolate projectiles between server ticks for smooth 60fps motion
+    const nowMs = performance.now();
+    this.projectileSprites.forEach((sp) => {
+      if (sp._serverX === undefined) return;
+      const elapsed = Math.min((nowMs - sp._recvTime) / 1000, 0.12); // cap at 120ms
+      const extraVy = sp._vy + sp._gravity * elapsed * 0.5; // midpoint approximation
+      sp.x = sp._serverX + sp._vx * elapsed;
+      sp.y = sp._serverY + extraVy * elapsed;
+    });
+
+    // Boss lerp + aura — faster factor so it doesn't lag behind game_state
+    this.bossX = Phaser.Math.Linear(this.bossX, this.bossTX, 0.10);
+    this.bossY = Phaser.Math.Linear(this.bossY, this.bossTY, 0.10);
     this.bossCont.x = this.bossX; this.bossCont.y = this.bossY;
     this.bossFlash.x = this.bossX; this.bossFlash.y = this.bossY;
     this._drawBossAura(dt);
 
     // Character
     if (!this.isRunner || !this.keys) {
-      this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, 0.28);
-      this.charY = Phaser.Math.Linear(this.charY, this.charTargetY, 0.28);
+      // Typer: smooth lerp toward server-authorised position (faster than before)
+      this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, 0.45);
+      this.charY = Phaser.Math.Linear(this.charY, this.charTargetY, 0.45);
       this._setCharPos(this.charX, this.charY);
     } else {
       if (this.bossState !== "countdown") {
-        const vel = 285 * dt;
+        const vel = 290 * dt;
         let nx = this.charTargetX, ny = this.charTargetY, ddx = 0, ddy = 0;
         if (this.keys.left?.isDown)  { nx -= vel; ddx -= 1; }
         if (this.keys.right?.isDown) { nx += vel; ddx += 1; }
@@ -808,11 +945,12 @@ export default class MainScene extends Phaser.Scene {
         nx = Phaser.Math.Clamp(nx, 22, 938);
         ny = Phaser.Math.Clamp(ny, 162, 458);
         this.charTargetX = nx; this.charTargetY = ny;
-        this.charX = Phaser.Math.Linear(this.charX, nx, 0.38);
-        this.charY = Phaser.Math.Linear(this.charY, ny, 0.38);
-        this._setCharPos(this.charX, this.charY);
+        // Runner sees instant movement — no network lag on their own input
+        this.charX = nx; this.charY = ny;
+        this._setCharPos(nx, ny);
         if (ddx !== 0 || ddy !== 0) { const m = Math.sqrt(ddx ** 2 + ddy ** 2); this._drawCharArrow({ x: ddx / m, y: ddy / m }); }
-        if (time - this.lastSentAt > 50 && (ddx !== 0 || ddy !== 0)) {
+        // Throttle network send — every 33ms when moving for snappier server sync
+        if (time - this.lastSentAt > 33 && (ddx !== 0 || ddy !== 0)) {
           this.lastSentAt = time;
           this.socket?.emit("player_move", { roomCode: this.roomCode, x: nx, y: ny });
         }

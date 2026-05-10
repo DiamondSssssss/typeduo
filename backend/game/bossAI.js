@@ -70,11 +70,14 @@ exports.applyAttack = (io, room, bossConfig, attackType, now) => {
   b.attackType    = attackType;
   b.lastFireAt    = now;
   b.circleFired   = false;
-  b.hellSpiralAt  = 0;
-  b.hellRainAt    = 0;
+  b.hellSpiralAt    = 0;
+  b.hellRainAt      = 0;
   b.tempestSweepAt  = 0;
   b.tempestRainAt   = 0;
   b.tempestChainAt  = 0;
+  b.wildfireSpreadAt = 0;
+  b.wildfireRainAt   = 0;
+  b.avalancheFromLeft = false;
 
   if (bossConfig.columnAttack?.type === attackType) {
     b.columnState   = null;
@@ -115,7 +118,9 @@ exports.tickColumnAttack = (io, room, bossConfig, now) => {
 
   if (b.columnState === null) {
     b.columnState   = "warning";
-    b.columnX       = colCfg.targetMode === "char" ? room.game.character.x : b.x;
+    b.columnX = colCfg.targetMode === "char"   ? room.game.character.x
+              : colCfg.targetMode === "random" ? (BOSS_X_MIN + Math.random() * (BOSS_X_MAX - BOSS_X_MIN))
+              : b.x;
     b.columnStateAt = now;
     b.nextMoveAt    = now + colCfg.warnMs + colCfg.activeMs + 800; // hold still
     b.targetX       = b.x;

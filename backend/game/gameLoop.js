@@ -99,6 +99,7 @@ const tick = (io, room, bossConfig) => {
   // Move projectiles + collision
   const char = g.character;
   g.projectiles = g.projectiles.filter((p) => {
+    if (p.gravity) p.vy += p.gravity * deltaSeconds; // arc gravity
     p.x += p.vx * deltaSeconds;
     p.y += p.vy * deltaSeconds;
     const dx = char.x - p.x;

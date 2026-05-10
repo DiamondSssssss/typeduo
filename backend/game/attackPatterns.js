@@ -307,6 +307,196 @@ exports.fireVoidCollapse = (game, boss, char, phase, speed, cfg, now) => {
   }
 };
 
+// ── Inferno patterns ──────────────────────────────────────────────────────────
+
+/** Arcing projectiles with gravity — aim slightly above target so they curve down. */
+exports.fireEmberArc = (game, boss, char, phase, speed, cfg, now) => {
+  if (now - boss.lastFireAt < cfg.fireIntervals.ember_arc[phase]) return false;
+  boss.lastFireAt = now;
+  const count = 1 + phase;
+  const baseA = Math.atan2(char.y - boss.y, char.x - boss.x) - 0.22; // launch slightly upward
+  for (let i = 0; i < count; i++) {
+    const a = baseA + (i - (count - 1) / 2) * 0.20;
+    spawnProjectile(game, {
+      x: boss.x, y: boss.y,
+      vx: Math.cos(a) * speed * 1.05,
+      vy: Math.sin(a) * speed * 0.68,  // start more horizontal
+      type: "ember_arc",
+      gravity: 290,  // px/s², simulates arc
+    });
+  }
+  return true;
+};
+
+/** Slow heavy drops from random positions — wide, hard to fully dodge. */
+exports.fireMoltenRain = (game, boss, char, phase, speed, cfg, now) => {
+  if (now - boss.lastFireAt < cfg.fireIntervals.molten_rain[phase]) return false;
+  boss.lastFireAt = now;
+  const drops = [2, 3, 5][phase];
+  for (let i = 0; i < drops; i++) {
+    const rx = Math.max(60, Math.min(900, 100 + Math.random() * 760));
+    spawnProjectile(game, {
+      x: rx, y: 25,
+      vx: (Math.random() - 0.5) * 38,
+      vy: speed * 0.78,  // slower, heavier feel
+      type: "molten_rain",
+    });
+  }
+  return true;
+};
+
+/** Combo: rapid aimed shots + spread bursts + random molten drops. */
+exports.fireWildfire = (game, boss, char, phase, speed, cfg, now) => {
+  let fired = false;
+  if (now - boss.lastFireAt >= cfg.fireIntervals.wildfire_normal[phase]) {
+    boss.lastFireAt = now;
+    spawnProjectile(game, aimAtChar(boss, char, speed, "aimed"));
+    if (Math.random() < 0.5) spawnProjectile(game, aimAtChar(boss, char, speed * 0.82, "aimed"));
+    fired = true;
+  }
+  if (!boss.wildfireSpreadAt) boss.wildfireSpreadAt = now;
+  if (now - boss.wildfireSpreadAt >= cfg.fireIntervals.wildfire_spread[phase]) {
+    boss.wildfireSpreadAt = now;
+    const sc = cfg.spreadConfig || { counts: [4, 6, 8], halfSpread: [0.35, 0.5, 0.65] };
+    const count = sc.counts[phase];
+    const half  = sc.halfSpread[phase];
+    const aimA  = Math.atan2(char.y - boss.y, char.x - boss.x);
+    for (let i = 0; i < count; i++) {
+      const a = aimA - half + (2 * half * i / Math.max(1, count - 1));
+      spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, type: "ember_arc", gravity: 290 });
+    }
+    fired = true;
+  }
+  if (!boss.wildfireRainAt) boss.wildfireRainAt = now;
+  if (now - boss.wildfireRainAt >= cfg.fireIntervals.wildfire_rain[phase]) {
+    boss.wildfireRainAt = now;
+    for (let i = 0; i < 2 + phase; i++) {
+      const rx = Math.max(60, Math.min(900, 100 + Math.random() * 760));
+      spawnProjectile(game, { x: rx, y: 25, vx: 0, vy: speed * 0.82, type: "molten_rain" });
+    }
+    fired = true;
+  }
+  return fired;
+};
+
+// ── Glacier patterns ──────────────────────────────────────────────────────────
+
+/** Tight burst of fast ice shards aimed at character. */
+exports.fireIceShard = (game, boss, char, phase, speed, cfg, now) => {
+  if (now - boss.lastFireAt < cfg.fireIntervals.ice_shard[phase]) return false;
+  boss.lastFireAt = now;
+  const sc    = cfg.spreadConfig || { counts: [3, 5, 7], halfSpread: [0.20, 0.30, 0.42] };
+  const count = sc.counts[phase];
+  const half  = sc.halfSpread[phase];
+  const aimA  = Math.atan2(char.y - boss.y, char.x - boss.x);
+  for (let i = 0; i < count; i++) {
+    const a = aimA - half + (2 * half * i / Math.max(1, count - 1));
+    spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * speed * 1.25, vy: Math.sin(a) * speed * 1.25, type: "ice_shard" });
+  }
+  return true;
+};
+
+/** Dense slow rain covering the full arena width — tick-by-tick, relentless. */
+exports.fireBlizzard = (game, boss, char, phase, speed, cfg, now) => {
+  if (now - boss.lastFireAt < cfg.fireIntervals.blizzard[phase]) return false;
+  boss.lastFireAt = now;
+  const rx = Math.max(60, Math.min(900, 60 + Math.random() * 840));
+  spawnProjectile(game, {
+    x: rx, y: 22,
+    vx: (Math.random() - 0.5) * 28,
+    vy: speed * 0.48 + Math.random() * speed * 0.22,
+    type: "blizzard",
+  });
+  return true;
+};
+
+/** Very slow expanding ring — fire once, leave gaps to navigate through. */
+exports.fireFrostRing = (game, boss, char, phase, speed, cfg, now) => {
+  if (boss.circleFired) return false;
+  boss.circleFired = true;
+  const count = [12, 16, 20][phase];
+  const ringSpeed = speed * 0.32; // very slow — lingers on screen
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * ringSpeed, vy: Math.sin(a) * ringSpeed, type: "frost_ring" });
+  }
+  // Phase 2 adds an inner slower ring — even harder to thread
+  if (phase === 2) {
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + Math.PI / count;
+      spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * ringSpeed * 0.55, vy: Math.sin(a) * ringSpeed * 0.55, type: "frost_ring" });
+    }
+  }
+  return true;
+};
+
+/** Horizontal wave of ice shards from alternating sides — avalanche sweep. */
+exports.fireAvalanche = (game, boss, char, phase, speed, cfg, now) => {
+  if (now - boss.lastFireAt < cfg.fireIntervals.avalanche[phase]) return false;
+  boss.lastFireAt = now;
+  const sc = cfg.sweepConfig || { counts: [9, 12, 16], gap: 30, speedMult: 0.80 };
+  const count     = sc.counts[phase];
+  // Alternate side each salvo
+  boss.avalancheFromLeft = !boss.avalancheFromLeft;
+  const fromLeft  = boss.avalancheFromLeft;
+  const sweepY    = 170 + Math.random() * 200;
+  const vx        = (fromLeft ? 1 : -1) * speed * sc.speedMult;
+  for (let i = 0; i < count; i++) {
+    spawnProjectile(game, {
+      x: fromLeft ? -10 : 970,
+      y: sweepY + (i - count / 2) * sc.gap,
+      vx, vy: 0,
+      type: "ice_shard",
+    });
+  }
+  return true;
+};
+
+// ── Inferno special: Eruption Burst ───────────────────────────────────────────
+/** 3 simultaneous fire pillars at random x + wide arc of ember bursts. */
+exports.fireEruptionBurst = (game, boss, char, phase, speed, cfg, now) => {
+  const positions = [
+    Math.max(80, Math.min(880, 160 + Math.random() * 200)),
+    Math.max(80, Math.min(880, 380 + Math.random() * 120)),
+    Math.max(80, Math.min(880, 600 + Math.random() * 200)),
+  ];
+  positions.forEach((rx) => {
+    for (let i = 0; i < 6; i++) {
+      spawnProjectile(game, { x: rx + (Math.random() * 50 - 25), y: 25, vx: (Math.random() - 0.5) * 30, vy: speed * 0.88, type: "molten_rain" });
+    }
+  });
+  // Wide downward arc of ember arcs with gravity
+  const count = 14;
+  for (let i = 0; i < count; i++) {
+    const a = Math.PI / 8 + (i / (count - 1)) * (Math.PI * 0.75);
+    spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed * 0.65, type: "ember_arc", gravity: 290 });
+  }
+};
+
+// ── Glacier special: Permafrost ───────────────────────────────────────────────
+/** Ice from all 4 corners converging + double frost ring burst. */
+exports.firePermafrost = (game, boss, char, phase, speed, cfg, now) => {
+  const corners = [{ x: 0, y: 0 }, { x: 960, y: 0 }, { x: 0, y: 540 }, { x: 960, y: 540 }];
+  corners.forEach((c) => {
+    for (let i = 0; i < 6; i++) {
+      const tx = char.x + (Math.random() - 0.5) * 120;
+      const ty = char.y + (Math.random() - 0.5) * 120;
+      const dx = tx - c.x, dy = ty - c.y;
+      const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+      spawnProjectile(game, { x: c.x, y: c.y, vx: (dx / dist) * speed * 0.72, vy: (dy / dist) * speed * 0.72, type: "ice_shard" });
+    }
+  });
+  // Double frost ring from boss
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * speed * 0.30, vy: Math.sin(a) * speed * 0.30, type: "frost_ring" });
+  }
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2 + Math.PI / 20;
+    spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * speed * 0.18, vy: Math.sin(a) * speed * 0.18, type: "frost_ring" });
+  }
+};
+
 // ── Dispatch map ──────────────────────────────────────────────────────────────
 exports.PATTERN_MAP = {
   normal:          exports.fireNormal,
@@ -324,10 +514,21 @@ exports.PATTERN_MAP = {
   eruption:        exports.fireEruption,
   dark_pulse:      exports.fireDarkPulse,
   singularity:     exports.fireSingularity,
+  // Inferno
+  ember_arc:   exports.fireEmberArc,
+  molten_rain: exports.fireMoltenRain,
+  wildfire:    exports.fireWildfire,
+  // Glacier
+  ice_shard:   exports.fireIceShard,
+  blizzard:    exports.fireBlizzard,
+  frost_ring:  exports.fireFrostRing,
+  avalanche:   exports.fireAvalanche,
 };
 
 exports.SPECIAL_MAP = {
-  third_eye:    exports.fireThirdEye,
-  thunderstrike: exports.fireThunderstrike,
-  void_collapse: exports.fireVoidCollapse,
+  third_eye:      exports.fireThirdEye,
+  thunderstrike:  exports.fireThunderstrike,
+  void_collapse:  exports.fireVoidCollapse,
+  eruption_burst: exports.fireEruptionBurst,
+  permafrost:     exports.firePermafrost,
 };

@@ -1,11 +1,15 @@
 const watcher     = require("./watcher");
 const stormDrake  = require("./stormDrake");
 const voidCrawler = require("./voidCrawler");
+const inferno     = require("./inferno");
+const glacier     = require("./glacier");
 
 const BOSSES = {
   [watcher.id]:     watcher,
   [stormDrake.id]:  stormDrake,
   [voidCrawler.id]: voidCrawler,
+  [inferno.id]:     inferno,
+  [glacier.id]:     glacier,
 };
 
 const getBoss = (id) => BOSSES[id] || watcher;

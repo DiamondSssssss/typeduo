@@ -51,6 +51,38 @@ export const BOSS_VISUALS = {
     auraColors: [0xa855f7, 0x7c3aed, 0xff3d9f],
     windUpColor: 0xd946ef,
   },
+
+  inferno: {
+    id:    "inferno",
+    label: "INFERNO",
+    shape: "flame",        // amorphous molten blob
+    size:  { body: 58, border: 76, aura: 94 },
+    phases: [
+      { body: 0x7a1a00, outer: 0xcc3300, border: 0xff6600, eye: 0xffdd00, core: 0xff9900 },
+      { body: 0x8c2200, outer: 0xe03800, border: 0xff8c00, eye: 0xfff176, core: 0xffb300 },
+      { body: 0x4a0800, outer: 0xaa1800, border: 0xff3300, eye: 0xffffff, core: 0xff8800 },
+    ],
+    roar:  { body: 0xcc3300, outer: 0xff5500, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun:  { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4,  core: 0x4ef0d4  },
+    auraColors: [0xff6600, 0xff8c00, 0xff3300],
+    windUpColor: 0xffdd00,
+  },
+
+  glacier: {
+    id:    "glacier",
+    label: "GLACIER",
+    shape: "crystal",      // sharp octagonal crystal
+    size:  { body: 62, border: 80, aura: 96 },
+    phases: [
+      { body: 0x0c2d4a, outer: 0x155e75, border: 0x7dd3fc, eye: 0xe0f2fe, core: 0x38bdf8 },
+      { body: 0x0a2538, outer: 0x0e4d6e, border: 0xbae6fd, eye: 0xffffff, core: 0x7dd3fc },
+      { body: 0x060e1a, outer: 0x0c2b42, border: 0xe0f2fe, eye: 0xffffff, core: 0xa5f3fc },
+    ],
+    roar:  { body: 0x0e3a5c, outer: 0x1e6a9e, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun:  { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4,  core: 0x4ef0d4  },
+    auraColors: [0x7dd3fc, 0xbae6fd, 0xe0f2fe],
+    windUpColor: 0xa5f3fc,
+  },
 };
 
 /** Projectile render hints per type. */
@@ -70,6 +102,17 @@ export const PROJ_VISUALS = {
   dark_pulse:     { color: 0x8b5cf6, glow: 0xf5f3ff, r: 8 },
   singularity:    { color: 0xd946ef, glow: 0xfae8ff, r: 10, homing: true },
   hell:           { color: 0xff4444, glow: 0xffcccc, r: 7 },
+  // Inferno
+  ember_arc:      { color: 0xff7700, glow: 0xffcc66, r: 9 },
+  molten_rain:    { color: 0xff4400, glow: 0xff9966, r: 10 },
+  wildfire:       { color: 0xff6600, glow: 0xffcc00, r: 8 },
+  fire_pillar:    { color: 0xff6600, glow: 0xffcc00, r: 8 },
+  // Glacier
+  ice_shard:      { color: 0x7dd3fc, glow: 0xe0f2fe, r: 8 },
+  blizzard:       { color: 0xbae6fd, glow: 0xf0f9ff, r: 5 },
+  frost_ring:     { color: 0xa5f3fc, glow: 0xecfeff, r: 7 },
+  freeze_ray:     { color: 0x38bdf8, glow: 0xe0f2fe, r: 7 },
+  avalanche:      { color: 0x7dd3fc, glow: 0xe0f2fe, r: 8 },
 };
 
 /** Human-readable attack labels for the HUD. */
@@ -92,6 +135,19 @@ export const ATTACK_LABELS = {
   eruption:        "💥 Eruption",
   dark_pulse:      "🌑 Dark Pulse",
   singularity:     "🕳 Singularity",
+  // Inferno
+  ember_arc:       "🔥 Ember Arc",
+  molten_rain:     "🌋 Molten Rain",
+  wildfire:        "🔥 Wildfire",
+  fire_pillar:     "🔥 Fire Pillar",
+  eruption_burst:  "🌋 Eruption Burst",
+  // Glacier
+  ice_shard:       "❄ Ice Shard",
+  blizzard:        "🌨 Blizzard",
+  frost_ring:      "❄ Frost Ring",
+  freeze_ray:      "🧊 Freeze Ray",
+  avalanche:       "🏔 Avalanche",
+  permafrost:      "❄ Permafrost",
 };
 
 /** Lobby-facing boss list (mirrors backend). */
@@ -99,4 +155,6 @@ export const BOSS_LIST = [
   { id: "watcher",     name: "The Watcher",  tagline: "An ancient arcane entity that sees all.",      difficulty: 2, color: "#ff6b9d" },
   { id: "storm_drake", name: "Storm Drake",  tagline: "Rider of storms, herald of lightning.",         difficulty: 2, color: "#38bdf8" },
   { id: "void_crawler",name: "Void Crawler", tagline: "From the space between stars.",                 difficulty: 3, color: "#a855f7" },
+  { id: "inferno",     name: "Inferno",      tagline: "The living pyre. Heat incarnate.",              difficulty: 2, color: "#ff6600" },
+  { id: "glacier",     name: "Glacier",      tagline: "Cold, patient, inevitable.",                    difficulty: 3, color: "#7dd3fc" },
 ];
