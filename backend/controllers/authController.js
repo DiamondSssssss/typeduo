@@ -28,7 +28,6 @@ const register = async (req, res) => {
     });
 
     return res.status(201).json({
-      token: null,
       user: {
         id: user._id,
         username: user.username,
@@ -62,7 +61,6 @@ const login = async (req, res) => {
     }
 
     return res.status(200).json({
-      token: null,
       user: {
         id: user._id,
         username: user.username,

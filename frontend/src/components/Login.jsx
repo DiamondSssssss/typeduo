@@ -19,14 +19,19 @@ function Login({ onAuthSuccess }) {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const switchMode = (next) => {
+    if (mode === next) return;
+    setMode(next);
+    setError("");
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const endpoint =
-        mode === "register" ? "/api/auth/register" : "/api/auth/login";
+      const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login";
       const payload =
         mode === "register"
           ? form
@@ -52,11 +57,6 @@ function Login({ onAuthSuccess }) {
         throw new Error(data.message || `Authentication failed (${response.status}).`);
       }
 
-      if (typeof data.token === "string" && data.token.trim() !== "") {
-        localStorage.setItem("typeduo_token", data.token);
-      } else {
-        localStorage.removeItem("typeduo_token");
-      }
       onAuthSuccess(data.user);
     } catch (err) {
       setError(err.message);
@@ -67,12 +67,34 @@ function Login({ onAuthSuccess }) {
 
   return (
     <div className="card">
-      <h2 className="title">{mode === "login" ? "Welcome to TypeDuo" : "Create account"}</h2>
+      <div className="auth-toggle" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          data-active={mode === "login"}
+          onClick={() => switchMode("login")}
+        >
+          Sign in
+        </button>
+        <button
+          type="button"
+          role="tab"
+          data-active={mode === "register"}
+          onClick={() => switchMode("register")}
+        >
+          Create account
+        </button>
+      </div>
+
+      <h2 className="title">
+        {mode === "login" ? "Welcome back" : "Join the battle"}
+      </h2>
       <p className="subtitle">
         {mode === "login"
           ? "Sign in to continue your typing boss battle."
-          : "Join now and play cooperative typing battles."}
+          : "Create an account and challenge a friend to type-and-dodge together."}
       </p>
+
       <form onSubmit={handleSubmit} className="form">
         {mode === "register" && (
           <input
@@ -83,6 +105,7 @@ function Login({ onAuthSuccess }) {
             onChange={handleChange}
             minLength={3}
             required
+            autoComplete="username"
           />
         )}
         <input
@@ -93,6 +116,7 @@ function Login({ onAuthSuccess }) {
           value={form.email}
           onChange={handleChange}
           required
+          autoComplete="email"
         />
         <input
           className="input"
@@ -103,26 +127,14 @@ function Login({ onAuthSuccess }) {
           onChange={handleChange}
           minLength={6}
           required
+          autoComplete={mode === "login" ? "current-password" : "new-password"}
         />
         <button className="btn btn-primary" type="submit" disabled={loading}>
-          {loading ? "Please wait..." : mode === "login" ? "Login" : "Register"}
+          {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
         </button>
       </form>
 
       {error ? <p className="error-text">{error}</p> : null}
-
-      <button
-        className="btn btn-ghost"
-        type="button"
-        onClick={() => {
-          setMode((prev) => (prev === "login" ? "register" : "login"));
-          setError("");
-        }}
-      >
-        {mode === "login"
-          ? "Need an account? Register"
-          : "Already have an account? Login"}
-      </button>
     </div>
   );
 }
