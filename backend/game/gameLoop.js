@@ -100,6 +100,12 @@ const tick = (io, room, bossConfig) => {
     tickBossAttacks(io, room, bossConfig, phase, now, deltaMs);
   }
 
+  // Homing projectile steering
+  steerHomingProjectiles(g, bossConfig, deltaSeconds);
+
+  // Move projectiles + collision
+  const char = g.character;
+
   // Weapon pickup check
   if (g.weapon && !g.weapon.held) {
     const wdx = char.x - g.weapon.x;
@@ -110,12 +116,6 @@ const tick = (io, room, bossConfig) => {
       io.to(room.code).emit("weapon_picked", { x: g.weapon.x, y: g.weapon.y });
     }
   }
-
-  // Homing projectile steering
-  steerHomingProjectiles(g, bossConfig, deltaSeconds);
-
-  // Move projectiles + collision
-  const char = g.character;
   g.projectiles = g.projectiles.filter((p) => {
     if (p.gravity) p.vy += p.gravity * deltaSeconds; // arc gravity
     p.x += p.vx * deltaSeconds;
