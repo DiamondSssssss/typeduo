@@ -32,22 +32,23 @@ registerSocketHandlers(io);
 
 const PORT = process.env.PORT || 5000;
 
-const bootstrap = async () => {
-  try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error("MONGODB_URI is missing in environment variables.");
-    }
+// Start listening immediately so Socket.IO and the game are always available.
+// MongoDB is only required for auth routes (/api/auth/*); game logic is stateless.
+server.listen(PORT, () => {
+  console.log(`Backend running on port ${PORT}`);
+});
 
+// Connect to MongoDB in the background — auth routes degrade gracefully if unavailable.
+(async () => {
+  if (!process.env.MONGODB_URI) {
+    console.warn("MONGODB_URI not set — auth routes will be unavailable.");
+    return;
+  }
+  try {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log("Connected to MongoDB");
-
-    server.listen(PORT, () => {
-      console.log(`Backend running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error("Failed to start server:", error.message);
-    process.exit(1);
+  } catch (err) {
+    console.error("MongoDB connection failed:", err.message);
+    // Do NOT exit — game rooms still function without MongoDB.
   }
-};
-
-bootstrap();
+})();
