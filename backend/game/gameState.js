@@ -47,6 +47,9 @@ const emitGameState = (io, room, bossConfig) => {
     currentWordPhase: g.currentWordPhase,
     typedProgress:    g.typedProgress,
     streak:           g.streak,
+    streakMult:       g.streakMult      || 1,
+    streakMultWords:  g.streakMultWords  || 0,
+    furyActive:       g.furyActive      || false,
     character:        g.character,
     boss:             buildBossStateForClient({ ...g.boss, _bossHP: g.bossHP }, cfg),
     projectiles:      g.projectiles,
@@ -78,20 +81,29 @@ const createInitialGameState = (bossConfig) => {
       targetX: 480,
       targetY: bossConfig.yBase || 100,
       nextMoveAt: now + 2000,
-      attackType:    bossConfig.attackQueues[0][0],
-      attackTimer:   bossConfig.attackDurations[bossConfig.attackQueues[0][0]] || 5000,
+      attackType:     bossConfig.attackQueues[0][0],
+      attackTimer:    bossConfig.attackDurations[bossConfig.attackQueues[0][0]] || 5000,
       attackQueueIdx: 0,
-      lastFireAt:    now,
-      spiralAngle:   0,
-      circleFired:   false,
-      hellSpiralAt:  0,
-      hellRainAt:    0,
+      lastFireAt:     now,
+      spiralAngle:    0,
+      circleFired:    false,
+      // Watcher / generic
+      hellSpiralAt:   0,
+      hellRainAt:     0,
+      // Storm Drake
       tempestSweepAt: 0,
       tempestRainAt:  0,
       tempestChainAt: 0,
+      // Inferno
+      wildfireSpreadAt: 0,
+      wildfireRainAt:   0,
+      // Glacier
+      avalancheFromLeft: false,
+      // Wind-up
       windingUp:     false,
       windUpAttack:  null,
       windUpUntil:   0,
+      // Column attack
       columnState:   null,
       columnX:       480,
       columnStateAt: 0,
@@ -100,6 +112,10 @@ const createInitialGameState = (bossConfig) => {
     nextProjectileId: 1,
     startedAt:        now,
     lastTickAt:       now,
+    // Streak bonus system
+    streakMult:      1,   // damage multiplier for the next streakMultWords words
+    streakMultWords: 0,   // how many words still carry the bonus
+    furyActive:      false,
   };
 };
 

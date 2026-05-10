@@ -1,13 +1,14 @@
 /** Append a projectile to the projectiles array. */
 const spawnProjectile = (game, props) => {
   game.projectiles.push({
-    id: `p${game.nextProjectileId++}`,
-    x: props.x,
-    y: props.y,
-    vx: props.vx || 0,
-    vy: props.vy || 0,
-    type: props.type || "normal",
-    homing: props.homing || false,
+    id:      `p${game.nextProjectileId++}`,
+    x:       props.x,
+    y:       props.y,
+    vx:      props.vx      || 0,
+    vy:      props.vy      || 0,
+    type:    props.type    || "normal",
+    homing:  props.homing  || false,
+    gravity: props.gravity || 0,  // px/s² — used for arc trajectories (ember_arc)
   });
 };
 

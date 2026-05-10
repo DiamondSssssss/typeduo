@@ -11,7 +11,7 @@ module.exports = {
   name:       "Glacier",
   tagline:    "Cold, patient, inevitable.",
   difficulty: 3,
-  maxHP:      320,
+  maxHP:      760,
 
   moveSpeed: [58,  88, 130],  // slow and deliberate
   yBase:     108,

@@ -70,20 +70,35 @@ exports.applyAttack = (io, room, bossConfig, attackType, now) => {
   b.attackType    = attackType;
   b.lastFireAt    = now;
   b.circleFired   = false;
-  b.hellSpiralAt    = 0;
-  b.hellRainAt      = 0;
-  b.tempestSweepAt  = 0;
-  b.tempestRainAt   = 0;
-  b.tempestChainAt  = 0;
+
+  // Reset all per-attack sub-timers
+  b.hellSpiralAt     = 0;
+  b.hellRainAt       = 0;
+  b.tempestSweepAt   = 0;
+  b.tempestRainAt    = 0;
+  b.tempestChainAt   = 0;
   b.wildfireSpreadAt = 0;
   b.wildfireRainAt   = 0;
-  b.avalancheFromLeft = false;
+  b.avalancheFromLeft = Math.random() < 0.5; // randomise starting side for variety
 
+  // ── Always reset column state ─────────────────────────────────────────────
+  // If we're transitioning AWAY from a column attack and columnState is still
+  // "warning" or "active", moveBoss would see b.columnState === "warning" and
+  // keep extending b.nextMoveAt by 1500ms every tick — permanent freeze.
+  // Resetting here is safe: tickColumnAttack will re-initialise in the same
+  // tick if the new attackType IS the column attack type.
+  b.columnState   = null;
+  b.columnStateAt = 0;
   if (bossConfig.columnAttack?.type === attackType) {
-    b.columnState   = null;
-    b.columnX       = 480;
-    b.columnStateAt = 0;
+    b.columnX = 480; // tickColumnAttack will override with the real target
   }
+
+  // ── Unfreeze movement ─────────────────────────────────────────────────────
+  // Column attacks set b.targetX = b.x and b.nextMoveAt = far future so the
+  // boss holds still.  Reset nextMoveAt so moveBoss picks a new destination on
+  // the very next tick.  tickColumnAttack will re-lock movement in the same
+  // tick if the new attack is a column attack, so this is always safe.
+  b.nextMoveAt = 0;
 
   io.to(room.code).emit("boss_attack_changed", { attackType });
 };

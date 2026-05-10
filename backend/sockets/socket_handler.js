@@ -2,7 +2,10 @@
  * Socket handler — thin wiring layer.
  * All game logic lives in backend/game/*.
  */
-const { MAX_PLAYERS_PER_ROOM, DEFAULT_BOSS_ID, HEAL_STREAK_THRESHOLD, HEAL_AMOUNT, STUN_DAMAGE_MULTIPLIER } = require("../game/constants");
+const {
+  MAX_PLAYERS_PER_ROOM, DEFAULT_BOSS_ID,
+  STUN_DAMAGE_MULTIPLIER, STREAK_TIERS, FURY_REFRESH_EVERY, FURY_REFRESH_HEAL,
+} = require("../game/constants");
 const { getDifficultyWord, getDifficultyPhase, computeWordDamage } = require("../game/words");
 const { getBoss, BOSS_LIST } = require("../game/bosses");
 const { emitGameState, toPublicRoomState, playerStateForClient, createInitialGameState } = require("../game/gameState");
@@ -172,49 +175,98 @@ const registerSocketHandlers = (io) => {
       if (input === expected) {
         g.typedProgress += 1;
       } else {
-        g.typedProgress = input === g.currentWord[0] ? 1 : 0;
-        g.streak = 0;
+        // Typo: reset streak and lose any active bonus
+        g.typedProgress    = input === g.currentWord[0] ? 1 : 0;
+        g.streak           = 0;
+        g.streakMult       = 1;
+        g.streakMultWords  = 0;
+        g.furyActive       = false;
         io.to(code).emit("typo", { socketId: player.socketId, char: input, expected });
       }
 
       if (g.typedProgress >= g.currentWord.length) {
-        const bossConfig  = getBoss(room.selectedBoss);
+        const bossConfig    = getBoss(room.selectedBoss);
         const completedWord = g.currentWord;
-        const base     = computeWordDamage(completedWord);
-        const mult     = g.bossState === "stunned" ? STUN_DAMAGE_MULTIPLIER : 1;
-        const damage   = base * mult;
-        const prevHP   = g.bossHP;
-        g.bossHP       = Math.max(0, g.bossHP - damage);
+        const base          = computeWordDamage(completedWord);
+
+        // ── Damage = base × stun × streak bonus ──────────────────────────────
+        const stunMult   = g.bossState === "stunned" ? STUN_DAMAGE_MULTIPLIER : 1;
+        const streakMult = g.streakMultWords > 0 ? g.streakMult : 1;
+        const damage     = Math.round(base * stunMult * streakMult);
+
+        // Consume one bonus word
+        if (g.streakMultWords > 0) {
+          g.streakMultWords--;
+          if (g.streakMultWords === 0) {
+            g.streakMult = 1;
+            // Fury visual stays on while streak >= 10 (next tier or refresh)
+            if (g.streak < 10) g.furyActive = false;
+          }
+        }
+
+        const prevHP = g.bossHP;
+        g.bossHP     = Math.max(0, g.bossHP - damage);
         player.wordsTyped++;
         player.damageDealt += damage;
         g.totalWordsTyped++;
         g.streak++;
 
-        let healed = 0;
-        if (g.streak % HEAL_STREAK_THRESHOLD === 0) {
-          const before = g.sharedHP;
-          g.sharedHP   = Math.min(g.sharedMaxHP, g.sharedHP + HEAL_AMOUNT);
-          healed       = g.sharedHP - before;
+        // ── Check streak milestones ───────────────────────────────────────────
+        let healed      = 0;
+        let streakEvent = null;
+
+        const tier = STREAK_TIERS.find((t) => t.at === g.streak);
+        if (tier) {
+          healed      = tier.heal;
+          streakEvent = tier.event;
+          if (tier.mult > 1) {
+            g.streakMult      = tier.mult;
+            g.streakMultWords = tier.multWords;
+          }
+          if (tier.event === "fury") g.furyActive = true;
+        } else if (g.streak > 10 && (g.streak - 10) % FURY_REFRESH_EVERY === 0) {
+          // Fury refresh — keeps multiplier rolling every N words after 10
+          healed            = FURY_REFRESH_HEAL;
+          streakEvent       = "fury";
+          g.streakMult      = 2.0;
+          g.streakMultWords = 3;
+          g.furyActive      = true;
         }
+
+        if (healed > 0) g.sharedHP = Math.min(g.sharedMaxHP, g.sharedHP + healed);
 
         g.currentWord      = getDifficultyWord(g.bossHP, g.bossMaxHP);
         g.currentWordPhase = getDifficultyPhase(g.bossHP, g.bossMaxHP);
         g.typedProgress    = 0;
 
         io.to(code).emit("word_completed", {
-          socketId: player.socketId, by: player.username,
-          word: completedWord, damage, baseDamage: base,
-          stunBonus: mult > 1, bossHP: g.bossHP,
-          streak: g.streak, healed, wordsTyped: player.wordsTyped,
+          socketId:   player.socketId,
+          by:         player.username,
+          word:       completedWord,
+          damage,
+          baseDamage: base,
+          appliedMult: Math.round(stunMult * streakMult * 10) / 10,
+          stunBonus:   stunMult > 1,
+          streakBonus: streakMult > 1,
+          bossHP:      g.bossHP,
+          streak:      g.streak,
+          healed,
+          streakEvent,
+          streakMult:      g.streakMult,
+          streakMultWords: g.streakMultWords,
+          furyActive:      g.furyActive,
+          wordsTyped:      player.wordsTyped,
         });
 
-        // Roar check (maybeTriggerRoar is in gameLoop — call inline)
-        const { SWAP_THRESHOLDS } = require("../game/constants");
+        // ── Roar check ────────────────────────────────────────────────────────
+        const { SWAP_THRESHOLDS, ROAR_DURATION_MS } = require("../game/constants");
         const threshold = SWAP_THRESHOLDS.find(
-          (t) => !g.triggeredSwapThresholds.includes(t) && prevHP > (g.bossMaxHP * t / 100) && g.bossHP <= (g.bossMaxHP * t / 100)
+          (t) =>
+            !g.triggeredSwapThresholds.includes(t) &&
+            prevHP > (g.bossMaxHP * t / 100) &&
+            g.bossHP <= (g.bossMaxHP * t / 100)
         );
         if (threshold && g.bossState !== "roar" && g.bossState !== "stunned") {
-          const { ROAR_DURATION_MS } = require("../game/constants");
           g.triggeredSwapThresholds.push(threshold);
           g.bossState   = "roar";
           g.stateEndsAt = Date.now() + ROAR_DURATION_MS;

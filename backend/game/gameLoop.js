@@ -1,13 +1,11 @@
-const { GAME_TICK_MS, HIT_RADIUS, PROJECTILE_DAMAGE, SWAP_THRESHOLDS, ROAR_DURATION_MS, STUN_DURATION_MS, COUNTDOWN_DURATION_MS } = require("./constants");
-const { getDifficultyWord, getDifficultyPhase, getPhase, computeWordDamage, HEAL_STREAK_THRESHOLD, HEAL_AMOUNT } = require("./words");
+const {
+  GAME_TICK_MS, HIT_RADIUS, PROJECTILE_DAMAGE,
+  SWAP_THRESHOLDS, ROAR_DURATION_MS, STUN_DURATION_MS, COUNTDOWN_DURATION_MS,
+} = require("./constants");
+const { getPhase } = require("./words");
 const { takeDamage } = require("./helpers");
 const { moveBoss, tickBossAttacks, steerHomingProjectiles, maybeFireSpecial } = require("./bossAI");
 const { emitGameState, toPublicRoomState } = require("./gameState");
-
-const { HEAL_STREAK_THRESHOLD: HST, HEAL_AMOUNT: HA, STUN_DAMAGE_MULTIPLIER } = (() => {
-  const C = require("./constants");
-  return { ...C };
-})();
 
 // ── Room loop registry ────────────────────────────────────────────────────────
 const loops = new Map();
@@ -49,6 +47,14 @@ const advanceBossLifecycle = (io, room, bossConfig, now) => {
     g.bossState   = "attack";
     g.stateEndsAt = 0;
     g.boss.lastFireAt = now;
+    // If a roar/stun interrupted a wind-up, discard it — the client already
+    // dismissed the wind-up bar during the roar animation.
+    if (g.boss.windingUp) {
+      g.boss.windingUp    = false;
+      g.boss.windUpAttack = null;
+      g.boss.windUpUntil  = 0;
+      io.to(room.code).emit("boss_windup_cancel");
+    }
   }
 };
 

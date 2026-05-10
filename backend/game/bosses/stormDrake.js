@@ -10,7 +10,7 @@ module.exports = {
   name:       "Storm Drake",
   tagline:    "Rider of storms, herald of lightning.",
   difficulty: 2,
-  maxHP:      280,
+  maxHP:      620,
 
   moveSpeed:   [110, 160, 220],
   yBase:       95,

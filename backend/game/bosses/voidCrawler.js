@@ -10,7 +10,7 @@ module.exports = {
   name:       "Void Crawler",
   tagline:    "From the space between stars.",
   difficulty: 3,
-  maxHP:      300,
+  maxHP:      720,
 
   moveSpeed:   [70, 100, 140],
   yBase:       105,

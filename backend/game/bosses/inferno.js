@@ -9,7 +9,7 @@ module.exports = {
   name:       "Inferno",
   tagline:    "The living pyre. Heat incarnate.",
   difficulty: 2,
-  maxHP:      280,
+  maxHP:      600,
 
   moveSpeed: [120, 175, 240],  // erratic, medium-high speed
   yBase:      85,

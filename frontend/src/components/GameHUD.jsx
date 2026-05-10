@@ -111,16 +111,48 @@ const phaseLabel = (phase) => {
   return "Phase 1";
 };
 
-const ATTACK_LABELS = {
-  normal: "Normal",
-  aimed: "Aimed",
-  spread: "⚡ Spread",
-  rain: "☔ Rain",
-  circle: "🔴 Circle",
-  spiral: "🌀 Spiral",
-  laser: "⚠ LASER",
-  hell: "💀 HELL",
-};
+import { ATTACK_LABELS } from "../game/bosses/bossConfigs";
+
+// Milestone positions in the streak bar (dot index 1-based)
+const STREAK_MILESTONES = [3, 5, 8, 10];
+
+/** Visual streak bar — 10 dots, milestone markers at 3 / 5 / 8 / 10 */
+function StreakBar({ streak, streakMult, streakMultWords, furyActive }) {
+  const capped = Math.min(streak, 10);
+  return (
+    <div className="streak-section">
+      <div className="streak-meta">
+        <span className="streak-label">STREAK</span>
+        <span className="streak-count">×{streak}</span>
+        {furyActive && <span className="fury-badge">FURY</span>}
+        {streakMult > 1 && (
+          <span className={`streak-bonus-badge${furyActive ? " streak-bonus-badge--fury" : ""}`}>
+            {streakMult.toFixed(1)}× <span className="streak-bonus-words">({streakMultWords}w left)</span>
+          </span>
+        )}
+      </div>
+      <div className="streak-bar-track" aria-label={`Streak ${streak}`}>
+        {[1,2,3,4,5,6,7,8,9,10].map((i) => {
+          const lit       = capped >= i;
+          const milestone = STREAK_MILESTONES.includes(i);
+          const isFury    = i === 10;
+          return (
+            <div
+              key={i}
+              className={[
+                "streak-dot",
+                lit       ? "streak-dot--lit"       : "",
+                milestone ? "streak-dot--milestone"  : "",
+                isFury    ? "streak-dot--fury"        : "",
+              ].filter(Boolean).join(" ")}
+              title={isFury ? "×10 Fury" : milestone ? `×${i} milestone` : ""}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function GameHUD({ gamePayload, onLeaveRoom }) {
   const players = gamePayload?.players || [];
@@ -131,6 +163,9 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
   const bossState = gamePayload?.bossState || "countdown";
   const phase = gamePayload?.currentWordPhase || "short";
   const streak = gamePayload?.streak || 0;
+  const streakMult = gamePayload?.streakMult || 1;
+  const streakMultWords = gamePayload?.streakMultWords || 0;
+  const furyActive = gamePayload?.furyActive || false;
   const countdownRemaining = gamePayload?.countdownRemaining || 0;
   const gameOver = gamePayload?.gameOver;
   const winner = gameOver?.winner;
@@ -160,9 +195,9 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
             Boss · {bossState}
           </span>
           <span className={`phase-pill phase-pill--${phase}`}>{phaseLabel(phase)}</span>
-          {streak >= 2 ? (
-            <span className="streak-pill">Streak ×{streak}</span>
-          ) : null}
+          {furyActive && (
+            <span className="fury-pill">FURY ×2</span>
+          )}
           {bossState === "attack" && !windingUp && (
             <span className="attack-badge" data-type={bossAttack} title={`Boss attack: ${bossAttack}`}>
               {ATTACK_LABELS[bossAttack] || bossAttack}
@@ -184,7 +219,14 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
 
       {bossState === "stunned" && !gameOver ? (
         <div className="callout callout--stun">
-          Boss stunned! Type now for <strong>2× damage</strong>.
+          Boss stunned! Type now for{" "}
+          <strong>
+            {furyActive
+              ? "4× damage (Stun + Fury!)"
+              : streakMult > 1
+              ? `${(2 * streakMult).toFixed(1)}× damage (Stun + ${streakMult.toFixed(1)}×!)`
+              : "2× damage"}
+          </strong>
         </div>
       ) : null}
 
@@ -211,6 +253,19 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
         <HPBar label="Team HP" hp={sharedHP} maxHP={sharedMaxHP} />
         <HPBar label="Boss HP" hp={bossHP} maxHP={bossMaxHP} variant="boss" />
       </div>
+
+      {furyActive && !gameOver ? (
+        <div className="fury-callout">
+          FURY MODE · 2× damage for the next {streakMultWords > 0 ? streakMultWords : "?"} word{streakMultWords !== 1 ? "s" : ""}
+        </div>
+      ) : null}
+
+      <StreakBar
+        streak={streak}
+        streakMult={streakMult}
+        streakMultWords={streakMultWords}
+        furyActive={furyActive}
+      />
 
       <div className="players-row">
         {orderedPlayers.map((p) => (

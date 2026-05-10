@@ -496,6 +496,66 @@ export default class MainScene extends Phaser.Scene {
     this.windUpBarBg   = this.add.graphics().setDepth(12).setVisible(false);
     this.windUpBarFill = this.add.graphics().setDepth(12).setVisible(false);
     this.windUpLabel   = this.add.text(W / 2, 108, "", { fontFamily: FONT, fontSize: "12px", color: "#fff", fontStyle: "bold", backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 8, y: 3 } }).setOrigin(0.5).setDepth(12).setVisible(false);
+
+    // Fury overlay — fullscreen red pulsing tint (depth 1 so everything renders on top)
+    this.furyOverlay = this.add.rectangle(0, 0, W, H, 0xff1a1a, 0).setOrigin(0, 0).setDepth(1).setVisible(false);
+    this.furyActive  = false;
+    this.furyTween   = null;
+  }
+
+  // ── Fury & milestone effects ──────────────────────────────────────────────
+  _updateFuryOverlay(active) {
+    if (!this.furyOverlay) return;
+    if (active && !this.furyActive) {
+      this.furyActive = true;
+      this.furyOverlay.setVisible(true).setAlpha(0);
+      if (this.furyTween) { this.furyTween.stop(); this.furyTween = null; }
+      this.furyTween = this.tweens.add({
+        targets: this.furyOverlay,
+        alpha: { from: 0, to: 0.10 },
+        duration: 700, yoyo: true, repeat: -1, ease: "sine.inOut",
+      });
+    } else if (!active && this.furyActive) {
+      this.furyActive = false;
+      if (this.furyTween) { this.furyTween.stop(); this.furyTween = null; }
+      this.tweens.add({ targets: this.furyOverlay, alpha: 0, duration: 400, onComplete: () => this.furyOverlay?.setVisible(false) });
+    }
+  }
+
+  _showFloatingText(text, color, size = 32) {
+    const cx = this.charX || W / 2;
+    const cy = (this.charY || H / 2) - 20;
+    const t  = this.add.text(cx, cy, text, {
+      fontFamily: FONT, fontSize: `${size}px`, color, fontStyle: "bold",
+      stroke: "#000000", strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(36);
+    this.tweens.add({ targets: t, y: cy - 65, alpha: 0, duration: 1300, ease: "cubic.out", onComplete: () => t?.destroy() });
+  }
+
+  _onStreakMilestone(event, healed) {
+    switch (event) {
+      case "streak3":
+        this._showFloatingText(`+${healed} HP`, "#4ade80", 26);
+        this.cameras.main.flash(120, 60, 230, 100);
+        break;
+      case "streak5":
+        this._showFloatingText(`POWER! +${healed}HP`, "#fbbf24", 34);
+        this.cameras.main.flash(180, 200, 180, 50);
+        this.cameras.main.shake(150, 0.006);
+        break;
+      case "streak8":
+        this._showFloatingText(`RAMPAGE! +${healed}HP`, "#fb923c", 40);
+        this.cameras.main.flash(260, 220, 120, 40);
+        this.cameras.main.shake(220, 0.010);
+        break;
+      case "fury":
+        this._showFloatingText("FURY!", "#ef4444", 52);
+        this.cameras.main.flash(450, 255, 60, 60);
+        this.cameras.main.shake(320, 0.014);
+        this._updateFuryOverlay(true);
+        break;
+      default: break;
+    }
   }
 
   _showWindUpBar(attackType, durationMs, color) {
@@ -784,6 +844,8 @@ export default class MainScene extends Phaser.Scene {
         this.streak = state.streak || 0;
         this.streakText?.setVisible(this.streak >= 2);
         if (this.streak >= 2) this.streakText?.setText(`STREAK ×${this.streak}`);
+        // Sync fury overlay from authoritative game state
+        this._updateFuryOverlay(state.furyActive || false);
         this.expectedWord = state.currentWord || "";
         this.localTypedProgress = state.typedProgress || 0;
         this._renderWord(this.expectedWord, this.localTypedProgress);
@@ -876,6 +938,19 @@ export default class MainScene extends Phaser.Scene {
         this._showWindUpBar(attackType, durationMs, color);
         // Boss glows during wind-up
         this.tweens.add({ targets: this.bossCont, alpha: { from: 0.7, to: 1 }, duration: 200, yoyo: true, repeat: Math.floor(durationMs / 400) });
+      },
+
+      boss_windup_cancel: () => {
+        this.bossWindingUp   = false;
+        this.bossWindUpAttack = null;
+        this._hideWindUpBar();
+        this._updateBossStateText();
+      },
+
+      word_completed: ({ streakEvent, healed, furyActive }) => {
+        if (streakEvent) this._onStreakMilestone(streakEvent, healed);
+        // Sync fury overlay (may turn off if bonus words exhausted)
+        this._updateFuryOverlay(furyActive || false);
       },
 
       column_warning: (data) => this._showColumnWarning(data),
@@ -974,6 +1049,8 @@ export default class MainScene extends Phaser.Scene {
     this.stars.forEach(s => s.sprite?.destroy?.());
     this.stars = [];
     if (this.bossPulse) { this.bossPulse.stop(); this.bossPulse = null; }
+    if (this.furyTween) { this.furyTween.stop(); this.furyTween = null; }
+    this.furyOverlay?.setVisible(false);
   }
 
   // keep Phaser happy — public alias used by scene.add & scene.start

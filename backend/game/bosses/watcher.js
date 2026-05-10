@@ -10,7 +10,7 @@ module.exports = {
   name:       "The Watcher",
   tagline:    "An ancient arcane entity that sees all.",
   difficulty: 2,
-  maxHP:      250,
+  maxHP:      550,
 
   // Movement
   moveSpeed:   [90, 135, 180],
