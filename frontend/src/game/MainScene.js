@@ -1,1051 +1,843 @@
 import Phaser from "phaser";
+import { BOSS_VISUALS, PROJ_VISUALS, ATTACK_LABELS } from "./bosses/bossConfigs";
 
-const ARENA_WIDTH = 960;
-const ARENA_HEIGHT = 540;
-const GRID_SPACING = 40;
+// ── Scene constants ───────────────────────────────────────────────────────────
+const W = 960;
+const H = 540;
+const GRID = 40;
+const FONT = '"Outfit","Inter","Segoe UI",system-ui,sans-serif';
+const MONO = '"JetBrains Mono","Fira Code","SF Mono",Consolas,monospace';
 
-const COLORS = {
-  bgDeep: 0x04060f,
-  gridLine: 0x1a2347,
-  gridGlow: 0x2a3567,
-  bossBody: 0x6b1a3a,
-  bossBodyAlt: 0xa83263,
-  bossBorder: 0xff6b9d,
-  bossBodyRoar: 0xff3366,
-  bossHpBack: 0x1f1230,
-  bossHpFill: 0xff6b6b,
-  runner: 0x4ef0d4,
-  typer: 0x6fa3ff,
-  glow: 0xffffff,
-  projectile: 0xffb454,
-  projectileGlow: 0xfff5d6,
-  panel: 0x0a1124,
-  panelStroke: 0x82aaff,
-  textTyped: "#4ef0d4",
-  textRemaining: "#e8ecff",
-  textExpected: "#fbbf24",
-  warn: "#ff6b6b",
-  heal: "#4ade80",
-  star: 0x6f8aff,
+const hexPts = (r, angle0 = 0) => {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = angle0 + (i / 6) * Math.PI * 2;
+    pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+  }
+  return pts;
 };
 
-const ROLE_COLOR = {
-  runner: COLORS.runner,
-  typer: COLORS.typer,
-};
+const diamondPts = (r) => [
+  { x: 0,        y: -r        },
+  { x: r * 0.55, y: -r * 0.38 },
+  { x: r,        y: 0         },
+  { x: r * 0.55, y:  r * 0.38 },
+  { x: 0,        y:  r        },
+  { x: -r * 0.55,y:  r * 0.38 },
+  { x: -r,       y: 0         },
+  { x: -r * 0.55,y: -r * 0.38 },
+];
 
-const TYPING_FONT = '"Outfit", "Inter", "Segoe UI", system-ui, sans-serif';
-const MONO_FONT = '"JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace';
-
+// ─────────────────────────────────────────────────────────────────────────────
 export default class MainScene extends Phaser.Scene {
   constructor() {
     super("MainScene");
-    this.playerSprites = new Map();
-    this.playerTargets = new Map();
-    this.playerFacing = new Map();
-    this.projectileSprites = new Map();
-    this.lastSentAt = 0;
-    this.roarCountdownTimer = null;
+    // character state
+    this.charX = 480; this.charY = 370;
+    this.charTargetX = 480; this.charTargetY = 370;
+    // boss state
+    this.bossX = 480; this.bossY = 100;
+    this.bossTX = 480; this.bossTY = 100;
+    this.bossAuraAngle = 0;
+    this.bossVisual = null;   // current BOSS_VISUALS entry
+    this.bossPhaseIdx = 0;
+    // input
+    this.isRunner = false;
+    this.keys = null;
     this.localTypedProgress = 0;
     this.expectedWord = "";
-    this.bossHP = 100;
-    this.bossMaxHP = 100;
-    this.lastBossHP = 100;
+    this.lastSentAt = 0;
+    // misc
     this.stars = [];
+    this.projectileSprites = new Map();
+    this.bossHP = 250; this.bossMaxHP = 250;
+    this.bossState = "countdown";
+    this.bossAttackType = "normal";
+    this.bossWindingUp = false;
+    this.bossWindUpAttack = null;
+    this.bossWindUpRemaining = 0;
     this.streak = 0;
+    this.countdownTimer = null;
+    this.roarTimer = null;
+    this.windUpBarTween = null;
   }
 
   init(data) {
-    this.socket = data.socket;
-    this.gamePayload = data.gamePayload;
+    this.socket  = data.socket;
+    this.payload = data.gamePayload;
   }
 
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
   create() {
-    this.cameras.main.setBackgroundColor(COLORS.bgDeep);
-
-    this.drawArenaBackground();
-    this.createStarfield();
-
-    this.bossContainer = this.add.container(ARENA_WIDTH / 2, 80);
-    this.bossBodyGfx = this.add.graphics();
-    this.bossBorderGfx = this.add.graphics();
-    this.bossLabel = this.add
-      .text(0, 0, "BOSS", {
-        fontFamily: TYPING_FONT,
-        fontSize: "26px",
-        color: "#ffffff",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    this.bossContainer.add([this.bossBorderGfx, this.bossBodyGfx, this.bossLabel]);
-    this.drawBoss(false);
-
-    this.bossPulse = this.tweens.add({
-      targets: this.bossContainer,
-      scale: { from: 1.0, to: 1.05 },
-      duration: 1200,
-      yoyo: true,
-      repeat: -1,
-      ease: "sine.inOut",
-    });
-
-    this.bossDamageFlash = this.add
-      .rectangle(ARENA_WIDTH / 2, 80, 240, 92, 0xffffff, 0)
-      .setDepth(11);
-
-    this.bossHpBack = this.add.graphics();
-    this.bossHpFill = this.add.graphics();
-    this.bossHpText = this.add
-      .text(ARENA_WIDTH / 2, 138, "", {
-        fontFamily: MONO_FONT,
-        fontSize: "12px",
-        color: "#cdd5ff",
-      })
-      .setOrigin(0.5);
-
-    const players = this.gamePayload?.players || [];
-    this.localSocketId = this.socket?.id;
-    this.localPlayer = players.find((p) => p.socketId === this.localSocketId);
-    this.roomCode = this.gamePayload?.roomCode;
-    this.isRunner = this.localPlayer?.role === "runner";
-    this.expectedWord = this.gamePayload?.currentWord || "";
-    this.localTypedProgress = this.gamePayload?.typedProgress || 0;
-    this.bossHP = this.gamePayload?.bossHP ?? 100;
-    this.lastBossHP = this.bossHP;
-    this.bossMaxHP = this.gamePayload?.bossMaxHP ?? 100;
-    this.bossState = this.gamePayload?.bossState || "countdown";
-    this.streak = this.gamePayload?.streak || 0;
-    this.drawBossHpBar(this.bossHP, this.bossMaxHP);
-
-    players.forEach((player) => this.addOrUpdatePlayer(player));
-
-    this.roleBadge = this.add
-      .text(
-        16,
-        16,
-        this.isRunner ? "ROLE  RUNNER · WASD" : "ROLE  TYPER · KEYBOARD",
-        {
-          fontFamily: TYPING_FONT,
-          fontSize: "14px",
-          color: this.isRunner ? COLORS.textTyped : "#cdd5ff",
-          backgroundColor: "rgba(13,18,32,0.65)",
-          padding: { x: 10, y: 6 },
-        }
-      )
-      .setOrigin(0, 0)
-      .setDepth(10);
-
-    this.bossStateText = this.add
-      .text(ARENA_WIDTH - 16, 16, "BOSS  COUNTDOWN", {
-        fontFamily: TYPING_FONT,
-        fontSize: "14px",
-        color: "#fca5a5",
-        backgroundColor: "rgba(13,18,32,0.65)",
-        padding: { x: 10, y: 6 },
-      })
-      .setOrigin(1, 0)
-      .setDepth(10);
-
-    this.streakText = this.add
-      .text(ARENA_WIDTH / 2, 168, "", {
-        fontFamily: TYPING_FONT,
-        fontSize: "14px",
-        color: COLORS.textTyped,
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5)
-      .setDepth(10)
-      .setVisible(false);
-
-    this.wordPanel = this.add.graphics();
-    this.drawWordPanel();
-    this.wordContainer = this.add.container(ARENA_WIDTH / 2, 490);
-    this.wordContainer.setDepth(20);
-    this.typedText = this.add.text(0, 0, "", {
-      fontFamily: MONO_FONT,
-      fontSize: "44px",
-      color: COLORS.textTyped,
-      fontStyle: "bold",
-    });
-    this.typedText.setOrigin(0, 0.5);
-    this.remainingText = this.add.text(0, 0, "", {
-      fontFamily: MONO_FONT,
-      fontSize: "44px",
-      color: COLORS.textRemaining,
-    });
-    this.remainingText.setOrigin(0, 0.5);
-    this.wordContainer.add([this.typedText, this.remainingText]);
-    this.renderWord(this.expectedWord, this.localTypedProgress);
-
-    this.flashLayer = this.add.text(ARENA_WIDTH / 2, 200, "", {
-      fontFamily: TYPING_FONT,
-      fontSize: "20px",
-      color: "#86efac",
-      fontStyle: "bold",
-    });
-    this.flashLayer.setOrigin(0.5).setDepth(40).setAlpha(0);
-
-    this.overlayText = this.add
-      .text(ARENA_WIDTH / 2, 270, "", {
-        fontFamily: TYPING_FONT,
-        fontSize: "72px",
-        color: "#ffffff",
-        fontStyle: "bold",
-        align: "center",
-      })
-      .setOrigin(0.5)
-      .setDepth(50)
-      .setVisible(false);
-
-    this.subOverlayText = this.add
-      .text(ARENA_WIDTH / 2, 350, "", {
-        fontFamily: TYPING_FONT,
-        fontSize: "20px",
-        color: "#cdd5ff",
-        align: "center",
-      })
-      .setOrigin(0.5)
-      .setDepth(50)
-      .setVisible(false);
-
-    this.bindKeyboard();
-    this.bindSocketHandlers();
-    this.handleInitialCountdown();
-
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
-    this.events.once(Phaser.Scenes.Events.DESTROY, this.shutdown, this);
+    this.cameras.main.setBackgroundColor(0x04060f);
+    this._drawArena();
+    this._createStars();
+    this._createBoss();
+    this._createCharacter();
+    this._createUI();
+    this._createColumnLayer();
+    this._populateFromPayload();
+    this._bindKeyboard();
+    this._bindSocket();
+    this._handleInitialCountdown();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._shutdown, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, this._shutdown, this);
   }
 
-  drawArenaBackground() {
-    const grid = this.add.graphics();
-    grid.fillStyle(COLORS.bgDeep, 1);
-    grid.fillRect(0, 0, ARENA_WIDTH, ARENA_HEIGHT);
-
-    grid.lineStyle(1, COLORS.gridLine, 0.55);
-    for (let x = 0; x <= ARENA_WIDTH; x += GRID_SPACING) {
-      grid.lineBetween(x, 0, x, ARENA_HEIGHT);
-    }
-    for (let y = 0; y <= ARENA_HEIGHT; y += GRID_SPACING) {
-      grid.lineBetween(0, y, ARENA_WIDTH, y);
-    }
-
-    const accent = this.add.graphics();
-    accent.lineStyle(2, COLORS.gridGlow, 0.45);
-    accent.strokeRect(20, 60, ARENA_WIDTH - 40, ARENA_HEIGHT - 120);
-
-    const vignette = this.add.graphics();
-    vignette.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.55, 0.55, 0, 0);
-    vignette.fillRect(0, 0, ARENA_WIDTH, 90);
+  // ── Arena ──────────────────────────────────────────────────────────────────
+  _drawArena() {
+    const g = this.add.graphics();
+    g.fillStyle(0x04060f, 1);
+    g.fillRect(0, 0, W, H);
+    g.lineStyle(1, 0x1a2347, 0.5);
+    for (let x = 0; x <= W; x += GRID) g.lineBetween(x, 0, x, H);
+    for (let y = 0; y <= H; y += GRID) g.lineBetween(0, y, W, y);
+    const b = this.add.graphics();
+    b.lineStyle(2, 0x2a3567, 0.4);
+    b.strokeRect(22, 62, W - 44, H - 124);
+    const v = this.add.graphics();
+    v.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.65, 0.65, 0, 0);
+    v.fillRect(0, 0, W, 95);
   }
 
-  createStarfield() {
-    for (let i = 0; i < 36; i += 1) {
-      const x = Math.random() * ARENA_WIDTH;
-      const y = Math.random() * ARENA_HEIGHT;
-      const radius = Math.random() < 0.7 ? 1 : 1.6;
-      const sprite = this.add.circle(x, y, radius, COLORS.star, 0.55);
-      sprite.setBlendMode(Phaser.BlendModes.ADD);
-      sprite.setDepth(1);
-      const speed = 8 + Math.random() * 18;
+  _createStars() {
+    for (let i = 0; i < 40; i++) {
+      const s = this.add.circle(Math.random() * W, Math.random() * H, Math.random() < 0.7 ? 1 : 1.7, 0x6f8aff, 0.55);
+      s.setBlendMode(Phaser.BlendModes.ADD).setDepth(1);
       const dir = Math.random() * Math.PI * 2;
-      this.stars.push({
-        sprite,
-        vx: Math.cos(dir) * speed * 0.3,
-        vy: Math.sin(dir) * speed * 0.3,
-        baseAlpha: 0.4 + Math.random() * 0.5,
-        twinklePhase: Math.random() * Math.PI * 2,
-      });
+      const spd = 6 + Math.random() * 18;
+      this.stars.push({ sprite: s, vx: Math.cos(dir) * spd * 0.28, vy: Math.sin(dir) * spd * 0.28, base: 0.3 + Math.random() * 0.55, phase: Math.random() * Math.PI * 2 });
     }
   }
 
-  drawBoss(isRoar) {
-    const w = 220;
-    const h = 78;
-    const r = 14;
-    this.bossBodyGfx.clear();
-    this.bossBodyGfx.fillStyle(isRoar ? COLORS.bossBodyRoar : COLORS.bossBody, 0.95);
-    this.bossBodyGfx.fillRoundedRect(-w / 2, -h / 2, w, h, r);
-    this.bossBodyGfx.fillStyle(isRoar ? 0xff85a8 : COLORS.bossBodyAlt, 0.45);
-    this.bossBodyGfx.fillRoundedRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, r - 2);
+  // ── Boss drawing ───────────────────────────────────────────────────────────
+  _createBoss() {
+    this.bossAuraGfx  = this.add.graphics().setDepth(7);
+    this.bossCont     = this.add.container(480, 100).setDepth(9);
+    this.bossBorderGfx = this.add.graphics();
+    this.bossBodyGfx   = this.add.graphics();
+    this.bossExtraGfx  = this.add.graphics(); // tendrils / wings / extra
+    this.bossEyeGfx    = this.add.graphics();
+    this.bossLabel     = this.add.text(0, 0, "BOSS", { fontFamily: FONT, fontSize: "20px", color: "#ffffff", fontStyle: "bold" }).setOrigin(0.5);
+    this.bossFlash     = this.add.graphics().setDepth(10);
+    this.bossCont.add([this.bossBorderGfx, this.bossBodyGfx, this.bossExtraGfx, this.bossEyeGfx, this.bossLabel]);
+
+    this.bossPulse = this.tweens.add({ targets: this.bossCont, scale: { from: 1, to: 1.06 }, duration: 1200, yoyo: true, repeat: -1, ease: "sine.inOut" });
+
+    // Fixed HP bar at top
+    this.bossHpBack = this.add.graphics().setDepth(11);
+    this.bossHpFill = this.add.graphics().setDepth(11);
+    this.bossHpText = this.add.text(W / 2, 142, "", { fontFamily: MONO, fontSize: "12px", color: "#cdd5ff" }).setOrigin(0.5).setDepth(11);
+  }
+
+  _drawBossShape(isRoar = false, isStun = false) {
+    const vis = this.bossVisual || BOSS_VISUALS.watcher;
+    const col = isRoar ? vis.roar : isStun ? vis.stun : vis.phases[this.bossPhaseIdx] || vis.phases[0];
+    const S   = vis.size || { body: 60, border: 78 };
 
     this.bossBorderGfx.clear();
-    this.bossBorderGfx.lineStyle(3, COLORS.bossBorder, 0.95);
-    this.bossBorderGfx.strokeRoundedRect(-w / 2, -h / 2, w, h, r);
-    this.bossBorderGfx.lineStyle(1, COLORS.bossBorder, 0.4);
-    this.bossBorderGfx.strokeRoundedRect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8, r + 2);
+    this.bossBodyGfx.clear();
+    this.bossExtraGfx.clear();
+    this.bossEyeGfx.clear();
+
+    if (vis.shape === "hex") {
+      this._drawHexBoss(col, S, isRoar || isStun);
+    } else if (vis.shape === "diamond") {
+      this._drawDiamondBoss(col, S, isRoar || isStun);
+    } else if (vis.shape === "spider") {
+      this._drawSpiderBoss(col, S, isRoar || isStun);
+    }
+
+    if (this.bossLabel) this.bossLabel.setText(vis.label || "BOSS");
   }
 
-  drawBossHpBar(hp, maxHP) {
-    const width = 220;
-    const height = 12;
-    const x = ARENA_WIDTH / 2 - width / 2;
-    const y = 124;
-    const safeMax = Math.max(1, maxHP || 1);
-    const pct = Math.max(0, Math.min(1, hp / safeMax));
+  _drawHexBoss(col, S, alt) {
+    const R = S.body, R2 = S.border;
+    this.bossBorderGfx.fillStyle(col.body, 0.22);
+    this.bossBorderGfx.fillPoints(hexPts(R2, Math.PI / 6), true);
+    this.bossBorderGfx.lineStyle(4, col.border, 0.95);
+    this.bossBorderGfx.strokePoints(hexPts(R2, Math.PI / 6), true, true);
+    this.bossBorderGfx.lineStyle(1.5, col.border, 0.3);
+    this.bossBorderGfx.strokePoints(hexPts(R2 + 8, Math.PI / 6), true, true);
 
+    this.bossBodyGfx.fillStyle(col.body, 0.95);
+    this.bossBodyGfx.fillPoints(hexPts(R, Math.PI / 6), true);
+    this.bossBodyGfx.fillStyle(col.outer, 0.5);
+    this.bossBodyGfx.fillPoints(hexPts(R * 0.65, Math.PI / 6), true);
+
+    this.bossEyeGfx.fillStyle(col.eye, 0.98);
+    this.bossEyeGfx.fillCircle(-20, -8, 8);
+    this.bossEyeGfx.fillCircle(20, -8, 8);
+    this.bossEyeGfx.fillStyle(0x000000, 0.8);
+    this.bossEyeGfx.fillCircle(-18, -7, 4);
+    this.bossEyeGfx.fillCircle(22, -7, 4);
+    this.bossEyeGfx.fillStyle(col.core, 0.85);
+    this.bossEyeGfx.fillCircle(0, 14, 11);
+    this.bossEyeGfx.fillStyle(0xffffff, 0.55);
+    this.bossEyeGfx.fillCircle(0, 14, 5);
+  }
+
+  _drawDiamondBoss(col, S, alt) {
+    const R = S.body, R2 = S.border;
+    const pts  = diamondPts(R);
+    const pts2 = diamondPts(R2);
+
+    this.bossBorderGfx.fillStyle(col.body, 0.2);
+    this.bossBorderGfx.fillPoints(pts2, true);
+    this.bossBorderGfx.lineStyle(3.5, col.border, 0.95);
+    this.bossBorderGfx.strokePoints(pts2, true, true);
+    this.bossBorderGfx.lineStyle(1.2, col.border, 0.3);
+    this.bossBorderGfx.strokePoints(diamondPts(R2 + 9), true, true);
+
+    this.bossBodyGfx.fillStyle(col.body, 0.95);
+    this.bossBodyGfx.fillPoints(pts, true);
+    this.bossBodyGfx.fillStyle(col.outer, 0.55);
+    this.bossBodyGfx.fillPoints(diamondPts(R * 0.6), true);
+
+    // Wing-like horizontal lines
+    this.bossExtraGfx.lineStyle(2.5, col.border, 0.55);
+    this.bossExtraGfx.lineBetween(-R * 1.2, 0, -R, 0);
+    this.bossExtraGfx.lineBetween( R,       0,  R * 1.2, 0);
+    this.bossExtraGfx.lineStyle(1.5, col.border, 0.3);
+    this.bossExtraGfx.lineBetween(-R * 1.4, -10, -R * 1.1, -4);
+    this.bossExtraGfx.lineBetween( R * 1.1, -4,   R * 1.4, -10);
+
+    // Narrow horizontal "eyes"
+    this.bossEyeGfx.fillStyle(col.eye, 0.98);
+    this.bossEyeGfx.fillRect(-22, -9, 18, 6);
+    this.bossEyeGfx.fillRect(  4, -9, 18, 6);
+    this.bossEyeGfx.fillStyle(col.core, 0.9);
+    this.bossEyeGfx.fillCircle(0, 10, 10);
+    this.bossEyeGfx.fillStyle(0xffffff, 0.5);
+    this.bossEyeGfx.fillCircle(0, 10, 4);
+  }
+
+  _drawSpiderBoss(col, S, alt) {
+    const R = S.body, R2 = S.border;
+
+    // Tendrils (8 radial lines) at full opacity
+    this.bossExtraGfx.lineStyle(3, col.border, 0.65);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const x1 = Math.cos(a) * R;
+      const y1 = Math.sin(a) * R;
+      const x2 = Math.cos(a) * R2;
+      const y2 = Math.sin(a) * R2;
+      this.bossExtraGfx.lineBetween(x1, y1, x2, y2);
+    }
+    this.bossExtraGfx.lineStyle(1.2, col.border, 0.3);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      const x2 = Math.cos(a) * (R2 * 0.8);
+      const y2 = Math.sin(a) * (R2 * 0.8);
+      this.bossExtraGfx.lineBetween(0, 0, x2, y2);
+    }
+
+    // Body circle
+    this.bossBorderGfx.lineStyle(3.5, col.border, 0.9);
+    this.bossBorderGfx.strokeCircle(0, 0, R2);
+    this.bossBorderGfx.lineStyle(1.2, col.border, 0.3);
+    this.bossBorderGfx.strokeCircle(0, 0, R2 + 10);
+
+    this.bossBodyGfx.fillStyle(col.body, 0.95);
+    this.bossBodyGfx.fillCircle(0, 0, R);
+    this.bossBodyGfx.fillStyle(col.outer, 0.5);
+    this.bossBodyGfx.fillCircle(0, 0, R * 0.65);
+
+    // Single large eye
+    this.bossEyeGfx.fillStyle(col.eye, 0.98);
+    this.bossEyeGfx.fillCircle(0, -4, 16);
+    this.bossEyeGfx.fillStyle(0x000000, 0.85);
+    this.bossEyeGfx.fillCircle(3, -2, 8);
+    this.bossEyeGfx.fillStyle(col.core, 0.9);
+    this.bossEyeGfx.fillCircle(0, 14, 8);
+    this.bossEyeGfx.fillStyle(0xffffff, 0.55);
+    this.bossEyeGfx.fillCircle(0, 14, 3.5);
+  }
+
+  _drawBossAura(dt) {
+    this.bossAuraAngle += 36 * dt;
+    const ang = this.bossAuraAngle * Math.PI / 180;
+    const vis = this.bossVisual || BOSS_VISUALS.watcher;
+    const col = vis.auraColors?.[this.bossPhaseIdx] || 0xff6b9d;
+    const R3  = (vis.size?.aura || 92);
+    this.bossAuraGfx.clear();
+    this.bossAuraGfx.x = this.bossX;
+    this.bossAuraGfx.y = this.bossY;
+
+    if (vis.shape === "hex") {
+      this.bossAuraGfx.lineStyle(2, col, 0.28);
+      this.bossAuraGfx.strokePoints(hexPts(R3, ang), true, true);
+      this.bossAuraGfx.lineStyle(1.5, col, 0.13);
+      this.bossAuraGfx.strokePoints(hexPts(R3 + 10, ang + Math.PI / 6), true, true);
+    } else if (vis.shape === "diamond") {
+      this.bossAuraGfx.lineStyle(2, col, 0.28);
+      const d = diamondPts(R3).map(p => ({ x: p.x * Math.cos(ang) - p.y * Math.sin(ang), y: p.x * Math.sin(ang) + p.y * Math.cos(ang) }));
+      this.bossAuraGfx.strokePoints(d, true, true);
+    } else {
+      this.bossAuraGfx.lineStyle(2, col, 0.28);
+      this.bossAuraGfx.strokeCircle(0, 0, R3);
+      this.bossAuraGfx.lineStyle(1.2, col, 0.13);
+      this.bossAuraGfx.strokeCircle(0, 0, R3 + 10);
+    }
+  }
+
+  _drawBossHpBar(hp, maxHP) {
+    const bw = 230, bh = 12, bx = W / 2 - bw / 2, by = 128;
+    const pct = Math.max(0, Math.min(1, hp / Math.max(1, maxHP)));
     this.bossHpBack.clear();
-    this.bossHpBack.fillStyle(COLORS.bossHpBack, 0.85);
-    this.bossHpBack.fillRoundedRect(x, y, width, height, 5);
-    this.bossHpBack.lineStyle(1, COLORS.bossBorder, 0.7);
-    this.bossHpBack.strokeRoundedRect(x, y, width, height, 5);
-
+    this.bossHpBack.fillStyle(0x1f1230, 0.85);
+    this.bossHpBack.fillRoundedRect(bx, by, bw, bh, 5);
+    this.bossHpBack.lineStyle(1, (this.bossVisual?.phases?.[0]?.border || 0xff6b9d), 0.65);
+    this.bossHpBack.strokeRoundedRect(bx, by, bw, bh, 5);
     this.bossHpFill.clear();
     if (pct > 0) {
-      this.bossHpFill.fillStyle(COLORS.bossHpFill, 0.95);
-      this.bossHpFill.fillRoundedRect(x + 1, y + 1, (width - 2) * pct, height - 2, 4);
+      const col = pct > 0.66 ? 0xc026d3 : pct > 0.33 ? 0xea580c : 0xef4444;
+      this.bossHpFill.fillStyle(col, 0.95);
+      this.bossHpFill.fillRoundedRect(bx + 1, by + 1, (bw - 2) * pct, bh - 2, 4);
     }
-    if (this.bossHpText) {
-      this.bossHpText.setText(`${Math.round(hp)} / ${safeMax}`);
-    }
+    if (this.bossHpText) this.bossHpText.setText(`${Math.round(hp)} / ${maxHP}`);
   }
 
-  drawWordPanel() {
-    const panelWidth = 760;
-    const panelHeight = 70;
-    const x = ARENA_WIDTH / 2 - panelWidth / 2;
-    const y = 490 - panelHeight / 2;
-    this.wordPanel.clear();
-    this.wordPanel.fillStyle(COLORS.panel, 0.65);
-    this.wordPanel.fillRoundedRect(x, y, panelWidth, panelHeight, 14);
-    this.wordPanel.lineStyle(1, COLORS.panelStroke, 0.35);
-    this.wordPanel.strokeRoundedRect(x, y, panelWidth, panelHeight, 14);
+  // ── Character ──────────────────────────────────────────────────────────────
+  _createCharacter() {
+    this.charGlow = this.add.circle(480, 370, 32, 0x4ef0d4, 0.15).setBlendMode(Phaser.BlendModes.ADD).setDepth(5);
+    this.charRing = this.add.circle(480, 370, 22, 0xffffff, 0).setStrokeStyle(2.5, 0x4ef0d4, 0.9).setDepth(5);
+    this.charBody = this.add.circle(480, 370, 15, 0xffffff, 1).setStrokeStyle(2, 0x4ef0d4, 0.85).setDepth(5);
+    this.charHit  = this.add.circle(480, 370, 34, 0xff5577, 0).setBlendMode(Phaser.BlendModes.ADD).setDepth(6);
+    this.charArrow = this.add.graphics().setDepth(6);
+    const ls = { fontFamily: FONT, fontSize: "11px", color: "#e8ecff", backgroundColor: "rgba(13,18,32,0.75)", padding: { x: 6, y: 2 } };
+    this.charLabel1 = this.add.text(480, 340, "", ls).setOrigin(0.5, 1).setDepth(6);
+    this.charLabel2 = this.add.text(480, 352, "", ls).setOrigin(0.5, 1).setDepth(6);
+    this.tweens.add({ targets: this.charGlow, scale: { from: 1, to: 1.35 }, alpha: { from: 0.35, to: 0.1 }, duration: 1000, yoyo: true, repeat: -1, ease: "sine.inOut" });
   }
 
-  renderWord(word, typedProgress) {
-    const safeWord = word || "";
-    const safeProgress = Math.max(0, Math.min(safeWord.length, typedProgress || 0));
-    const typed = safeWord.slice(0, safeProgress);
-    const rest = safeWord.slice(safeProgress);
-
-    this.typedText.setText(typed);
-    this.remainingText.setText(rest);
-
-    const total = this.typedText.width + this.remainingText.width;
-    const startX = -total / 2;
-    this.typedText.setX(startX);
-    this.remainingText.setX(startX + this.typedText.width);
+  _setCharPos(x, y) {
+    [this.charGlow, this.charRing, this.charBody, this.charHit, this.charArrow].forEach(o => o?.setPosition(x, y));
+    this.charLabel1?.setPosition(x, y - 26);
+    this.charLabel2?.setPosition(x, y - 15);
   }
 
-  drawRunnerArrow(entry, facing) {
-    if (!entry?.arrowGfx) return;
-    const fx = facing?.x || 0;
-    const fy = facing?.y || 0;
-    const mag = Math.sqrt(fx * fx + fy * fy);
-    entry.arrowGfx.clear();
-    if (mag < 0.05 || entry.role !== "runner") {
-      return;
-    }
-    const angle = Math.atan2(fy, fx);
-    const distance = 22;
-    const tipX = Math.cos(angle) * distance;
-    const tipY = Math.sin(angle) * distance;
-    const leftAngle = angle + Math.PI * 0.85;
-    const rightAngle = angle - Math.PI * 0.85;
-    const baseDist = 14;
-    const leftX = Math.cos(leftAngle) * baseDist;
-    const leftY = Math.sin(leftAngle) * baseDist;
-    const rightX = Math.cos(rightAngle) * baseDist;
-    const rightY = Math.sin(rightAngle) * baseDist;
-    entry.arrowGfx.fillStyle(0xffffff, 0.92);
-    entry.arrowGfx.beginPath();
-    entry.arrowGfx.moveTo(tipX, tipY);
-    entry.arrowGfx.lineTo(leftX, leftY);
-    entry.arrowGfx.lineTo(rightX, rightY);
-    entry.arrowGfx.closePath();
-    entry.arrowGfx.fillPath();
+  _setCharLabels(players) {
+    const runner = players.find(p => p.role === "runner");
+    const typer  = players.find(p => p.role === "typer");
+    this.charLabel1?.setText(runner ? `▶ ${runner.username}` : "").setColor("#4ef0d4");
+    this.charLabel2?.setText(typer  ? `⌨ ${typer.username}`  : "").setColor("#c084fc");
   }
 
-  addOrUpdatePlayer(player) {
-    let entry = this.playerSprites.get(player.socketId);
-    const color = ROLE_COLOR[player.role] || COLORS.runner;
-    if (!entry) {
-      const glow = this.add.circle(player.x || 480, player.y || 380, 26, color, 0.18);
-      glow.setBlendMode(Phaser.BlendModes.ADD);
-      const ring = this.add.circle(player.x || 480, player.y || 380, 20, 0xffffff, 0.0);
-      ring.setStrokeStyle(2, color, 0.85);
-      const body = this.add.circle(player.x || 480, player.y || 380, 14, color, 1);
-      body.setStrokeStyle(1.5, 0xffffff, 0.65);
-      const arrowGfx = this.add.graphics().setDepth(8);
-      const hitFlash = this.add.circle(player.x || 480, player.y || 380, 28, 0xff5577, 0);
-      hitFlash.setBlendMode(Phaser.BlendModes.ADD);
-      const label = this.add
-        .text(player.x || 480, (player.y || 380) - 36, player.username || "", {
-          fontFamily: TYPING_FONT,
-          fontSize: "12px",
-          color: "#e8ecff",
-          backgroundColor: "rgba(13,18,32,0.7)",
-          padding: { x: 6, y: 2 },
-        })
-        .setOrigin(0.5, 0.5);
+  _drawCharArrow(facing) {
+    this.charArrow?.clear();
+    if (!facing || !this.isRunner) return;
+    const mag = Math.sqrt(facing.x ** 2 + facing.y ** 2);
+    if (mag < 0.05) return;
+    const a = Math.atan2(facing.y, facing.x);
+    const [tip, back] = [24, 14];
+    const tx = Math.cos(a) * tip, ty = Math.sin(a) * tip;
+    this.charArrow.fillStyle(0xffffff, 0.88);
+    this.charArrow.beginPath();
+    this.charArrow.moveTo(tx, ty);
+    this.charArrow.lineTo(Math.cos(a + Math.PI * 0.85) * back, Math.sin(a + Math.PI * 0.85) * back);
+    this.charArrow.lineTo(Math.cos(a - Math.PI * 0.85) * back, Math.sin(a - Math.PI * 0.85) * back);
+    this.charArrow.closePath();
+    this.charArrow.fillPath();
+  }
 
-      const tween = this.tweens.add({
-        targets: glow,
-        scale: { from: 1.0, to: 1.25 },
-        alpha: { from: 0.4, to: 0.15 },
-        duration: 1100,
-        yoyo: true,
-        repeat: -1,
-        ease: "sine.inOut",
-      });
+  _flashCharHit() {
+    this.tweens.killTweensOf(this.charHit);
+    this.charHit.setAlpha(0.9).setScale(1);
+    this.tweens.add({ targets: this.charHit, alpha: 0, scale: { from: 1, to: 1.7 }, duration: 380, ease: "cubic.out", onComplete: () => this.charHit?.setScale(1) });
+    this.cameras.main.shake(160, 0.008);
+  }
 
-      entry = { glow, ring, body, label, arrowGfx, hitFlash, role: player.role, tween, color };
-      this.playerSprites.set(player.socketId, entry);
-    } else {
-      entry.glow.fillColor = color;
-      entry.ring.setStrokeStyle(2, color, 0.85);
-      entry.body.fillColor = color;
-      entry.label.setText(player.username || "");
-      entry.role = player.role;
-      entry.color = color;
-    }
+  // ── UI ─────────────────────────────────────────────────────────────────────
+  _createUI() {
+    this.roleBadge = this.add.text(16, 16, "", { fontFamily: FONT, fontSize: "13px", color: "#4ef0d4", backgroundColor: "rgba(13,18,32,0.65)", padding: { x: 10, y: 6 } }).setOrigin(0, 0).setDepth(10);
+    this.bossStateText = this.add.text(W - 16, 16, "", { fontFamily: FONT, fontSize: "13px", color: "#fca5a5", backgroundColor: "rgba(13,18,32,0.65)", padding: { x: 10, y: 6 } }).setOrigin(1, 0).setDepth(10);
+    this.streakText = this.add.text(W / 2, 168, "", { fontFamily: FONT, fontSize: "13px", color: "#fbbf24", fontStyle: "bold" }).setOrigin(0.5).setDepth(10).setVisible(false);
 
-    this.playerTargets.set(player.socketId, {
-      x: player.x ?? entry.body.x,
-      y: player.y ?? entry.body.y,
+    // Word panel
+    const pw = 760, ph = 70, px = W / 2 - pw / 2, py = 490 - ph / 2;
+    const wg = this.add.graphics();
+    wg.fillStyle(0x0a1124, 0.65);
+    wg.fillRoundedRect(px, py, pw, ph, 14);
+    wg.lineStyle(1, 0x82aaff, 0.35);
+    wg.strokeRoundedRect(px, py, pw, ph, 14);
+
+    this.wordCont = this.add.container(W / 2, 490).setDepth(20);
+    this.typedTxt  = this.add.text(0, 0, "", { fontFamily: MONO, fontSize: "42px", color: "#4ef0d4", fontStyle: "bold" }).setOrigin(0, 0.5);
+    this.remainTxt = this.add.text(0, 0, "", { fontFamily: MONO, fontSize: "42px", color: "#e8ecff" }).setOrigin(0, 0.5);
+    this.wordCont.add([this.typedTxt, this.remainTxt]);
+
+    this.flashTxt = this.add.text(W / 2, 200, "", { fontFamily: FONT, fontSize: "19px", color: "#86efac", fontStyle: "bold" }).setOrigin(0.5).setDepth(40).setAlpha(0);
+
+    // Overlay (countdown / roar / game-over)
+    this.overlayTxt    = this.add.text(W / 2, 270, "", { fontFamily: FONT, fontSize: "70px", color: "#ffffff", fontStyle: "bold", align: "center" }).setOrigin(0.5).setDepth(50).setVisible(false);
+    this.subOverlayTxt = this.add.text(W / 2, 360, "", { fontFamily: FONT, fontSize: "20px", color: "#cdd5ff", align: "center" }).setOrigin(0.5).setDepth(50).setVisible(false);
+
+    // Attack warning text
+    this.attackWarnTxt = this.add.text(W / 2, 185, "", { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 12, y: 5 } }).setOrigin(0.5).setDepth(45).setAlpha(0);
+
+    // Wind-up bar (fills from 0 → full during wind-up, sits under boss name)
+    this.windUpBarBg   = this.add.graphics().setDepth(12).setVisible(false);
+    this.windUpBarFill = this.add.graphics().setDepth(12).setVisible(false);
+    this.windUpLabel   = this.add.text(W / 2, 108, "", { fontFamily: FONT, fontSize: "12px", color: "#fff", fontStyle: "bold", backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 8, y: 3 } }).setOrigin(0.5).setDepth(12).setVisible(false);
+  }
+
+  _showWindUpBar(attackType, durationMs, color) {
+    const bw = 200, bh = 8, bx = W / 2 - bw / 2, by = 116;
+    this.windUpBarBg.clear().setVisible(true);
+    this.windUpBarBg.fillStyle(0x1f1230, 0.8);
+    this.windUpBarBg.fillRoundedRect(bx, by, bw, bh, 4);
+    this.windUpBarFill.clear().setVisible(true);
+    this.windUpBarFill.fillStyle(color || 0xff3399, 0.9);
+    this.windUpBarFill.fillRoundedRect(bx, by, 0, bh, 4);
+    this.windUpLabel.setText(`CHARGING: ${ATTACK_LABELS[attackType] || attackType.toUpperCase()}`).setVisible(true);
+
+    if (this.windUpBarTween) this.windUpBarTween.stop();
+    let filled = 0;
+    this.windUpBarTween = this.tweens.addCounter({
+      from: 0, to: bw, duration: durationMs, ease: "linear",
+      onUpdate: (tween) => {
+        const w = tween.getValue();
+        this.windUpBarFill.clear();
+        this.windUpBarFill.fillStyle(color || 0xff3399, 0.9);
+        this.windUpBarFill.fillRoundedRect(bx, by, w, bh, 4);
+      },
+      onComplete: () => { this.windUpBarFill.clear().setVisible(false); this.windUpBarBg.setVisible(false); this.windUpLabel.setVisible(false); },
     });
-    if (player.facing) this.playerFacing.set(player.socketId, player.facing);
-    this.drawRunnerArrow(entry, this.playerFacing.get(player.socketId));
   }
 
-  removePlayer(socketId) {
-    const entry = this.playerSprites.get(socketId);
-    if (!entry) return;
-    if (entry.tween) entry.tween.stop();
-    entry.glow?.destroy?.();
-    entry.ring?.destroy?.();
-    entry.body?.destroy?.();
-    entry.label?.destroy?.();
-    entry.arrowGfx?.destroy?.();
-    entry.hitFlash?.destroy?.();
-    this.playerSprites.delete(socketId);
-    this.playerTargets.delete(socketId);
-    this.playerFacing.delete(socketId);
+  _hideWindUpBar() {
+    if (this.windUpBarTween) { this.windUpBarTween.stop(); this.windUpBarTween = null; }
+    this.windUpBarBg.setVisible(false);
+    this.windUpBarFill.clear().setVisible(false);
+    this.windUpLabel.setVisible(false);
   }
 
-  applyRoleVisuals(role) {
-    this.isRunner = role === "runner";
-    if (this.roleBadge) {
-      this.roleBadge.setText(
-        this.isRunner ? "ROLE  RUNNER · WASD" : "ROLE  TYPER · KEYBOARD"
-      );
-      this.roleBadge.setColor(this.isRunner ? COLORS.textTyped : "#cdd5ff");
-    }
-    this.bindKeyboard();
+  _renderWord(word, progress) {
+    const w = word || "", p = Math.max(0, Math.min(w.length, progress || 0));
+    this.typedTxt.setText(w.slice(0, p));
+    this.remainTxt.setText(w.slice(p));
+    const total = this.typedTxt.width + this.remainTxt.width;
+    const sx = -total / 2;
+    this.typedTxt.setX(sx);
+    this.remainTxt.setX(sx + this.typedTxt.width);
   }
 
-  bindKeyboard() {
-    if (this.keys) {
-      Object.values(this.keys).forEach((key) => {
-        if (key && typeof key.destroy === "function") key.destroy();
-      });
-      this.keys = null;
-    }
-    if (this.handleKeydown && this.input?.keyboard) {
-      this.input.keyboard.off("keydown", this.handleKeydown, this);
-    }
+  _updateRoleBadge() {
+    this.roleBadge?.setText(this.isRunner ? "▶  RUNNER · WASD" : "⌨  TYPER · KEYBOARD").setColor(this.isRunner ? "#4ef0d4" : "#c084fc");
+  }
 
+  _updateBossStateText() {
+    const atk = this.bossWindingUp ? `CHARGING ${ATTACK_LABELS[this.bossWindUpAttack] || "…"}` : `${ATTACK_LABELS[this.bossAttackType] || this.bossAttackType}`;
+    const st  = this.bossState?.toUpperCase() || "";
+    const label = this.bossState === "attack" ? `BOSS · ${atk}` : `BOSS · ${st}`;
+    this.bossStateText?.setText(label);
+  }
+
+  _showAttackWarning(type) {
+    const vis = this.bossVisual;
+    const col = vis?.auraColors?.[this.bossPhaseIdx] || 0xffffff;
+    const hex = `#${col.toString(16).padStart(6, "0")}`;
+    const label = ATTACK_LABELS[type] || type.toUpperCase();
+    this.tweens.killTweensOf(this.attackWarnTxt);
+    this.attackWarnTxt.setText(label).setColor(hex).setAlpha(1).y = 185;
+    this.tweens.add({ targets: this.attackWarnTxt, y: 160, alpha: 0, duration: 1400, ease: "cubic.out", onComplete: () => { this.attackWarnTxt.y = 185; } });
+  }
+
+  // ── Column layer (laser / lightning) ──────────────────────────────────────
+  _createColumnLayer() {
+    this.columnWarnGfx = this.add.graphics().setDepth(14).setAlpha(0);
+    this.columnFireGfx = this.add.graphics().setDepth(14).setAlpha(0);
+  }
+
+  _showColumnWarning({ x, width, color, durationMs }) {
+    this.tweens.killTweensOf(this.columnWarnGfx);
+    this.columnWarnGfx.clear();
+    this.columnWarnGfx.fillStyle(color, 0.18);
+    this.columnWarnGfx.fillRect(x - width / 2, 60, width, H - 120);
+    this.columnWarnGfx.lineStyle(2, color, 0.65);
+    this.columnWarnGfx.strokeRect(x - width / 2, 60, width, H - 120);
+    this.columnWarnGfx.setAlpha(1);
+    this.tweens.add({ targets: this.columnWarnGfx, alpha: { from: 1, to: 0.3 }, duration: 280, yoyo: true, repeat: Math.floor(durationMs / 560) });
+  }
+
+  _showColumnFire({ x, width, color, durationMs }) {
+    this.columnWarnGfx.setAlpha(0).clear();
+    this.columnFireGfx.clear();
+    this.columnFireGfx.fillStyle(0xffffff, 0.9);
+    this.columnFireGfx.fillRect(x - width / 2, 60, width, H - 120);
+    this.columnFireGfx.lineStyle(4, color, 0.9);
+    this.columnFireGfx.strokeRect(x - width / 2, 60, width, H - 120);
+    this.columnFireGfx.setAlpha(1);
+    this.cameras.main.shake(200, 0.015);
+    this.cameras.main.flash(durationMs, 220, 200, 200);
+    this.tweens.add({ targets: this.columnFireGfx, alpha: 0, duration: durationMs + 200, ease: "cubic.out", onComplete: () => this.columnFireGfx.clear() });
+  }
+
+  // ── Populate from initial payload ─────────────────────────────────────────
+  _populateFromPayload() {
+    const p = this.payload || {};
+    this.localSocketId = this.socket?.id;
+    const players = p.players || [];
+    const localP  = players.find(pl => pl.socketId === this.localSocketId);
+    this.isRunner  = localP?.role === "runner";
+    this.roomCode  = p.roomCode;
+    // Boss visual config
+    const bossId   = p.bossId || "watcher";
+    this.bossVisual = BOSS_VISUALS[bossId] || BOSS_VISUALS.watcher;
+    if (this.bossLabel) this.bossLabel.setText(this.bossVisual.label);
+
+    this.expectedWord      = p.currentWord || "";
+    this.localTypedProgress = p.typedProgress || 0;
+    this.bossHP    = p.bossHP   ?? this.bossVisual.maxHP ?? 250;
+    this.bossMaxHP = p.bossMaxHP ?? this.bossHP;
+    this.bossState = p.bossState || "countdown";
+    this.bossAttackType    = p.boss?.attackType || "normal";
+    this.bossPhaseIdx      = p.boss?.phase ?? 0;
+    this.bossWindingUp     = p.boss?.windingUp || false;
+    this.bossWindUpAttack  = p.boss?.windUpAttack || null;
+    this.bossWindUpRemaining = p.boss?.windUpRemaining || 0;
+    this.streak = p.streak || 0;
+
+    if (p.character) { this.charX = p.character.x; this.charY = p.character.y; this.charTargetX = this.charX; this.charTargetY = this.charY; this._setCharPos(this.charX, this.charY); }
+    if (p.boss)      { this.bossX = p.boss.x || 480; this.bossY = p.boss.y || 100; this.bossTX = this.bossX; this.bossTY = this.bossY; this.bossCont.x = this.bossX; this.bossCont.y = this.bossY; }
+
+    this._drawBossShape();
+    this._drawBossHpBar(this.bossHP, this.bossMaxHP);
+    this._renderWord(this.expectedWord, this.localTypedProgress);
+    this._setCharLabels(players);
+    this._updateRoleBadge();
+    this._updateBossStateText();
+  }
+
+  // ── Keyboard ──────────────────────────────────────────────────────────────
+  _bindKeyboard() {
+    if (this.keys) { Object.values(this.keys).forEach(k => k?.destroy?.()); this.keys = null; }
+    if (this._onKeydown) { this.input.keyboard?.off("keydown", this._onKeydown, this); this._onKeydown = null; }
     if (this.isRunner) {
-      this.keys = this.input.keyboard.addKeys({
-        up: Phaser.Input.Keyboard.KeyCodes.W,
-        left: Phaser.Input.Keyboard.KeyCodes.A,
-        down: Phaser.Input.Keyboard.KeyCodes.S,
-        right: Phaser.Input.Keyboard.KeyCodes.D,
-      });
+      this.keys = this.input.keyboard.addKeys({ up: "W", left: "A", down: "S", right: "D" });
     } else {
-      this.handleKeydown = (event) => {
-        const key = String(event?.key || "").toLowerCase();
+      this._onKeydown = (e) => {
+        const key = String(e?.key || "").toLowerCase();
         if (key.length !== 1 || !/[a-z]/.test(key)) return;
         if (this.bossState === "countdown" || this.bossState === "roar") return;
-
         if (this.expectedWord && this.localTypedProgress < this.expectedWord.length) {
-          const expected = this.expectedWord[this.localTypedProgress];
-          if (key === expected) {
-            this.localTypedProgress += 1;
-            this.renderWord(this.expectedWord, this.localTypedProgress);
-          } else {
-            this.flashWordTypo();
-          }
+          if (key === this.expectedWord[this.localTypedProgress]) { this.localTypedProgress++; this._renderWord(this.expectedWord, this.localTypedProgress); }
+          else this._shakeWord();
         }
-
-        this.socket?.emit("typer_input", {
-          roomCode: this.roomCode,
-          char: key,
-        });
+        this.socket?.emit("typer_input", { roomCode: this.roomCode, char: key });
       };
-      this.input.keyboard.on("keydown", this.handleKeydown, this);
+      this.input.keyboard.on("keydown", this._onKeydown, this);
     }
   }
 
-  handleInitialCountdown() {
-    const remainingMs =
-      this.gamePayload?.countdownRemaining != null
-        ? this.gamePayload.countdownRemaining
-        : 0;
-    if (this.gamePayload?.bossState === "countdown" || remainingMs > 0) {
-      this.bossState = "countdown";
-      this.startCountdownOverlay(remainingMs || 3000);
-    }
+  _shakeWord() {
+    this.tweens.killTweensOf(this.wordCont);
+    const bx = W / 2;
+    this.tweens.add({ targets: this.wordCont, x: { from: bx - 14, to: bx + 14 }, yoyo: true, repeat: 2, duration: 55, ease: "sine.inOut", onComplete: () => { this.wordCont.x = bx; } });
+    const orig = this.remainTxt.style.color;
+    this.remainTxt.setColor("#ff6b6b");
+    this.time.delayedCall(220, () => this.remainTxt?.setColor(orig));
   }
 
-  startCountdownOverlay(remainingMs) {
-    this.cancelCountdownTimer();
-    let secondsLeft = Math.max(1, Math.ceil(remainingMs / 1000));
-    this.overlayText.setColor("#ffffff");
-    this.overlayText.setText(String(secondsLeft));
-    this.overlayText.setVisible(true);
-    this.overlayText.setScale(1.3);
-    this.subOverlayText.setText(
-      this.isRunner
-        ? "Get ready · WASD to dodge"
-        : "Get ready · type to attack"
-    );
-    this.subOverlayText.setVisible(true);
+  // ── Countdown ─────────────────────────────────────────────────────────────
+  _handleInitialCountdown() {
+    const rem = this.payload?.countdownRemaining ?? 0;
+    if (this.bossState === "countdown" || rem > 0) this._startCountdown(rem || 3000);
+  }
 
-    const tickIn = () => {
-      this.overlayText.setScale(1.4);
-      this.tweens.add({
-        targets: this.overlayText,
-        scale: 1.0,
-        duration: 500,
-        ease: "back.out",
-      });
-    };
-    tickIn();
-
+  _startCountdown(remainMs) {
+    this._cancelCountdown();
+    let sec = Math.max(1, Math.ceil(remainMs / 1000));
+    this.overlayTxt.setColor("#ffffff").setFontSize(70).setText(String(sec)).setVisible(true);
+    this.subOverlayTxt.setText(this.isRunner ? "Get ready · WASD to dodge" : "Get ready · type to attack").setVisible(true);
+    const pop = () => { this.overlayTxt.setScale(1.4); this.tweens.add({ targets: this.overlayTxt, scale: 1, duration: 500, ease: "back.out" }); };
+    pop();
     this.countdownTimer = this.time.addEvent({
-      delay: 1000,
-      repeat: secondsLeft - 1,
-      callback: () => {
-        secondsLeft -= 1;
-        if (secondsLeft <= 0) {
-          this.overlayText.setText("FIGHT!");
-          this.overlayText.setColor("#ff6b9d");
-          tickIn();
-          this.cameras.main.flash(220, 255, 200, 220);
-          this.time.delayedCall(700, () => {
-            this.overlayText.setVisible(false);
-            this.subOverlayText.setVisible(false);
-          });
-        } else {
-          this.overlayText.setText(String(secondsLeft));
-          tickIn();
-        }
+      delay: 1000, repeat: sec - 1, callback: () => {
+        sec--;
+        if (sec <= 0) {
+          this.overlayTxt.setText("FIGHT!").setColor("#ff6b9d"); pop();
+          this.cameras.main.flash(250, 255, 180, 220);
+          this.time.delayedCall(700, () => { this.overlayTxt?.setVisible(false); this.subOverlayTxt?.setVisible(false); });
+        } else { this.overlayTxt.setText(String(sec)); pop(); }
       },
     });
   }
 
-  cancelCountdownTimer() {
-    if (this.countdownTimer) {
-      this.countdownTimer.remove(false);
-      this.countdownTimer = null;
+  _cancelCountdown() { if (this.countdownTimer) { this.countdownTimer.remove(false); this.countdownTimer = null; } }
+
+  // ── Projectile management ─────────────────────────────────────────────────
+  _getOrCreateProjectile(id, x, y, type) {
+    let s = this.projectileSprites.get(id);
+    if (!s) {
+      const vis = PROJ_VISUALS[type] || PROJ_VISUALS.normal;
+      s = this.add.circle(x, y, vis.r, vis.color, 1);
+      s.setBlendMode(Phaser.BlendModes.ADD).setStrokeStyle(1.5, vis.glow, 0.8).setDepth(15);
+      if (vis.homing) s.setStrokeStyle(2.5, vis.glow, 1); // thicker ring for homing orbs
+      this.projectileSprites.set(id, s);
+    }
+    s.x = x; s.y = y;
+    return s;
+  }
+
+  // ── Spawn effects ──────────────────────────────────────────────────────────
+  _spawnDamageBurst(damage, isCrit) {
+    const bx = this.bossX, by = this.bossY;
+    const txt = this.add.text(bx, by - 40, `−${damage}${isCrit ? " ×2" : ""}`, { fontFamily: FONT, fontSize: isCrit ? "26px" : "21px", color: isCrit ? "#fbbf24" : "#ff9ec8", fontStyle: "bold" }).setOrigin(0.5).setDepth(45);
+    this.tweens.add({ targets: txt, y: by - 90, alpha: 0, duration: 950, ease: "cubic.out", onComplete: () => txt.destroy() });
+    const pc = isCrit ? 0xfbbf24 : 0xff9ec8;
+    const n  = isCrit ? 14 : 9;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, d = 40 + Math.random() * 60;
+      const p = this.add.circle(bx, by, 4, pc, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(30);
+      this.tweens.add({ targets: p, x: bx + Math.cos(a) * d, y: by + Math.sin(a) * d, alpha: 0, scale: 0.2, delay: i * 15, duration: 500 + Math.random() * 180, ease: "cubic.out", onComplete: () => p.destroy() });
+    }
+    this.bossFlash.clear();
+    this.bossFlash.fillStyle(0xffffff, 0.55);
+    if (this.bossVisual?.shape === "hex")  this.bossFlash.fillPoints(hexPts(80, Math.PI / 6), true);
+    else if (this.bossVisual?.shape === "diamond") this.bossFlash.fillPoints(diamondPts(80), true);
+    else this.bossFlash.fillCircle(0, 0, 70);
+    this.bossFlash.x = bx; this.bossFlash.y = by;
+    this.tweens.add({ targets: this.bossFlash, alpha: 0, duration: 220, ease: "cubic.out", onComplete: () => this.bossFlash?.clear() });
+    this.tweens.add({ targets: this.bossCont, x: { from: bx - 6, to: bx }, duration: 180, ease: "back.out" });
+  }
+
+  _spawnRoarShockwave() {
+    const bx = this.bossX, by = this.bossY;
+    const ring = this.add.circle(bx, by, 60, 0xff3366, 0).setStrokeStyle(5, 0xff6b9d, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(12);
+    this.tweens.add({ targets: ring, scale: 7, alpha: 0, duration: 900, ease: "cubic.out", onComplete: () => ring.destroy() });
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2, d = 200 + Math.random() * 160;
+      const par = this.add.circle(bx, by, 3, 0xff85a8, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(13);
+      this.tweens.add({ targets: par, x: bx + Math.cos(a) * d, y: by + Math.sin(a) * d, alpha: 0, duration: 750, ease: "cubic.out", onComplete: () => par.destroy() });
     }
   }
 
-  flashBossDamage() {
-    this.tweens.killTweensOf(this.bossDamageFlash);
-    this.bossDamageFlash.setAlpha(0.7);
-    this.tweens.add({
-      targets: this.bossDamageFlash,
-      alpha: 0,
-      duration: 220,
-      ease: "cubic.out",
-    });
-    this.tweens.add({
-      targets: this.bossContainer,
-      x: { from: ARENA_WIDTH / 2 - 6, to: ARENA_WIDTH / 2 },
-      duration: 160,
-      ease: "back.out",
-    });
-  }
+  _spawnUltimateEffect(specialName, windUpMs) {
+    this.cameras.main.shake(800, 0.02);
+    this.cameras.main.flash(400, 255, 80, 80);
+    const vis = this.bossVisual;
+    const col = vis?.auraColors?.[2] || 0xff3d00;
+    for (let i = 0; i < 32; i++) {
+      const a = (i / 32) * Math.PI * 2, d = 80 + Math.random() * 250;
+      const par = this.add.circle(this.bossX, this.bossY, 5, col, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(13);
+      this.tweens.add({ targets: par, x: this.bossX + Math.cos(a) * d, y: this.bossY + Math.sin(a) * d, alpha: 0, scale: { from: 1.5, to: 0.2 }, duration: 900 + Math.random() * 400, ease: "cubic.out", onComplete: () => par.destroy() });
+    }
+    this.overlayTxt.setColor("#ff3333").setFontSize(52).setText(`${specialName || "SPECIAL"}\nULTIMATE`).setVisible(true);
+    const showDuration = windUpMs ? windUpMs + 200 : 2200;
+    this.time.delayedCall(showDuration, () => { this.overlayTxt?.setVisible(false); this.subOverlayTxt?.setVisible(false); });
 
-  flashPlayerHit(socketId) {
-    const entry = this.playerSprites.get(socketId);
-    if (!entry) return;
-    this.tweens.killTweensOf(entry.hitFlash);
-    entry.hitFlash.setAlpha(0.85);
-    this.tweens.add({
-      targets: entry.hitFlash,
-      alpha: 0,
-      scale: { from: 1.0, to: 1.6 },
-      duration: 360,
-      ease: "cubic.out",
-      onComplete: () => entry.hitFlash.setScale(1),
-    });
-    if (socketId === this.localSocketId) {
-      this.cameras.main.shake(180, 0.008);
+    if (this.bossPulse) {
+      this.bossPulse.stop();
+      this.tweens.add({ targets: this.bossCont, scale: { from: 1, to: 1.14 }, duration: 550, yoyo: true, repeat: -1, ease: "sine.inOut" });
     }
   }
 
-  flashWordTypo() {
-    this.tweens.killTweensOf(this.wordContainer);
-    this.wordContainer.x = ARENA_WIDTH / 2;
-    const baseX = ARENA_WIDTH / 2;
-    this.tweens.add({
-      targets: this.wordContainer,
-      x: { from: baseX - 14, to: baseX + 14 },
-      yoyo: true,
-      repeat: 2,
-      duration: 60,
-      ease: "sine.inOut",
-      onComplete: () => {
-        this.wordContainer.x = baseX;
-      },
-    });
-    const original = this.remainingText.style.color;
-    this.remainingText.setColor(COLORS.warn);
-    this.time.delayedCall(220, () => this.remainingText.setColor(original));
-  }
-
-  spawnDamageBurst(damage, color, isCrit) {
-    const text = this.add.text(ARENA_WIDTH / 2, 90, `−${damage}${isCrit ? "  CRIT" : ""}`, {
-      fontFamily: TYPING_FONT,
-      fontSize: isCrit ? "26px" : "22px",
-      color: isCrit ? "#fbbf24" : "#ff6b9d",
-      fontStyle: "bold",
-    });
-    text.setOrigin(0.5).setDepth(45);
-    this.tweens.add({
-      targets: text,
-      y: 50,
-      alpha: 0,
-      scale: { from: 1.1, to: 1.4 },
-      duration: 900,
-      ease: "cubic.out",
-      onComplete: () => text.destroy(),
-    });
-
-    const typer = this.findPlayerByRole("typer");
-    if (!typer) return;
-    const start = { x: typer.body.x, y: typer.body.y };
-    const target = { x: ARENA_WIDTH / 2, y: 80 };
-    const count = isCrit ? 14 : 9;
-    for (let i = 0; i < count; i += 1) {
-      const offset = (i - count / 2) * 4;
-      const particle = this.add.circle(start.x + offset, start.y, 4, color, 0.95);
-      particle.setBlendMode(Phaser.BlendModes.ADD);
-      particle.setDepth(30);
-      const peakY = (start.y + target.y) / 2 - 60 - Math.random() * 40;
-      const peakX = (start.x + target.x) / 2 + (Math.random() * 80 - 40);
-      this.tweens.add({
-        targets: particle,
-        x: target.x + (Math.random() * 30 - 15),
-        y: target.y + (Math.random() * 20 - 10),
-        scale: { from: 1, to: 0.2 },
-        alpha: { from: 1, to: 0 },
-        duration: 520 + Math.random() * 180,
-        ease: "sine.in",
-        delay: i * 18,
-        onUpdate: (tween) => {
-          const t = tween.progress;
-          const arc = Math.sin(t * Math.PI) * (start.y - peakY);
-          particle.y -= arc * 0.04;
-          particle.x += (peakX - particle.x) * 0.04;
-        },
-        onComplete: () => particle.destroy(),
-      });
-    }
-  }
-
-  spawnHealBurst(amount) {
-    const text = this.add.text(ARENA_WIDTH / 2, 200, `+${amount} HP`, {
-      fontFamily: TYPING_FONT,
-      fontSize: "22px",
-      color: COLORS.heal,
-      fontStyle: "bold",
-    });
-    text.setOrigin(0.5).setDepth(45);
-    this.tweens.add({
-      targets: text,
-      y: 160,
-      alpha: 0,
-      duration: 900,
-      ease: "cubic.out",
-      onComplete: () => text.destroy(),
-    });
-  }
-
-  triggerRoarShockwave() {
-    const ring = this.add.circle(ARENA_WIDTH / 2, 80, 80, 0xff3366, 0);
-    ring.setStrokeStyle(4, 0xff6b9d, 0.85);
-    ring.setBlendMode(Phaser.BlendModes.ADD);
-    ring.setDepth(12);
-    this.tweens.add({
-      targets: ring,
-      scale: 6,
-      alpha: 0,
-      duration: 850,
-      ease: "cubic.out",
-      onComplete: () => ring.destroy(),
-    });
-
-    for (let i = 0; i < 22; i += 1) {
-      const angle = (i / 22) * Math.PI * 2 + Math.random() * 0.2;
-      const speed = 220 + Math.random() * 140;
-      const particle = this.add.circle(ARENA_WIDTH / 2, 80, 3, 0xff85a8, 0.95);
-      particle.setBlendMode(Phaser.BlendModes.ADD);
-      particle.setDepth(13);
-      const targetX = ARENA_WIDTH / 2 + Math.cos(angle) * speed;
-      const targetY = 80 + Math.sin(angle) * speed;
-      this.tweens.add({
-        targets: particle,
-        x: targetX,
-        y: targetY,
-        alpha: 0,
-        duration: 700,
-        ease: "cubic.out",
-        onComplete: () => particle.destroy(),
-      });
-    }
-  }
-
-  findPlayerByRole(role) {
-    for (const entry of this.playerSprites.values()) {
-      if (entry.role === role) return entry;
-    }
-    return null;
-  }
-
-  bindSocketHandlers() {
+  // ── Socket binding ─────────────────────────────────────────────────────────
+  _bindSocket() {
     if (!this.socket) return;
+    const s = this.socket;
 
-    this.handlePlayerMoved = ({ socketId, x, y, facing }) => {
-      this.playerTargets.set(socketId, { x, y });
-      if (facing) {
-        this.playerFacing.set(socketId, facing);
-        const entry = this.playerSprites.get(socketId);
-        if (entry) this.drawRunnerArrow(entry, facing);
-      }
-    };
+    this._ev = {
+      character_moved: ({ x, y }) => { this.charTargetX = x; this.charTargetY = y; },
 
-    this.handleGameState = (state) => {
-      const previousBossHP = this.bossHP;
-      this.bossHP = state.bossHP;
-      this.bossMaxHP = state.bossMaxHP ?? this.bossMaxHP;
-      this.drawBossHpBar(this.bossHP, this.bossMaxHP);
-      if (this.bossHP < previousBossHP) {
-        this.flashBossDamage();
-      }
-      this.lastBossHP = this.bossHP;
-
-      this.bossState = state.bossState;
-      if (this.bossStateText) {
-        this.bossStateText.setText(`BOSS  ${String(state.bossState || "").toUpperCase()}`);
-      }
-      this.drawBoss(state.bossState === "roar");
-
-      this.streak = state.streak || 0;
-      if (this.streak >= 2) {
-        this.streakText.setText(`STREAK ×${this.streak}`);
-        this.streakText.setVisible(true);
-      } else {
-        this.streakText.setVisible(false);
-      }
-
-      this.expectedWord = state.currentWord || "";
-      this.localTypedProgress = state.typedProgress || 0;
-      this.renderWord(this.expectedWord, this.localTypedProgress);
-
-      const presentIds = new Set();
-      state.players.forEach((player) => {
-        presentIds.add(player.socketId);
-        this.addOrUpdatePlayer(player);
-        if (
-          player.socketId === this.localSocketId &&
-          player.role !== (this.isRunner ? "runner" : "typer")
-        ) {
-          this.applyRoleVisuals(player.role);
+      game_state: (state) => {
+        if (state.character) { this.charTargetX = state.character.x; this.charTargetY = state.character.y; }
+        if (state.boss) {
+          this.bossTX = state.boss.x; this.bossTY = state.boss.y;
+          const newPhase = state.boss.phase ?? 0;
+          if (newPhase !== this.bossPhaseIdx) { this.bossPhaseIdx = newPhase; this._drawBossShape(false, false); }
+          this.bossAttackType   = state.boss.attackType;
+          this.bossWindingUp    = state.boss.windingUp;
+          this.bossWindUpAttack = state.boss.windUpAttack;
+          this.bossWindUpRemaining = state.boss.windUpRemaining || 0;
         }
-      });
-      this.playerSprites.forEach((_entry, socketId) => {
-        if (!presentIds.has(socketId)) this.removePlayer(socketId);
-      });
+        const prevHP = this.bossHP;
+        this.bossHP = state.bossHP; this.bossMaxHP = state.bossMaxHP ?? this.bossMaxHP;
+        this._drawBossHpBar(this.bossHP, this.bossMaxHP);
+        if (this.bossHP < prevHP) this.tweens.add({ targets: this.bossHpFill, alpha: { from: 0.4, to: 1 }, duration: 140 });
 
-      const activeIds = new Set();
-      (state.projectiles || []).forEach((projectile) => {
-        activeIds.add(projectile.id);
-        let sprite = this.projectileSprites.get(projectile.id);
-        if (!sprite) {
-          sprite = this.add.circle(projectile.x, projectile.y, 8, COLORS.projectile, 1);
-          sprite.setBlendMode(Phaser.BlendModes.ADD);
-          sprite.setStrokeStyle(2, COLORS.projectileGlow, 0.9);
-          sprite.setDepth(15);
-          this.projectileSprites.set(projectile.id, sprite);
+        const isRoar = state.bossState === "roar", isStun = state.bossState === "stunned";
+        if (state.bossState !== this.bossState) {
+          this.bossState = state.bossState;
+          this._drawBossShape(isRoar, isStun);
         }
-        sprite.x = projectile.x;
-        sprite.y = projectile.y;
-      });
-
-      this.projectileSprites.forEach((sprite, id) => {
-        if (!activeIds.has(id)) {
-          sprite.destroy();
-          this.projectileSprites.delete(id);
+        this._updateBossStateText();
+        this.streak = state.streak || 0;
+        this.streakText?.setVisible(this.streak >= 2);
+        if (this.streak >= 2) this.streakText?.setText(`STREAK ×${this.streak}`);
+        this.expectedWord = state.currentWord || "";
+        this.localTypedProgress = state.typedProgress || 0;
+        this._renderWord(this.expectedWord, this.localTypedProgress);
+        this._setCharLabels(state.players || []);
+        const localP = (state.players || []).find(p => p.socketId === this.localSocketId);
+        if (localP && localP.role !== (this.isRunner ? "runner" : "typer")) {
+          this.isRunner = localP.role === "runner";
+          this._updateRoleBadge();
+          this._bindKeyboard();
         }
-      });
-    };
+        // Sync projectiles
+        const active = new Set();
+        (state.projectiles || []).forEach(proj => { active.add(proj.id); this._getOrCreateProjectile(proj.id, proj.x, proj.y, proj.type || "normal"); });
+        this.projectileSprites.forEach((sp, id) => { if (!active.has(id)) { sp.destroy(); this.projectileSprites.delete(id); } });
+      },
 
-    this.handleTypingProgress = ({ currentWord, typedProgress, streak }) => {
-      this.expectedWord = currentWord || "";
-      this.localTypedProgress = typedProgress || 0;
-      if (typeof streak === "number") this.streak = streak;
-      this.renderWord(this.expectedWord, this.localTypedProgress);
-    };
+      typing_progress: ({ currentWord, typedProgress, streak }) => {
+        this.expectedWord = currentWord || ""; this.localTypedProgress = typedProgress || 0;
+        if (streak != null) this.streak = streak;
+        this._renderWord(this.expectedWord, this.localTypedProgress);
+      },
 
-    this.handleTypo = ({ socketId }) => {
-      if (socketId === this.localSocketId) {
-        this.flashWordTypo();
-      }
-    };
+      typo:           ({ socketId }) => { if (socketId === this.localSocketId) this._shakeWord(); },
 
-    this.handleWordCompleted = ({ by, word, damage, stunBonus, healed }) => {
-      this.flashLayer.setText(
-        `${by} typed "${word}"  −${damage}${stunBonus ? " (STUN)" : ""}`
-      );
-      this.flashLayer.setAlpha(1);
-      this.flashLayer.y = 200;
-      this.flashLayer.setColor(stunBonus ? "#fbbf24" : "#86efac");
-      this.tweens.add({
-        targets: this.flashLayer,
-        y: 160,
-        alpha: 0,
-        duration: 800,
-        ease: "cubic.out",
-      });
-      this.spawnDamageBurst(
-        damage,
-        stunBonus ? 0xfbbf24 : COLORS.runner,
-        Boolean(stunBonus)
-      );
-      if (healed > 0) {
-        this.spawnHealBurst(healed);
-      }
-    };
-
-    this.handlePlayerHit = ({ socketId }) => {
-      this.flashPlayerHit(socketId);
-    };
-
-    this.handleBattleStarted = () => {
-      this.cancelCountdownTimer();
-      this.overlayText.setVisible(false);
-      this.subOverlayText.setVisible(false);
-    };
-
-    this.handleRoarStart = ({ countdownMs }) => {
-      this.cameras.main.shake(600, 0.012);
-      this.drawBoss(true);
-      this.triggerRoarShockwave();
-
-      const totalSeconds = Math.max(1, Math.ceil((countdownMs || 3000) / 1000));
-      let remaining = totalSeconds;
-      this.overlayText.setColor("#ff6b9d");
-      this.overlayText.setVisible(true);
-      this.overlayText.setText(`ROAR\nSWAP IN ${remaining}`);
-      this.subOverlayText.setVisible(false);
-
-      if (this.roarCountdownTimer) this.roarCountdownTimer.remove(false);
-      this.roarCountdownTimer = this.time.addEvent({
-        delay: 1000,
-        repeat: totalSeconds - 1,
-        callback: () => {
-          remaining -= 1;
-          if (remaining > 0) {
-            this.overlayText.setText(`ROAR\nSWAP IN ${remaining}`);
-          } else {
-            this.overlayText.setText("SWAP!");
-            this.time.delayedCall(400, () => this.overlayText.setVisible(false));
-          }
-        },
-      });
-    };
-
-    this.handleRolesSwapped = ({ players }) => {
-      players.forEach((player) => {
-        const entry = this.playerSprites.get(player.socketId);
-        if (entry) {
-          entry.role = player.role;
-          const color = ROLE_COLOR[player.role] || COLORS.runner;
-          entry.glow.fillColor = color;
-          entry.ring.setStrokeStyle(2, color, 0.85);
-          entry.body.fillColor = color;
-          entry.color = color;
-          this.drawRunnerArrow(entry, this.playerFacing.get(player.socketId));
+      word_completed: ({ by, word, damage, stunBonus, healed }) => {
+        this.flashTxt.setText(`${by} typed "${word}"  −${damage}${stunBonus ? " ×2" : ""}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
+        this.flashTxt.y = 200;
+        this.tweens.add({ targets: this.flashTxt, y: 160, alpha: 0, duration: 850, ease: "cubic.out" });
+        this._spawnDamageBurst(damage, Boolean(stunBonus));
+        if (healed > 0) {
+          const t = this.add.text(W / 2, 215, `+${healed} HP`, { fontFamily: FONT, fontSize: "21px", color: "#4ade80", fontStyle: "bold" }).setOrigin(0.5).setDepth(45);
+          this.tweens.add({ targets: t, y: 175, alpha: 0, duration: 900, ease: "cubic.out", onComplete: () => t.destroy() });
         }
-        if (player.socketId === this.localSocketId) {
-          this.applyRoleVisuals(player.role);
-        }
-      });
-      this.drawBoss(false);
+      },
+
+      player_hit: ({ isLaser, isColumn }) => {
+        this._flashCharHit();
+        if (isLaser || isColumn) { this.cameras.main.shake(250, 0.018); this.cameras.main.flash(300, 255, 100, 100); }
+      },
+
+      battle_started: () => { this._cancelCountdown(); this.overlayTxt?.setVisible(false); this.subOverlayTxt?.setVisible(false); },
+
+      boss_roar_start: ({ countdownMs }) => {
+        this.cameras.main.shake(650, 0.013);
+        this._spawnRoarShockwave();
+        this._drawBossShape(true, false);
+        let rem = Math.max(1, Math.ceil((countdownMs || 3000) / 1000));
+        this.overlayTxt.setColor("#ff6b9d").setFontSize(70).setText(`ROAR\nSWAP IN ${rem}`).setVisible(true);
+        this.subOverlayTxt.setVisible(false);
+        if (this.roarTimer) this.roarTimer.remove(false);
+        this.roarTimer = this.time.addEvent({
+          delay: 1000, repeat: rem - 1, callback: () => {
+            rem--;
+            if (rem > 0) this.overlayTxt?.setText(`ROAR\nSWAP IN ${rem}`);
+            else { this.overlayTxt?.setText("SWAP!"); this.time.delayedCall(450, () => this.overlayTxt?.setVisible(false)); }
+          },
+        });
+      },
+
+      roles_swapped: ({ players }) => {
+        this._setCharLabels(players);
+        const lp = players.find(p => p.socketId === this.localSocketId);
+        if (lp) { this.isRunner = lp.role === "runner"; this._updateRoleBadge(); this._bindKeyboard(); }
+        this._drawBossShape(false, false);
+      },
+
+      boss_attack_changed: ({ attackType }) => {
+        this.bossAttackType = attackType;
+        this._updateBossStateText();
+        this._showAttackWarning(attackType);
+        this._hideWindUpBar();
+      },
+
+      boss_windup_start: ({ attackType, durationMs }) => {
+        this.bossWindingUp    = true;
+        this.bossWindUpAttack = attackType;
+        this._updateBossStateText();
+        const vis = this.bossVisual;
+        const color = parseInt((vis?.windUpColor || 0xff3399).toString(16).replace("0x", ""), 16);
+        this._showWindUpBar(attackType, durationMs, color);
+        // Boss glows during wind-up
+        this.tweens.add({ targets: this.bossCont, alpha: { from: 0.7, to: 1 }, duration: 200, yoyo: true, repeat: Math.floor(durationMs / 400) });
+      },
+
+      column_warning: (data) => this._showColumnWarning(data),
+      column_fire:    (data) => this._showColumnFire(data),
+
+      boss_ultimate_start: ({ specialName, windUpMs }) => this._spawnUltimateEffect(specialName, windUpMs),
+
+      game_over: ({ winner, bossHP }) => {
+        const won = winner === "players";
+        this.overlayTxt.setColor(won ? "#4ade80" : "#ff6b6b").setFontSize(56).setText(won ? "VICTORY!\nBOSS DEFEATED" : "DEFEATED\nBOSS WINS").setVisible(true);
+        this.subOverlayTxt.setVisible(false);
+        this.cameras.main.flash(750, won ? 60 : 220, won ? 240 : 50, won ? 180 : 80);
+        if (this.bossPulse) this.bossPulse.stop();
+        this.bossHP = bossHP ?? this.bossHP;
+        this._drawBossHpBar(this.bossHP, this.bossMaxHP);
+        this._hideWindUpBar();
+      },
     };
 
-    this.handleGameOver = ({ winner, sharedHP, bossHP }) => {
-      const playersWon = winner === "players";
-      this.overlayText.setText(
-        playersWon ? `VICTORY!\nBOSS DEFEATED` : `DEFEATED\nBOSS WINS`
-      );
-      this.overlayText.setColor(playersWon ? "#4ade80" : "#ff6b6b");
-      this.overlayText.setFontSize(56);
-      this.overlayText.setVisible(true);
-      this.subOverlayText.setVisible(false);
-      this.cameras.main.flash(
-        700,
-        playersWon ? 70 : 220,
-        playersWon ? 240 : 50,
-        playersWon ? 200 : 80
-      );
-      if (this.bossPulse) this.bossPulse.stop();
-      this.bossHP = bossHP ?? this.bossHP;
-      this.drawBossHpBar(this.bossHP, this.bossMaxHP);
-    };
-
-    this.socket.on("player_moved", this.handlePlayerMoved);
-    this.socket.on("game_state", this.handleGameState);
-    this.socket.on("typing_progress", this.handleTypingProgress);
-    this.socket.on("typo", this.handleTypo);
-    this.socket.on("word_completed", this.handleWordCompleted);
-    this.socket.on("player_hit", this.handlePlayerHit);
-    this.socket.on("battle_started", this.handleBattleStarted);
-    this.socket.on("boss_roar_start", this.handleRoarStart);
-    this.socket.on("roles_swapped", this.handleRolesSwapped);
-    this.socket.on("game_over", this.handleGameOver);
+    Object.entries(this._ev).forEach(([ev, fn]) => s.on(ev, fn));
   }
 
+  // ── Update loop ────────────────────────────────────────────────────────────
   update(time, delta) {
     const dt = delta / 1000;
 
-    this.stars.forEach((star) => {
-      star.sprite.x += star.vx * dt;
-      star.sprite.y += star.vy * dt;
-      if (star.sprite.x < -10) star.sprite.x = ARENA_WIDTH + 10;
-      if (star.sprite.x > ARENA_WIDTH + 10) star.sprite.x = -10;
-      if (star.sprite.y < -10) star.sprite.y = ARENA_HEIGHT + 10;
-      if (star.sprite.y > ARENA_HEIGHT + 10) star.sprite.y = -10;
-      star.twinklePhase += dt * 1.6;
-      star.sprite.alpha = star.baseAlpha + Math.sin(star.twinklePhase) * 0.18;
+    // Stars
+    this.stars.forEach(st => {
+      st.sprite.x += st.vx * dt; st.sprite.y += st.vy * dt;
+      if (st.sprite.x < -8) st.sprite.x = W + 8; if (st.sprite.x > W + 8) st.sprite.x = -8;
+      if (st.sprite.y < -8) st.sprite.y = H + 8; if (st.sprite.y > H + 8) st.sprite.y = -8;
+      st.phase += dt * 1.5;
+      st.sprite.alpha = st.base + Math.sin(st.phase) * 0.18;
     });
 
-    this.playerSprites.forEach((entry, socketId) => {
-      const target = this.playerTargets.get(socketId);
-      if (!target) return;
-      const lerpValue = socketId === this.localSocketId ? 0.35 : 0.2;
-      const nextX = Phaser.Math.Linear(entry.body.x, target.x, lerpValue);
-      const nextY = Phaser.Math.Linear(entry.body.y, target.y, lerpValue);
-      entry.body.x = nextX;
-      entry.body.y = nextY;
-      entry.ring.x = nextX;
-      entry.ring.y = nextY;
-      entry.glow.x = nextX;
-      entry.glow.y = nextY;
-      if (entry.hitFlash) {
-        entry.hitFlash.x = nextX;
-        entry.hitFlash.y = nextY;
-      }
-      if (entry.arrowGfx) {
-        entry.arrowGfx.x = nextX;
-        entry.arrowGfx.y = nextY;
-      }
-      entry.label.x = nextX;
-      entry.label.y = nextY - 36;
-    });
+    // Boss lerp + aura
+    this.bossX = Phaser.Math.Linear(this.bossX, this.bossTX, 0.05);
+    this.bossY = Phaser.Math.Linear(this.bossY, this.bossTY, 0.05);
+    this.bossCont.x = this.bossX; this.bossCont.y = this.bossY;
+    this.bossFlash.x = this.bossX; this.bossFlash.y = this.bossY;
+    this._drawBossAura(dt);
 
-    if (!this.isRunner || !this.keys || this.bossState === "countdown") return;
-
-    const local = this.playerSprites.get(this.localSocketId);
-    if (!local) return;
-
-    const velocity = 280 * dt;
-    let nextX = local.body.x;
-    let nextY = local.body.y;
-    let dx = 0;
-    let dy = 0;
-
-    if (this.keys.left.isDown) {
-      nextX -= velocity;
-      dx -= 1;
-    }
-    if (this.keys.right.isDown) {
-      nextX += velocity;
-      dx += 1;
-    }
-    if (this.keys.up.isDown) {
-      nextY -= velocity;
-      dy -= 1;
-    }
-    if (this.keys.down.isDown) {
-      nextY += velocity;
-      dy += 1;
-    }
-
-    nextX = Phaser.Math.Clamp(nextX, 20, 940);
-    nextY = Phaser.Math.Clamp(nextY, 160, 460);
-
-    this.playerTargets.set(this.localSocketId, { x: nextX, y: nextY });
-
-    if (dx !== 0 || dy !== 0) {
-      const mag = Math.sqrt(dx * dx + dy * dy);
-      const facing = { x: dx / mag, y: dy / mag };
-      this.playerFacing.set(this.localSocketId, facing);
-      this.drawRunnerArrow(local, facing);
-
-      if (time - this.lastSentAt > 50) {
-        this.lastSentAt = time;
-        this.socket?.emit("player_move", {
-          roomCode: this.roomCode,
-          x: nextX,
-          y: nextY,
-        });
+    // Character
+    if (!this.isRunner || !this.keys) {
+      this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, 0.28);
+      this.charY = Phaser.Math.Linear(this.charY, this.charTargetY, 0.28);
+      this._setCharPos(this.charX, this.charY);
+    } else {
+      if (this.bossState !== "countdown") {
+        const vel = 285 * dt;
+        let nx = this.charTargetX, ny = this.charTargetY, ddx = 0, ddy = 0;
+        if (this.keys.left?.isDown)  { nx -= vel; ddx -= 1; }
+        if (this.keys.right?.isDown) { nx += vel; ddx += 1; }
+        if (this.keys.up?.isDown)    { ny -= vel; ddy -= 1; }
+        if (this.keys.down?.isDown)  { ny += vel; ddy += 1; }
+        nx = Phaser.Math.Clamp(nx, 22, 938);
+        ny = Phaser.Math.Clamp(ny, 162, 458);
+        this.charTargetX = nx; this.charTargetY = ny;
+        this.charX = Phaser.Math.Linear(this.charX, nx, 0.38);
+        this.charY = Phaser.Math.Linear(this.charY, ny, 0.38);
+        this._setCharPos(this.charX, this.charY);
+        if (ddx !== 0 || ddy !== 0) { const m = Math.sqrt(ddx ** 2 + ddy ** 2); this._drawCharArrow({ x: ddx / m, y: ddy / m }); }
+        if (time - this.lastSentAt > 50 && (ddx !== 0 || ddy !== 0)) {
+          this.lastSentAt = time;
+          this.socket?.emit("player_move", { roomCode: this.roomCode, x: nx, y: ny });
+        }
       }
     }
   }
 
-  shutdown() {
-    if (this.socket) {
-      const detach = (event, handler) => {
-        if (handler) this.socket.off(event, handler);
-      };
-      detach("player_moved", this.handlePlayerMoved);
-      detach("game_state", this.handleGameState);
-      detach("typing_progress", this.handleTypingProgress);
-      detach("typo", this.handleTypo);
-      detach("word_completed", this.handleWordCompleted);
-      detach("player_hit", this.handlePlayerHit);
-      detach("battle_started", this.handleBattleStarted);
-      detach("boss_roar_start", this.handleRoarStart);
-      detach("roles_swapped", this.handleRolesSwapped);
-      detach("game_over", this.handleGameOver);
+  // ── Shutdown ───────────────────────────────────────────────────────────────
+  _shutdown() {
+    if (this.socket && this._ev) {
+      Object.entries(this._ev).forEach(([ev, fn]) => this.socket.off(ev, fn));
+      this._ev = null;
     }
-    if (this.input?.keyboard && this.handleKeydown) {
-      this.input.keyboard.off("keydown", this.handleKeydown, this);
-    }
-    if (this.keys) {
-      Object.values(this.keys).forEach((key) => {
-        if (key && typeof key.destroy === "function") key.destroy();
-      });
-      this.keys = null;
-    }
-    this.cancelCountdownTimer();
-    this.projectileSprites.forEach((sprite) => sprite.destroy());
+    if (this._onKeydown) this.input.keyboard?.off("keydown", this._onKeydown, this);
+    if (this.keys) { Object.values(this.keys).forEach(k => k?.destroy?.()); this.keys = null; }
+    this._cancelCountdown();
+    if (this.roarTimer) { this.roarTimer.remove(false); this.roarTimer = null; }
+    this._hideWindUpBar();
+    this.projectileSprites.forEach(s => s.destroy());
     this.projectileSprites.clear();
-    this.playerSprites.forEach((entry) => {
-      entry.tween?.stop?.();
-      entry.glow?.destroy?.();
-      entry.ring?.destroy?.();
-      entry.body?.destroy?.();
-      entry.label?.destroy?.();
-      entry.arrowGfx?.destroy?.();
-      entry.hitFlash?.destroy?.();
-    });
-    this.playerSprites.clear();
-    this.playerTargets.clear();
-    this.playerFacing.clear();
-    this.stars.forEach((star) => star.sprite?.destroy?.());
+    this.stars.forEach(s => s.sprite?.destroy?.());
     this.stars = [];
-    if (this.bossPulse) {
-      this.bossPulse.stop();
-      this.bossPulse = null;
-    }
-    if (this.roarCountdownTimer) {
-      this.roarCountdownTimer.remove(false);
-      this.roarCountdownTimer = null;
-    }
+    if (this.bossPulse) { this.bossPulse.stop(); this.bossPulse = null; }
   }
+
+  // keep Phaser happy — public alias used by scene.add & scene.start
+  shutdown() { this._shutdown(); }
 }

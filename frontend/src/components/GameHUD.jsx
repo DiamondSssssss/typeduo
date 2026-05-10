@@ -1,4 +1,31 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+
+/** Animated fill bar that drains down as remainMs counts toward 0. */
+function WindUpBar({ remainMs, label }) {
+  const [pct, setPct] = useState(1);
+  const startRef = useRef(Date.now());
+  const totalRef = useRef(remainMs);
+  useEffect(() => {
+    startRef.current = Date.now();
+    totalRef.current = remainMs;
+    const raf = () => {
+      const elapsed = Date.now() - startRef.current;
+      const p = Math.max(0, 1 - elapsed / Math.max(1, totalRef.current));
+      setPct(p);
+      if (p > 0) requestAnimationFrame(raf);
+    };
+    const id = requestAnimationFrame(raf);
+    return () => cancelAnimationFrame(id);
+  }, [remainMs]);
+  return (
+    <div className="windup-bar-wrap">
+      <span className="windup-bar-label">{label}</span>
+      <div className="windup-bar-track">
+        <div className="windup-bar-fill" style={{ width: `${pct * 100}%` }} />
+      </div>
+    </div>
+  );
+}
 
 function clampPct(value, max) {
   const safeMax = Math.max(1, max || 1);
@@ -84,6 +111,17 @@ const phaseLabel = (phase) => {
   return "Phase 1";
 };
 
+const ATTACK_LABELS = {
+  normal: "Normal",
+  aimed: "Aimed",
+  spread: "⚡ Spread",
+  rain: "☔ Rain",
+  circle: "🔴 Circle",
+  spiral: "🌀 Spiral",
+  laser: "⚠ LASER",
+  hell: "💀 HELL",
+};
+
 function GameHUD({ gamePayload, onLeaveRoom }) {
   const players = gamePayload?.players || [];
   const sharedHP = gamePayload?.sharedHP ?? 100;
@@ -97,6 +135,12 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
   const gameOver = gamePayload?.gameOver;
   const winner = gameOver?.winner;
   const playersWon = winner === "players";
+  const bossAttack = gamePayload?.boss?.attackType || "normal";
+  const laserState = gamePayload?.boss?.laserState;
+  const windingUp  = gamePayload?.boss?.windingUp || false;
+  const windUpAttack = gamePayload?.boss?.windUpAttack;
+  const windUpRemaining = gamePayload?.boss?.windUpRemaining || 0;
+  const bossId = gamePayload?.bossId || "watcher";
 
   const orderedPlayers = [...players].sort((a, b) => {
     if (a.role === b.role) return 0;
@@ -119,6 +163,16 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
           {streak >= 2 ? (
             <span className="streak-pill">Streak ×{streak}</span>
           ) : null}
+          {bossState === "attack" && !windingUp && (
+            <span className="attack-badge" data-type={bossAttack} title={`Boss attack: ${bossAttack}`}>
+              {ATTACK_LABELS[bossAttack] || bossAttack}
+            </span>
+          )}
+          {windingUp && windUpAttack && (
+            <span className="attack-badge attack-badge--windup" title="Boss is charging...">
+              ⚡ CHARGING {ATTACK_LABELS[windUpAttack] || windUpAttack}
+            </span>
+          )}
         </div>
       </div>
 
@@ -138,6 +192,19 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
         <div className="callout callout--roar">
           Boss is roaring — typing locked, brace for role swap!
         </div>
+      ) : null}
+
+      {windingUp && windUpAttack && !gameOver ? (
+        <div className="callout callout--windup">
+          <WindUpBar remainMs={windUpRemaining} label={`Charging: ${ATTACK_LABELS[windUpAttack] || windUpAttack}`} />
+        </div>
+      ) : null}
+
+      {laserState === "warning" && !gameOver ? (
+        <div className="callout callout--laser">⚠ COLUMN INCOMING — move out of the beam!</div>
+      ) : null}
+      {laserState === "active" && !gameOver ? (
+        <div className="callout callout--laser callout--laser-active">⚡ FIRING!</div>
       ) : null}
 
       <div className="hud-grid">
