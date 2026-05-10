@@ -26,7 +26,7 @@ module.exports = {
   BOSS_X_MIN:             220,
   BOSS_X_MAX:             1060,
   WEAPON_PICKUP_RADIUS:   40,
-  WEAPON_DROP_IMMUNITY_MS: 1500, // can't drop again within 1.5s of pickup
+  WEAPON_DROP_IMMUNITY_MS: 800,  // can't drop again within 0.8s of pickup
   DEFAULT_BOSS_ID:        "watcher",
   // Streak system
   STREAK_TIERS,

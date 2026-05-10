@@ -670,6 +670,7 @@ export default class MainScene extends Phaser.Scene {
   _showColumnFire({ x, width, color, durationMs }) {
     this.tweens.killTweensOf(this.columnWarnGfx);
     this.columnWarnGfx.setAlpha(0).clear();
+    this.tweens.killTweensOf(this.columnFireGfx);
     this.columnFireGfx.clear();
     this.columnFireGfx.fillStyle(0xffffff, 0.9);
     this.columnFireGfx.fillRect(x - width / 2, 60, width, H - 120);
@@ -679,6 +680,13 @@ export default class MainScene extends Phaser.Scene {
     this.cameras.main.shake(200, 0.015);
     this.cameras.main.flash(durationMs, 220, 200, 200);
     this.tweens.add({ targets: this.columnFireGfx, alpha: 0, duration: durationMs + 200, ease: "cubic.out", onComplete: () => this.columnFireGfx.clear() });
+  }
+
+  _clearColumnGraphics() {
+    this.tweens.killTweensOf(this.columnWarnGfx);
+    this.columnWarnGfx.setAlpha(0).clear();
+    this.tweens.killTweensOf(this.columnFireGfx);
+    this.columnFireGfx.setAlpha(0).clear();
   }
 
   // ── Populate from initial payload ─────────────────────────────────────────
@@ -1134,6 +1142,7 @@ export default class MainScene extends Phaser.Scene {
         this._updateBossStateText();
         this._showAttackWarning(attackType);
         this._hideWindUpBar();
+        this._clearColumnGraphics();
       },
 
       boss_windup_start: ({ attackType, durationMs }) => {
