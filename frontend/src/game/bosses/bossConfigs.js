@@ -125,6 +125,7 @@ export const ATTACK_LABELS = {
   spiral:          "🌀 Spiral",
   laser:           "☢ Laser",
   hell:            "💀 Hell",
+  arcane_volley:   "✨ Arcane Volley",
   thunder_rain:    "⛈ Thunder Rain",
   sweep:           "💨 Sweep",
   lightning_bolt:  "⚡ Lightning Bolt",
@@ -135,6 +136,7 @@ export const ATTACK_LABELS = {
   eruption:        "💥 Eruption",
   dark_pulse:      "🌑 Dark Pulse",
   singularity:     "🕳 Singularity",
+  void_zone:       "🔮 Void Zone",
   // Inferno
   ember_arc:       "🔥 Ember Arc",
   molten_rain:     "🌋 Molten Rain",

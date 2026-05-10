@@ -135,6 +135,13 @@ function App() {
     });
   }, [socket, roomState, gamePayload]);
 
+  // Listen for Phaser canvas "Return to Lobby" button click
+  useEffect(() => {
+    const handler = () => handleLeaveRoom();
+    window.addEventListener("typeduo_leave_room", handler);
+    return () => window.removeEventListener("typeduo_leave_room", handler);
+  }, [handleLeaveRoom]);
+
   if (!currentUser) {
     return (
       <main className="app-shell app-shell--centered">
@@ -179,10 +186,10 @@ function App() {
           onLeaveRoom={handleLeaveRoom}
         />
       ) : (
-        <>
-          <GameHUD gamePayload={gamePayload} onLeaveRoom={handleLeaveRoom} />
+        <div className="game-layout">
           <div id="game-root" className="game-root" />
-        </>
+          <GameHUD gamePayload={gamePayload} onLeaveRoom={handleLeaveRoom} />
+        </div>
       )}
     </main>
   );

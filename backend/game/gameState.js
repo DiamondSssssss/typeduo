@@ -1,6 +1,11 @@
 const { getDifficultyWord, getDifficultyPhase, getPhase } = require("./words");
 const { SHARED_MAX_HP, COUNTDOWN_DURATION_MS } = require("./constants");
 
+const randomWeaponPos = () => ({
+  x: 300 + Math.random() * 680, // 300–980 (away from boss zone and edges)
+  y: 350 + Math.random() * 200, // 350–550 (lower half of arena)
+});
+
 const toPublicRoomState = (room) => ({
   code:         room.code,
   hostSocketId: room.hostSocketId,
@@ -28,7 +33,7 @@ const buildBossStateForClient = (boss, bossConfig) => ({
   windUpAttack: boss.windUpAttack || null,
   windUpRemaining: boss.windingUp ? Math.max(0, boss.windUpUntil - Date.now()) : 0,
   columnState: boss.columnState || null,
-  columnX:     boss.columnX || 480,
+  columnX:     boss.columnX || 640,
   phase:       getPhase(boss._bossHP || 0, bossConfig?.maxHP || 250),
 });
 
@@ -40,6 +45,9 @@ const emitGameState = (io, room, bossConfig) => {
     bossId:           room.selectedBoss,
     sharedHP:         g.sharedHP,
     sharedMaxHP:      g.sharedMaxHP,
+    weaponHeld:       g.weapon?.held  || false,
+    weaponX:          g.weapon?.x,
+    weaponY:          g.weapon?.y,
     bossHP:           g.bossHP,
     bossMaxHP:        g.bossMaxHP,
     bossState:        g.bossState,
@@ -76,12 +84,12 @@ const createInitialGameState = (bossConfig) => {
     typedProgress: 0,
     streak:        0,
     totalWordsTyped: 0,
-    character: { x: 480, y: 370 },
+    character: { x: 640, y: 490 },
     boss: {
-      x:       480,
-      y:       bossConfig.yBase || 100,
-      targetX: 480,
-      targetY: bossConfig.yBase || 100,
+      x:       640,
+      y:       bossConfig.yBase || 110,
+      targetX: 640,
+      targetY: bossConfig.yBase || 110,
       nextMoveAt: now + 2000,
       attackType:     bossConfig.attackQueues[0][0],
       attackTimer:    bossConfig.attackDurations[bossConfig.attackQueues[0][0]] || 5000,
@@ -107,13 +115,14 @@ const createInitialGameState = (bossConfig) => {
       windUpUntil:   0,
       // Column attack
       columnState:   null,
-      columnX:       480,
+      columnX:       640,
       columnStateAt: 0,
     },
     projectiles:      [],
     nextProjectileId: 1,
     startedAt:        now,
     lastTickAt:       now,
+    weapon: { ...randomWeaponPos(), held: false, pickedUpAt: 0 },
     // Streak bonus system
     streakMult:      1,   // damage multiplier for the next streakMultWords words
     streakMultWords: 0,   // how many words still carry the bonus

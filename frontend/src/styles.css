@@ -71,6 +71,19 @@ button {
   gap: 18px;
 }
 
+/* Game mode: wider container to fit 1280px canvas */
+.app-shell:has(.game-layout) {
+  width: min(100%, 1380px);
+  padding: 16px 20px 40px;
+}
+
+.game-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+
 .app-shell--centered {
   justify-content: center;
   align-items: center;
@@ -613,7 +626,19 @@ button {
 }
 
 .hud-card {
-  width: min(100%, 1000px);
+  width: min(100%, 1280px);
+}
+
+.hud-card--compact {
+  padding: 10px 16px;
+}
+
+.hud-card--compact .hud-state-row {
+  margin-bottom: 4px;
+}
+
+.hud-card--compact .hud-grid {
+  gap: 10px;
 }
 
 .hud-grid {
@@ -837,9 +862,9 @@ button {
 
 /* Game canvas */
 .game-root {
-  width: min(960px, 100%);
+  width: min(1280px, 100%);
   margin: 0 auto;
-  aspect-ratio: 960 / 540;
+  aspect-ratio: 1280 / 720;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-strong);
   overflow: hidden;
@@ -1168,6 +1193,37 @@ button {
 .streak-count {
   color: var(--text-primary);
   font-weight: 700;
+}
+
+.weapon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  border: 1px solid;
+  transition: background 0.2s, color 0.2s;
+}
+
+.weapon-badge--held {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.weapon-badge--dropped {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+  animation: weapon-warn 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes weapon-warn {
+  from { box-shadow: none; }
+  to   { box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
 }
 
 .fury-badge {

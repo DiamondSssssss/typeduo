@@ -2,8 +2,8 @@ import Phaser from "phaser";
 import { BOSS_VISUALS, PROJ_VISUALS, ATTACK_LABELS } from "./bosses/bossConfigs";
 
 // ── Scene constants ───────────────────────────────────────────────────────────
-const W = 960;
-const H = 540;
+const W = 1280;
+const H = 720;
 const GRID = 40;
 const FONT = '"Outfit","Inter","Segoe UI",system-ui,sans-serif';
 const MONO = '"JetBrains Mono","Fira Code","SF Mono",Consolas,monospace';
@@ -43,11 +43,11 @@ export default class MainScene extends Phaser.Scene {
   constructor() {
     super("MainScene");
     // character state
-    this.charX = 480; this.charY = 370;
-    this.charTargetX = 480; this.charTargetY = 370;
+    this.charX = 640; this.charY = 490;
+    this.charTargetX = 640; this.charTargetY = 490;
     // boss state
-    this.bossX = 480; this.bossY = 100;
-    this.bossTX = 480; this.bossTY = 100;
+    this.bossX = 640; this.bossY = 110;
+    this.bossTX = 640; this.bossTY = 110;
     this.bossAuraAngle = 0;
     this.bossVisual = null;   // current BOSS_VISUALS entry
     this.bossPhaseIdx = 0;
@@ -70,6 +70,9 @@ export default class MainScene extends Phaser.Scene {
     this.countdownTimer = null;
     this.roarTimer = null;
     this.windUpBarTween = null;
+    // Weapon
+    this.weaponHeld = false;
+    this.weaponBobTween = null;
   }
 
   init(data) {
@@ -86,6 +89,7 @@ export default class MainScene extends Phaser.Scene {
     this._createCharacter();
     this._createUI();
     this._createColumnLayer();
+    this._createWeapon();
     this._populateFromPayload();
     this._bindKeyboard();
     this._bindSocket();
@@ -123,7 +127,7 @@ export default class MainScene extends Phaser.Scene {
   // ── Boss drawing ───────────────────────────────────────────────────────────
   _createBoss() {
     this.bossAuraGfx  = this.add.graphics().setDepth(7);
-    this.bossCont     = this.add.container(480, 100).setDepth(9);
+    this.bossCont     = this.add.container(640, 110).setDepth(9);
     this.bossBorderGfx = this.add.graphics();
     this.bossBodyGfx   = this.add.graphics();
     this.bossExtraGfx  = this.add.graphics(); // tendrils / wings / extra
@@ -414,23 +418,40 @@ export default class MainScene extends Phaser.Scene {
     if (this.bossHpText) this.bossHpText.setText(`${Math.round(hp)} / ${maxHP}`);
   }
 
+  _drawTeamHpBar(hp, maxHP) {
+    const bw = 200, bh = 10, bx = 16, by = H - 48;
+    const pct = Math.max(0, Math.min(1, hp / Math.max(1, maxHP)));
+    this.teamHpBack.clear();
+    this.teamHpBack.fillStyle(0x1f1230, 0.85);
+    this.teamHpBack.fillRoundedRect(bx, by, bw, bh, 4);
+    this.teamHpBack.lineStyle(1, 0x4ef0d4, 0.45);
+    this.teamHpBack.strokeRoundedRect(bx, by, bw, bh, 4);
+    this.teamHpFill.clear();
+    if (pct > 0) {
+      const col = pct > 0.5 ? 0x4ade80 : pct > 0.25 ? 0xfbbf24 : 0xef4444;
+      this.teamHpFill.fillStyle(col, 0.92);
+      this.teamHpFill.fillRoundedRect(bx + 1, by + 1, (bw - 2) * pct, bh - 2, 3);
+    }
+    if (this.teamHpText) this.teamHpText.setText(`Team HP  ${Math.round(hp)} / ${maxHP}`);
+  }
+
   // ── Character ──────────────────────────────────────────────────────────────
   _createCharacter() {
-    this.charGlow = this.add.circle(480, 370, 32, 0x4ef0d4, 0.15).setBlendMode(Phaser.BlendModes.ADD).setDepth(5);
-    this.charRing = this.add.circle(480, 370, 22, 0xffffff, 0).setStrokeStyle(2.5, 0x4ef0d4, 0.9).setDepth(5);
-    this.charBody = this.add.circle(480, 370, 15, 0xffffff, 1).setStrokeStyle(2, 0x4ef0d4, 0.85).setDepth(5);
-    this.charHit  = this.add.circle(480, 370, 34, 0xff5577, 0).setBlendMode(Phaser.BlendModes.ADD).setDepth(6);
+    this.charGlow = this.add.circle(640, 490, 32, 0x4ef0d4, 0.15).setBlendMode(Phaser.BlendModes.ADD).setDepth(5);
+    this.charRing = this.add.circle(640, 490, 18, 0xffffff, 0).setStrokeStyle(2.5, 0x4ef0d4, 0.9).setDepth(5);
+    this.charBody = this.add.circle(640, 490, 11, 0xffffff, 1).setStrokeStyle(2, 0x4ef0d4, 0.85).setDepth(5);
+    this.charHit  = this.add.circle(640, 490, 26, 0xff5577, 0).setBlendMode(Phaser.BlendModes.ADD).setDepth(6);
     this.charArrow = this.add.graphics().setDepth(6);
     const ls = { fontFamily: FONT, fontSize: "11px", color: "#e8ecff", backgroundColor: "rgba(13,18,32,0.75)", padding: { x: 6, y: 2 } };
-    this.charLabel1 = this.add.text(480, 340, "", ls).setOrigin(0.5, 1).setDepth(6);
-    this.charLabel2 = this.add.text(480, 352, "", ls).setOrigin(0.5, 1).setDepth(6);
+    this.charLabel1 = this.add.text(640, 456, "", ls).setOrigin(0.5, 1).setDepth(6);
+    this.charLabel2 = this.add.text(640, 468, "", ls).setOrigin(0.5, 1).setDepth(6);
     this.tweens.add({ targets: this.charGlow, scale: { from: 1, to: 1.35 }, alpha: { from: 0.35, to: 0.1 }, duration: 1000, yoyo: true, repeat: -1, ease: "sine.inOut" });
   }
 
   _setCharPos(x, y) {
     [this.charGlow, this.charRing, this.charBody, this.charHit, this.charArrow].forEach(o => o?.setPosition(x, y));
-    this.charLabel1?.setPosition(x, y - 26);
-    this.charLabel2?.setPosition(x, y - 15);
+    this.charLabel1?.setPosition(x, y - 30);
+    this.charLabel2?.setPosition(x, y - 19);
   }
 
   _setCharLabels(players) {
@@ -468,34 +489,43 @@ export default class MainScene extends Phaser.Scene {
   _createUI() {
     this.roleBadge = this.add.text(16, 16, "", { fontFamily: FONT, fontSize: "13px", color: "#4ef0d4", backgroundColor: "rgba(13,18,32,0.65)", padding: { x: 10, y: 6 } }).setOrigin(0, 0).setDepth(10);
     this.bossStateText = this.add.text(W - 16, 16, "", { fontFamily: FONT, fontSize: "13px", color: "#fca5a5", backgroundColor: "rgba(13,18,32,0.65)", padding: { x: 10, y: 6 } }).setOrigin(1, 0).setDepth(10);
-    this.streakText = this.add.text(W / 2, 168, "", { fontFamily: FONT, fontSize: "13px", color: "#fbbf24", fontStyle: "bold" }).setOrigin(0.5).setDepth(10).setVisible(false);
+    this.streakText = this.add.text(W / 2, 210, "", { fontFamily: FONT, fontSize: "13px", color: "#fbbf24", fontStyle: "bold" }).setOrigin(0.5).setDepth(10).setVisible(false);
 
     // Word panel
-    const pw = 760, ph = 70, px = W / 2 - pw / 2, py = 490 - ph / 2;
+    const pw = 900, ph = 70, px = W / 2 - pw / 2, py = H - 60 - ph / 2;
     const wg = this.add.graphics();
     wg.fillStyle(0x0a1124, 0.65);
     wg.fillRoundedRect(px, py, pw, ph, 14);
     wg.lineStyle(1, 0x82aaff, 0.35);
     wg.strokeRoundedRect(px, py, pw, ph, 14);
 
-    this.wordCont = this.add.container(W / 2, 490).setDepth(20);
+    this.wordCont = this.add.container(W / 2, H - 60).setDepth(20);
     this.typedTxt  = this.add.text(0, 0, "", { fontFamily: MONO, fontSize: "42px", color: "#4ef0d4", fontStyle: "bold" }).setOrigin(0, 0.5);
     this.remainTxt = this.add.text(0, 0, "", { fontFamily: MONO, fontSize: "42px", color: "#e8ecff" }).setOrigin(0, 0.5);
     this.wordCont.add([this.typedTxt, this.remainTxt]);
 
-    this.flashTxt = this.add.text(W / 2, 200, "", { fontFamily: FONT, fontSize: "19px", color: "#86efac", fontStyle: "bold" }).setOrigin(0.5).setDepth(40).setAlpha(0);
+    this.flashTxt = this.add.text(W / 2, 260, "", { fontFamily: FONT, fontSize: "19px", color: "#86efac", fontStyle: "bold" }).setOrigin(0.5).setDepth(40).setAlpha(0);
 
     // Overlay (countdown / roar / game-over)
-    this.overlayTxt    = this.add.text(W / 2, 270, "", { fontFamily: FONT, fontSize: "70px", color: "#ffffff", fontStyle: "bold", align: "center" }).setOrigin(0.5).setDepth(50).setVisible(false);
-    this.subOverlayTxt = this.add.text(W / 2, 360, "", { fontFamily: FONT, fontSize: "20px", color: "#cdd5ff", align: "center" }).setOrigin(0.5).setDepth(50).setVisible(false);
+    this.overlayTxt    = this.add.text(W / 2, H / 2 - 60, "", { fontFamily: FONT, fontSize: "70px", color: "#ffffff", fontStyle: "bold", align: "center" }).setOrigin(0.5).setDepth(50).setVisible(false);
+    this.subOverlayTxt = this.add.text(W / 2, H / 2 + 50, "", { fontFamily: FONT, fontSize: "20px", color: "#cdd5ff", align: "center" }).setOrigin(0.5).setDepth(50).setVisible(false);
 
     // Attack warning text
-    this.attackWarnTxt = this.add.text(W / 2, 185, "", { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 12, y: 5 } }).setOrigin(0.5).setDepth(45).setAlpha(0);
+    this.attackWarnTxt = this.add.text(W / 2, 240, "", { fontFamily: FONT, fontSize: "15px", fontStyle: "bold", backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 12, y: 5 } }).setOrigin(0.5).setDepth(45).setAlpha(0);
 
     // Wind-up bar (fills from 0 → full during wind-up, sits under boss name)
     this.windUpBarBg   = this.add.graphics().setDepth(12).setVisible(false);
     this.windUpBarFill = this.add.graphics().setDepth(12).setVisible(false);
-    this.windUpLabel   = this.add.text(W / 2, 108, "", { fontFamily: FONT, fontSize: "12px", color: "#fff", fontStyle: "bold", backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 8, y: 3 } }).setOrigin(0.5).setDepth(12).setVisible(false);
+    this.windUpLabel   = this.add.text(W / 2, 148, "", { fontFamily: FONT, fontSize: "12px", color: "#fff", fontStyle: "bold", backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 8, y: 3 } }).setOrigin(0.5).setDepth(12).setVisible(false);
+
+    // Team HP overlay bar (bottom-left corner of canvas — always visible during play)
+    this.teamHpBack = this.add.graphics().setDepth(18);
+    this.teamHpFill = this.add.graphics().setDepth(18);
+    this.teamHpText = this.add.text(18, H - 30, "Team HP: — / —", { fontFamily: FONT, fontSize: "11px", color: "#cdd5ff" }).setOrigin(0, 1).setDepth(18);
+    this._drawTeamHpBar(100, 100);
+
+    // Void-zone warning graphics
+    this.voidZoneGfx = this.add.graphics().setDepth(13);
 
     // Fury overlay — fullscreen red pulsing tint (depth 1 so everything renders on top)
     this.furyOverlay = this.add.rectangle(0, 0, W, H, 0xff1a1a, 0).setOrigin(0, 0).setDepth(1).setVisible(false);
@@ -524,7 +554,7 @@ export default class MainScene extends Phaser.Scene {
 
   _showFloatingText(text, color, size = 32) {
     const cx = this.charX || W / 2;
-    const cy = (this.charY || H / 2) - 20;
+    const cy = (this.charY || H / 2) - 30;
     const t  = this.add.text(cx, cy, text, {
       fontFamily: FONT, fontSize: `${size}px`, color, fontStyle: "bold",
       stroke: "#000000", strokeThickness: 4,
@@ -559,7 +589,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _showWindUpBar(attackType, durationMs, color) {
-    const bw = 200, bh = 8, bx = W / 2 - bw / 2, by = 116;
+    const bw = 240, bh = 8, bx = W / 2 - bw / 2, by = 152;
     this.windUpBarBg.clear().setVisible(true);
     this.windUpBarBg.fillStyle(0x1f1230, 0.8);
     this.windUpBarBg.fillRoundedRect(bx, by, bw, bh, 4);
@@ -616,8 +646,8 @@ export default class MainScene extends Phaser.Scene {
     const hex = `#${col.toString(16).padStart(6, "0")}`;
     const label = ATTACK_LABELS[type] || type.toUpperCase();
     this.tweens.killTweensOf(this.attackWarnTxt);
-    this.attackWarnTxt.setText(label).setColor(hex).setAlpha(1).y = 185;
-    this.tweens.add({ targets: this.attackWarnTxt, y: 160, alpha: 0, duration: 1400, ease: "cubic.out", onComplete: () => { this.attackWarnTxt.y = 185; } });
+    this.attackWarnTxt.setText(label).setColor(hex).setAlpha(1).y = 240;
+    this.tweens.add({ targets: this.attackWarnTxt, y: 210, alpha: 0, duration: 1400, ease: "cubic.out", onComplete: () => { this.attackWarnTxt.y = 240; } });
   }
 
   // ── Column layer (laser / lightning) ──────────────────────────────────────
@@ -638,6 +668,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _showColumnFire({ x, width, color, durationMs }) {
+    this.tweens.killTweensOf(this.columnWarnGfx);
     this.columnWarnGfx.setAlpha(0).clear();
     this.columnFireGfx.clear();
     this.columnFireGfx.fillStyle(0xffffff, 0.9);
@@ -676,7 +707,9 @@ export default class MainScene extends Phaser.Scene {
     this.streak = p.streak || 0;
 
     if (p.character) { this.charX = p.character.x; this.charY = p.character.y; this.charTargetX = this.charX; this.charTargetY = this.charY; this._setCharPos(this.charX, this.charY); }
-    if (p.boss)      { this.bossX = p.boss.x || 480; this.bossY = p.boss.y || 100; this.bossTX = this.bossX; this.bossTY = this.bossY; this.bossCont.x = this.bossX; this.bossCont.y = this.bossY; }
+    if (p.boss)      { this.bossX = p.boss.x || 640; this.bossY = p.boss.y || 110; this.bossTX = this.bossX; this.bossTY = this.bossY; this.bossCont.x = this.bossX; this.bossCont.y = this.bossY; }
+    // Draw team HP overlay from initial payload
+    this._drawTeamHpBar(p.sharedHP ?? 100, p.sharedMaxHP ?? 100);
 
     this._drawBossShape();
     this._drawBossHpBar(this.bossHP, this.bossMaxHP);
@@ -684,6 +717,9 @@ export default class MainScene extends Phaser.Scene {
     this._setCharLabels(players);
     this._updateRoleBadge();
     this._updateBossStateText();
+    // Weapon state
+    this.weaponHeld = p.weaponHeld || false;
+    if (!this.weaponHeld && p.weaponX != null) this._setWeaponPos(p.weaponX, p.weaponY);
   }
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
@@ -811,6 +847,164 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
+  // ── Weapon ────────────────────────────────────────────────────────────────
+  _createWeapon() {
+    // Weapon container: glow ring + staff shape
+    this.weaponCont = this.add.container(640, 490).setDepth(8).setVisible(false);
+
+    const glow = this.add.circle(0, 0, 26, 0xfbbf24, 0.18).setBlendMode(Phaser.BlendModes.ADD);
+    const ring = this.add.circle(0, 0, 18, 0xfbbf24, 0).setStrokeStyle(2.5, 0xfde68a, 0.9);
+
+    // Staff/wand shape: vertical bar + crossguard
+    const staff = this.add.graphics();
+    staff.lineStyle(3.5, 0xfde68a, 1);
+    staff.lineBetween(0, -14, 0, 14);   // shaft
+    staff.lineBetween(-7, -6, 7, -6);   // crossguard
+    staff.fillStyle(0xfbbf24, 1);
+    staff.fillCircle(0, -16, 5);         // gem tip
+    staff.fillStyle(0xffffff, 0.7);
+    staff.fillCircle(-1, -17, 2);        // gem highlight
+
+    this.weaponCont.add([glow, ring, staff]);
+
+    // Floating label
+    this.weaponLabel = this.add.text(640, 460, "PICK UP", {
+      fontFamily: FONT, fontSize: "10px", color: "#fde68a", fontStyle: "bold",
+      backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 4, y: 2 },
+    }).setOrigin(0.5).setDepth(8).setVisible(false);
+
+    // Bobbing tween
+    this.weaponBobTween = this.tweens.add({
+      targets: this.weaponCont, y: { from: 490, to: 484 },
+      duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut",
+    });
+    this.weaponBobTween.stop();
+
+    // HUD indicator for when weapon is held (top-right of canvas)
+    this.weaponHeldBadge = this.add.text(W - 16, H - 30, "⚔ ARMED", {
+      fontFamily: FONT, fontSize: "11px", color: "#fde68a", fontStyle: "bold",
+      backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 6, y: 2 },
+    }).setOrigin(1, 1).setDepth(18).setVisible(false);
+
+    // "No weapon" warning text (flashes when typer tries to type without weapon)
+    this.noWeaponTxt = this.add.text(W / 2, H / 2 + 20, "⚔  Pick up the weapon first!", {
+      fontFamily: FONT, fontSize: "18px", color: "#fde68a", fontStyle: "bold",
+      backgroundColor: "rgba(0,0,0,0.65)", padding: { x: 14, y: 6 },
+    }).setOrigin(0.5).setDepth(52).setAlpha(0);
+  }
+
+  _setWeaponPos(x, y) {
+    this.weaponCont.setPosition(x, y).setVisible(true);
+    this.weaponLabel.setPosition(x, y - 34).setVisible(true);
+    if (this.weaponBobTween) {
+      this.weaponBobTween.stop();
+      this.weaponBobTween = this.tweens.add({
+        targets: this.weaponCont, y: { from: y, to: y - 6 },
+        duration: 900, yoyo: true, repeat: -1, ease: "sine.inOut",
+      });
+    }
+  }
+
+  _onWeaponPickup(x, y) {
+    this.weaponHeld = true;
+    this.weaponCont.setVisible(false);
+    this.weaponLabel.setVisible(false);
+    if (this.weaponBobTween) { this.weaponBobTween.stop(); }
+    this.weaponHeldBadge.setVisible(true);
+
+    // Pickup burst effect
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2, d = 20 + Math.random() * 30;
+      const p = this.add.circle(x, y, 4, 0xfbbf24, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(20);
+      this.tweens.add({ targets: p, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0, scale: 0.2, duration: 400, ease: "cubic.out", onComplete: () => p.destroy() });
+    }
+    const flash = this.add.circle(x, y, 30, 0xfde68a, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(20);
+    this.tweens.add({ targets: flash, scale: 3, alpha: 0, duration: 350, ease: "cubic.out", onComplete: () => flash.destroy() });
+    this._showFloatingText("⚔ Armed!", "#fde68a", 22);
+  }
+
+  _onWeaponDrop(x, y) {
+    this.weaponHeld = false;
+    this.weaponHeldBadge.setVisible(false);
+    this._setWeaponPos(x, y);
+
+    // Drop impact flash
+    const flash = this.add.circle(x, y, 16, 0xff8c00, 0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(20);
+    this.tweens.add({ targets: flash, scale: 2.5, alpha: 0, duration: 300, ease: "cubic.out", onComplete: () => flash.destroy() });
+
+    this.cameras.main.flash(180, 200, 140, 0);
+    this._showFloatingText("Weapon dropped!", "#ff8c00", 18);
+  }
+
+  _showNoWeaponFeedback() {
+    this.tweens.killTweensOf(this.noWeaponTxt);
+    this.noWeaponTxt.setAlpha(1);
+    this.tweens.add({ targets: this.noWeaponTxt, alpha: 0, duration: 1600, ease: "cubic.out" });
+    // Also shake the word display
+    this._shakeWord();
+  }
+
+  // ── Eruption burst visual (at character position) ──────────────────────────
+  _showEruptionBurst(x, y) {
+    // Red shockwave ring at eruption origin
+    const ring = this.add.circle(x, y, 20, 0xff3d9f, 0).setStrokeStyle(4, 0xff3d9f, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+    this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 500, ease: "cubic.out", onComplete: () => ring.destroy() });
+    const ring2 = this.add.circle(x, y, 10, 0xff9f3d, 0).setStrokeStyle(2, 0xff9f3d, 0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+    this.tweens.add({ targets: ring2, scale: 8, alpha: 0, duration: 700, ease: "cubic.out", onComplete: () => ring2.destroy() });
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2, d = 60 + Math.random() * 80;
+      const p = this.add.circle(x, y, 5, 0xff3d9f, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+      this.tweens.add({ targets: p, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0, scale: 0.3, duration: 400 + Math.random() * 150, ease: "cubic.out", onComplete: () => p.destroy() });
+    }
+    this.cameras.main.shake(130, 0.010);
+  }
+
+  // ── Void Zone visual ───────────────────────────────────────────────────────
+  _showVoidZone(x, y, radius, detonateMs) {
+    this.voidZoneGfx.clear();
+    this.voidZoneGfx.lineStyle(3, 0xd946ef, 0.8);
+    this.voidZoneGfx.strokeCircle(x, y, radius);
+    this.voidZoneGfx.lineStyle(1, 0xd946ef, 0.3);
+    this.voidZoneGfx.strokeCircle(x, y, radius + 10);
+
+    // Warning pulse text
+    const warnTxt = this.add.text(x, y - radius - 16, "⚠ VOID ZONE", {
+      fontFamily: FONT, fontSize: "14px", color: "#d946ef", fontStyle: "bold",
+      backgroundColor: "rgba(0,0,0,0.6)", padding: { x: 8, y: 3 },
+    }).setOrigin(0.5).setDepth(16);
+    this.tweens.add({ targets: warnTxt, alpha: { from: 1, to: 0.2 }, duration: 350, yoyo: true, repeat: Math.floor(detonateMs / 700), onComplete: () => warnTxt.destroy() });
+
+    // Shrinking fill circle (shows countdown)
+    const fill = this.add.circle(x, y, radius, 0xd946ef, 0.08).setDepth(13);
+    this.tweens.add({ targets: fill, scale: 0.1, alpha: 0, duration: detonateMs, ease: "linear", onComplete: () => { fill.destroy(); this.voidZoneGfx.clear(); } });
+  }
+
+  _showVoidZoneExplode(x, y) {
+    this.voidZoneGfx.clear();
+    const ring = this.add.circle(x, y, 30, 0xd946ef, 0).setStrokeStyle(6, 0xd946ef, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+    this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 700, ease: "cubic.out", onComplete: () => ring.destroy() });
+    this.cameras.main.flash(200, 180, 50, 220);
+    this.cameras.main.shake(200, 0.012);
+  }
+
+  // ── Game-over Return to Lobby button in canvas ─────────────────────────────
+  _showGameOverButton() {
+    const bx = W / 2, by = H / 2 + 130;
+    const btnBg = this.add.rectangle(bx, by, 240, 52, 0x1a2347, 0.95)
+      .setStrokeStyle(2, 0x4ef0d4, 0.9)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(60);
+    const btnTxt = this.add.text(bx, by, "Return to Lobby", {
+      fontFamily: FONT, fontSize: "16px", color: "#4ef0d4", fontStyle: "bold",
+    }).setOrigin(0.5).setDepth(61);
+    btnBg.on("pointerover",  () => btnBg.setFillStyle(0x2a4470, 0.95));
+    btnBg.on("pointerout",   () => btnBg.setFillStyle(0x1a2347, 0.95));
+    btnBg.on("pointerdown",  () => {
+      window.dispatchEvent(new CustomEvent("typeduo_leave_room"));
+    });
+    this.tweens.add({ targets: [btnBg, btnTxt], alpha: { from: 0, to: 1 }, duration: 600, ease: "cubic.out" });
+  }
+
   // ── Socket binding ─────────────────────────────────────────────────────────
   _bindSocket() {
     if (!this.socket) return;
@@ -833,6 +1027,14 @@ export default class MainScene extends Phaser.Scene {
         const prevHP = this.bossHP;
         this.bossHP = state.bossHP; this.bossMaxHP = state.bossMaxHP ?? this.bossMaxHP;
         this._drawBossHpBar(this.bossHP, this.bossMaxHP);
+        // Keep team HP overlay in sync
+        if (state.sharedHP !== undefined) this._drawTeamHpBar(state.sharedHP, state.sharedMaxHP ?? 100);
+        // Sync weapon state (catch-up on reconnect / desync)
+        if (state.weaponHeld !== undefined) {
+          if (state.weaponHeld && !this.weaponHeld) this._onWeaponPickup(state.weaponX ?? this.charX, state.weaponY ?? this.charY);
+          else if (!state.weaponHeld && this.weaponHeld) this._onWeaponDrop(state.weaponX ?? W / 2, state.weaponY ?? H / 2);
+          else if (!state.weaponHeld && state.weaponX != null) this._setWeaponPos(state.weaponX, state.weaponY);
+        }
         if (this.bossHP < prevHP) this.tweens.add({ targets: this.bossHpFill, alpha: { from: 0.4, to: 1 }, duration: 140 });
 
         const isRoar = state.bossState === "roar", isStun = state.bossState === "stunned";
@@ -880,20 +1082,25 @@ export default class MainScene extends Phaser.Scene {
 
       typo:           ({ socketId }) => { if (socketId === this.localSocketId) this._shakeWord(); },
 
-      word_completed: ({ by, word, damage, stunBonus, healed }) => {
-        this.flashTxt.setText(`${by} typed "${word}"  −${damage}${stunBonus ? " ×2" : ""}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
-        this.flashTxt.y = 200;
-        this.tweens.add({ targets: this.flashTxt, y: 160, alpha: 0, duration: 850, ease: "cubic.out" });
-        this._spawnDamageBurst(damage, Boolean(stunBonus));
-        if (healed > 0) {
-          const t = this.add.text(W / 2, 215, `+${healed} HP`, { fontFamily: FONT, fontSize: "21px", color: "#4ade80", fontStyle: "bold" }).setOrigin(0.5).setDepth(45);
-          this.tweens.add({ targets: t, y: 175, alpha: 0, duration: 900, ease: "cubic.out", onComplete: () => t.destroy() });
+      word_completed: ({ by, word, damage, stunBonus, healed, streakEvent, furyActive }) => {
+        if (by && word) {
+          this.flashTxt.setText(`${by} typed "${word}"  −${damage}${stunBonus ? " ×2" : ""}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
+          this.flashTxt.y = 260;
+          this.tweens.add({ targets: this.flashTxt, y: 220, alpha: 0, duration: 850, ease: "cubic.out" });
+          this._spawnDamageBurst(damage, Boolean(stunBonus));
+          if (healed > 0) {
+            const t = this.add.text(W / 2, 275, `+${healed} HP`, { fontFamily: FONT, fontSize: "21px", color: "#4ade80", fontStyle: "bold" }).setOrigin(0.5).setDepth(45);
+            this.tweens.add({ targets: t, y: 235, alpha: 0, duration: 900, ease: "cubic.out", onComplete: () => t.destroy() });
+          }
         }
+        if (streakEvent) this._onStreakMilestone(streakEvent, healed);
+        this._updateFuryOverlay(furyActive || false);
       },
 
-      player_hit: ({ isLaser, isColumn }) => {
+      player_hit: ({ isLaser, isColumn, sharedHP, sharedMaxHP }) => {
         this._flashCharHit();
         if (isLaser || isColumn) { this.cameras.main.shake(250, 0.018); this.cameras.main.flash(300, 255, 100, 100); }
+        if (sharedHP !== undefined) this._drawTeamHpBar(sharedHP, sharedMaxHP ?? 100);
       },
 
       battle_started: () => { this._cancelCountdown(); this.overlayTxt?.setVisible(false); this.subOverlayTxt?.setVisible(false); },
@@ -947,14 +1154,17 @@ export default class MainScene extends Phaser.Scene {
         this._updateBossStateText();
       },
 
-      word_completed: ({ streakEvent, healed, furyActive }) => {
-        if (streakEvent) this._onStreakMilestone(streakEvent, healed);
-        // Sync fury overlay (may turn off if bonus words exhausted)
-        this._updateFuryOverlay(furyActive || false);
-      },
-
       column_warning: (data) => this._showColumnWarning(data),
       column_fire:    (data) => this._showColumnFire(data),
+
+      weapon_picked:  ({ x, y }) => this._onWeaponPickup(x, y),
+      weapon_dropped: ({ x, y }) => this._onWeaponDrop(x, y),
+      no_weapon:      ({ socketId }) => { if (socketId === this.localSocketId) this._showNoWeaponFeedback(); },
+
+      eruption_fire: ({ x, y }) => this._showEruptionBurst(x, y),
+
+      void_zone_placed:  ({ x, y, radius, detonateMs }) => this._showVoidZone(x, y, radius, detonateMs),
+      void_zone_explode: ({ x, y }) => this._showVoidZoneExplode(x, y),
 
       boss_ultimate_start: ({ specialName, windUpMs }) => this._spawnUltimateEffect(specialName, windUpMs),
 
@@ -967,6 +1177,7 @@ export default class MainScene extends Phaser.Scene {
         this.bossHP = bossHP ?? this.bossHP;
         this._drawBossHpBar(this.bossHP, this.bossMaxHP);
         this._hideWindUpBar();
+        this._showGameOverButton();
       },
     };
 
@@ -1017,8 +1228,8 @@ export default class MainScene extends Phaser.Scene {
         if (this.keys.right?.isDown) { nx += vel; ddx += 1; }
         if (this.keys.up?.isDown)    { ny -= vel; ddy -= 1; }
         if (this.keys.down?.isDown)  { ny += vel; ddy += 1; }
-        nx = Phaser.Math.Clamp(nx, 22, 938);
-        ny = Phaser.Math.Clamp(ny, 162, 458);
+        nx = Phaser.Math.Clamp(nx, 30, 1250);
+        ny = Phaser.Math.Clamp(ny, 200, 590);
         this.charTargetX = nx; this.charTargetY = ny;
         // Runner sees instant movement — no network lag on their own input
         this.charX = nx; this.charY = ny;
@@ -1048,6 +1259,8 @@ export default class MainScene extends Phaser.Scene {
     this.projectileSprites.clear();
     this.stars.forEach(s => s.sprite?.destroy?.());
     this.stars = [];
+    this.voidZoneGfx?.clear();
+    if (this.weaponBobTween) { this.weaponBobTween.stop(); this.weaponBobTween = null; }
     if (this.bossPulse) { this.bossPulse.stop(); this.bossPulse = null; }
     if (this.furyTween) { this.furyTween.stop(); this.furyTween = null; }
     this.furyOverlay?.setVisible(false);

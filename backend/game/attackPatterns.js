@@ -110,6 +110,25 @@ exports.fireHell = (game, boss, char, phase, speed, cfg, now) => {
   return fired;
 };
 
+/** Watcher: tight aimed burst — 4-6 fast shots at player with slight spread. */
+exports.fireArcaneVolley = (game, boss, char, phase, speed, cfg, now) => {
+  if (now - boss.lastFireAt < cfg.fireIntervals.arcane_volley[phase]) return false;
+  boss.lastFireAt = now;
+  const count = 4 + phase;
+  const aimA = Math.atan2(char.y - boss.y, char.x - boss.x);
+  const halfSpread = 0.15 + phase * 0.05; // narrow spread
+  for (let i = 0; i < count; i++) {
+    const a = aimA - halfSpread + (2 * halfSpread * i / Math.max(1, count - 1));
+    const sp = speed * (1.05 + Math.random() * 0.15);
+    spawnProjectile(game, {
+      x: boss.x, y: boss.y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      type: "aimed",
+    });
+  }
+  return true;
+};
+
 // ── Storm Drake ───────────────────────────────────────────────────────────────
 
 exports.fireThunderRain = (game, boss, char, phase, speed, cfg, now) => {
@@ -234,11 +253,30 @@ exports.fireTendrils = (game, boss, char, phase, speed, cfg, now) => {
 exports.fireEruption = (game, boss, char, phase, speed, cfg, now) => {
   if (now - boss.lastFireAt < cfg.fireIntervals.eruption[phase]) return false;
   boss.lastFireAt = now;
+  // Notify client: burst will originate at character position
+  if (cfg._io && cfg._roomCode) {
+    cfg._io.to(cfg._roomCode).emit("eruption_fire", { x: char.x, y: char.y });
+  }
   const count = 8 + phase * 3;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2 + Math.random() * 0.25;
     spawnProjectile(game, { x: char.x, y: char.y, vx: Math.cos(a) * speed * 0.9, vy: Math.sin(a) * speed * 0.9, type: "eruption" });
   }
+  return true;
+};
+
+exports.fireVoidZone = (game, boss, char, phase, speed, cfg, now) => {
+  if (boss.circleFired) return false;
+  boss.circleFired = true;
+  // Notify client so it can show a pulsing danger zone
+  if (cfg._io && cfg._roomCode) {
+    const detonateMs = 2000;
+    cfg._io.to(cfg._roomCode).emit("void_zone_placed", { x: char.x, y: char.y, radius: 90, detonateMs });
+  }
+  // After a delay, explode a ring of orbs at character position
+  const detonateAt = now + 2000;
+  game._voidZoneDetonates = game._voidZoneDetonates || [];
+  game._voidZoneDetonates.push({ x: char.x, y: char.y, detonateAt, speed: speed * 0.7, phase });
   return true;
 };
 
@@ -505,6 +543,7 @@ exports.PATTERN_MAP = {
   circle:          exports.fireCircle,
   spiral:          exports.fireSpiral,
   hell:            exports.fireHell,
+  arcane_volley:   exports.fireArcaneVolley,
   thunder_rain:    exports.fireThunderRain,
   sweep:           exports.fireSweep,
   chain_lightning: exports.fireChainLightning,
@@ -514,6 +553,7 @@ exports.PATTERN_MAP = {
   eruption:        exports.fireEruption,
   dark_pulse:      exports.fireDarkPulse,
   singularity:     exports.fireSingularity,
+  void_zone:       exports.fireVoidZone,
   // Inferno
   ember_arc:   exports.fireEmberArc,
   molten_rain: exports.fireMoltenRain,

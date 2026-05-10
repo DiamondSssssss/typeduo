@@ -140,6 +140,7 @@ const registerSocketHandlers = (io) => {
         typedProgress: 0, streak: 0,
         character: g.character,
         boss: { x: g.boss.x, y: g.boss.y, attackType: g.boss.attackType, windingUp: false, windUpRemaining: 0, columnState: null, phase: 0 },
+        weaponHeld: false, weaponX: g.weapon.x, weaponY: g.weapon.y,
       };
       io.to(roomCode).emit("startGame", startPayload);
       emitGameState(io, room, bossConfig);
@@ -171,8 +172,8 @@ const registerSocketHandlers = (io) => {
       if (!player || player.role !== "runner") { cb?.({ ok: false }); return; }
       if (room.game?.bossState === "countdown") { cb?.({ ok: false }); return; }
 
-      const cx = Math.max(20, Math.min(940, Number(x) || 0));
-      const cy = Math.max(160, Math.min(460, Number(y) || 0));
+      const cx = Math.max(30, Math.min(1250, Number(x) || 0));
+      const cy = Math.max(200, Math.min(590, Number(y) || 0));
       const ddx = cx - room.game.character.x;
       const ddy = cy - room.game.character.y;
       if (ddx !== 0 || ddy !== 0) {
@@ -195,6 +196,13 @@ const registerSocketHandlers = (io) => {
       if (g.bossState === "countdown" || g.bossState === "roar") { cb?.({ ok: false }); return; }
       const input = String(char || "").toLowerCase();
       if (input.length !== 1 || !/[a-z]/.test(input)) { cb?.({ ok: false }); return; }
+
+      // Weapon gate: typer needs the weapon to deal damage
+      if (!g.weapon?.held) {
+        io.to(code).emit("no_weapon", { socketId: player.socketId });
+        cb?.({ ok: false, reason: "no_weapon" });
+        return;
+      }
 
       const expected = g.currentWord[g.typedProgress];
       if (input === expected) {

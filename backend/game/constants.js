@@ -22,9 +22,11 @@ module.exports = {
   STUN_DAMAGE_MULTIPLIER: 2,
   SHARED_MAX_HP:          100,
   SWAP_THRESHOLDS:        [75, 50, 25], // percent of boss maxHP
-  HIT_RADIUS:             22,
-  BOSS_X_MIN:             160,
-  BOSS_X_MAX:             800,
+  HIT_RADIUS:             15,
+  BOSS_X_MIN:             220,
+  BOSS_X_MAX:             1060,
+  WEAPON_PICKUP_RADIUS:   40,
+  WEAPON_DROP_IMMUNITY_MS: 1500, // can't drop again within 1.5s of pickup
   DEFAULT_BOSS_ID:        "watcher",
   // Streak system
   STREAK_TIERS,

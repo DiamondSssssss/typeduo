@@ -1,6 +1,7 @@
 const {
   GAME_TICK_MS, HIT_RADIUS, PROJECTILE_DAMAGE,
   SWAP_THRESHOLDS, ROAR_DURATION_MS, STUN_DURATION_MS, COUNTDOWN_DURATION_MS,
+  WEAPON_PICKUP_RADIUS,
 } = require("./constants");
 const { getPhase } = require("./words");
 const { takeDamage } = require("./helpers");
@@ -99,6 +100,17 @@ const tick = (io, room, bossConfig) => {
     tickBossAttacks(io, room, bossConfig, phase, now, deltaMs);
   }
 
+  // Weapon pickup check
+  if (g.weapon && !g.weapon.held) {
+    const wdx = char.x - g.weapon.x;
+    const wdy = char.y - g.weapon.y;
+    if (wdx * wdx + wdy * wdy < WEAPON_PICKUP_RADIUS * WEAPON_PICKUP_RADIUS) {
+      g.weapon.held = true;
+      g.weapon.pickedUpAt = now;
+      io.to(room.code).emit("weapon_picked", { x: g.weapon.x, y: g.weapon.y });
+    }
+  }
+
   // Homing projectile steering
   steerHomingProjectiles(g, bossConfig, deltaSeconds);
 
@@ -114,7 +126,7 @@ const tick = (io, room, bossConfig) => {
       takeDamage(io, room, PROJECTILE_DAMAGE, p.x, p.y);
       return false;
     }
-    return p.y <= 580 && p.x >= -80 && p.x <= 1040 && p.y >= -80;
+    return p.y <= 800 && p.x >= -100 && p.x <= 1380 && p.y >= -100;
   });
 
   emitGameState(io, room, bossConfig);

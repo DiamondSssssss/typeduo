@@ -170,6 +170,7 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
   const gameOver = gamePayload?.gameOver;
   const winner = gameOver?.winner;
   const playersWon = winner === "players";
+  const weaponHeld = gamePayload?.weaponHeld || false;
   const bossAttack = gamePayload?.boss?.attackType || "normal";
   const laserState = gamePayload?.boss?.laserState;
   const windingUp  = gamePayload?.boss?.windingUp || false;
@@ -183,9 +184,12 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
   });
 
   return (
-    <section className="card card-wide hud-card" aria-label="Game HUD">
+    <section className="card card-wide hud-card hud-card--compact" aria-label="Game HUD">
       <div className="hud-state-row">
-        <h2 className="title">Boss Battle</h2>
+        <h2 className="title" style={{ fontSize: "1rem", margin: 0 }}>Boss Battle</h2>
+        <span className={`weapon-badge${weaponHeld ? " weapon-badge--held" : " weapon-badge--dropped"}`}>
+          {weaponHeld ? "⚔ Armed" : "⚔ Pick up weapon!"}
+        </span>
         <div className="hud-pills">
           <span className={`boss-state boss-state--${bossState}`}>
             <span
@@ -250,8 +254,8 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
       ) : null}
 
       <div className="hud-grid">
-        <HPBar label="Team HP" hp={sharedHP} maxHP={sharedMaxHP} />
         <HPBar label="Boss HP" hp={bossHP} maxHP={bossMaxHP} variant="boss" />
+        <HPBar label="Team HP" hp={sharedHP} maxHP={sharedMaxHP} />
       </div>
 
       {furyActive && !gameOver ? (

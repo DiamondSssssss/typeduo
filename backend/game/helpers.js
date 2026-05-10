@@ -21,11 +21,26 @@ const aimAtChar = (boss, char, speed, type = "aimed") => {
 };
 
 /** Reduce shared HP and emit player_hit. Returns new sharedHP. */
+const { WEAPON_DROP_IMMUNITY_MS } = require("./constants");
+
 const takeDamage = (io, room, damage, x, y) => {
   room.game.sharedHP = Math.max(0, room.game.sharedHP - damage);
   room.game.streak = 0;
+
+  // Drop weapon if held and immunity period has passed
+  let weaponDropped = false;
+  const w = room.game.weapon;
+  if (w && w.held && (Date.now() - w.pickedUpAt) > WEAPON_DROP_IMMUNITY_MS) {
+    w.held = false;
+    w.x    = room.game.character.x;
+    w.y    = room.game.character.y;
+    w.pickedUpAt = 0;
+    weaponDropped = true;
+    io.to(room.code).emit("weapon_dropped", { x: w.x, y: w.y });
+  }
+
   io.to(room.code).emit("player_hit", {
-    damage, sharedHP: room.game.sharedHP, x, y,
+    damage, sharedHP: room.game.sharedHP, sharedMaxHP: room.game.sharedMaxHP, x, y, weaponDropped,
   });
   return room.game.sharedHP;
 };

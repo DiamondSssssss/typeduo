@@ -89,6 +89,8 @@ exports.applyAttack = (io, room, bossConfig, attackType, now) => {
   // tick if the new attackType IS the column attack type.
   b.columnState   = null;
   b.columnStateAt = 0;
+  // Clear pending void zones when switching attack types
+  if (room.game) room.game._voidZoneDetonates = [];
   if (bossConfig.columnAttack?.type === attackType) {
     b.columnX = 480; // tickColumnAttack will override with the real target
   }
@@ -177,9 +179,31 @@ exports.tickBossAttacks = (io, room, bossConfig, phase, now, deltaMs) => {
     return;
   }
 
+  // Thread io/roomCode via cfg so pattern functions can emit events (e.g. eruption_fire)
+  bossConfig._io       = io;
+  bossConfig._roomCode = room.code;
+
   // Dispatch to pattern function
   const patternFn = PATTERN_MAP[b.attackType];
   if (patternFn) patternFn(room.game, b, char, phase, speed, bossConfig, now);
+
+  bossConfig._io       = null;
+  bossConfig._roomCode = null;
+
+  // Tick void-zone detonations (Void Crawler)
+  if (room.game._voidZoneDetonates && room.game._voidZoneDetonates.length > 0) {
+    const { spawnProjectile } = require("./helpers");
+    room.game._voidZoneDetonates = room.game._voidZoneDetonates.filter((vz) => {
+      if (now < vz.detonateAt) return true;
+      const count = 12 + vz.phase * 4;
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2;
+        spawnProjectile(room.game, { x: vz.x, y: vz.y, vx: Math.cos(a) * vz.speed, vy: Math.sin(a) * vz.speed, type: "void_orb", homing: true });
+      }
+      io.to(room.code).emit("void_zone_explode", { x: vz.x, y: vz.y });
+      return false;
+    });
+  }
 };
 
 // ── Homing steering ───────────────────────────────────────────────────────────
