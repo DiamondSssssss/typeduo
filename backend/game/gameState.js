@@ -122,7 +122,7 @@ const createInitialGameState = (bossConfig) => {
     nextProjectileId: 1,
     startedAt:        now,
     lastTickAt:       now,
-    weapon: { ...randomWeaponPos(), held: false, pickedUpAt: 0 },
+    weapon: { ...randomWeaponPos(), held: false, pickedUpAt: 0, pickupLockedUntil: 0 },
     // Streak bonus system
     streakMult:      1,   // damage multiplier for the next streakMultWords words
     streakMultWords: 0,   // how many words still carry the bonus

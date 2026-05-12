@@ -106,13 +106,14 @@ const tick = (io, room, bossConfig) => {
   // Move projectiles + collision
   const char = g.character;
 
-  // Weapon pickup check
-  if (g.weapon && !g.weapon.held) {
+  // Weapon pickup check (respect short lock after drop so weapon visibly lands away first)
+  if (g.weapon && !g.weapon.held && now >= (g.weapon.pickupLockedUntil || 0)) {
     const wdx = char.x - g.weapon.x;
     const wdy = char.y - g.weapon.y;
     if (wdx * wdx + wdy * wdy < WEAPON_PICKUP_RADIUS * WEAPON_PICKUP_RADIUS) {
       g.weapon.held = true;
       g.weapon.pickedUpAt = now;
+      g.weapon.pickupLockedUntil = 0;
       io.to(room.code).emit("weapon_picked", { x: g.weapon.x, y: g.weapon.y });
     }
   }

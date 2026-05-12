@@ -27,6 +27,11 @@ module.exports = {
   BOSS_X_MAX:             1060,
   WEAPON_PICKUP_RADIUS:   40,
   WEAPON_DROP_IMMUNITY_MS: 800,  // can't drop again within 0.8s of pickup
+  /** Weapon spawn offset from player on drop — must stay outside pickup radius until runner moves */
+  WEAPON_DROP_DISTANCE_MIN: 105,
+  WEAPON_DROP_DISTANCE_MAX: 150,
+  /** Brief lock so dropped weapon is not re-grabbed same tick / same pixel after clamp */
+  WEAPON_PICKUP_LOCK_AFTER_DROP_MS: 400,
   DEFAULT_BOSS_ID:        "watcher",
   // Streak system
   STREAK_TIERS,
