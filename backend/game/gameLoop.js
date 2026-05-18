@@ -91,9 +91,8 @@ const tick = (io, room, bossConfig) => {
   tickStatusAndHazards(io, room, now, deltaSeconds);
 
   const char = g.character;
-  const soloMode = room.gameMode === "solo" || g.gameMode === "solo";
 
-  if (g.weapon && !g.weapon.held && !soloMode && now >= (g.weapon.pickupLockedUntil || 0)) {
+  if (g.weapon && !g.weapon.held && now >= (g.weapon.pickupLockedUntil || 0)) {
     const wdx = char.x - g.weapon.x;
     const wdy = char.y - g.weapon.y;
     if (wdx * wdx + wdy * wdy < WEAPON_PICKUP_RADIUS * WEAPON_PICKUP_RADIUS) {

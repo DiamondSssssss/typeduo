@@ -199,8 +199,8 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
         <h2 className="title" style={{ fontSize: "1rem", margin: 0 }}>
           {isSolo ? "Solo Battle" : "Boss Battle"}
         </h2>
-        <span className={`weapon-badge${weaponHeld || isSolo ? " weapon-badge--held" : " weapon-badge--dropped"}`}>
-          {isSolo || weaponHeld ? "⚔ Armed" : "⚔ Pick up weapon!"}
+        <span className={`weapon-badge${weaponHeld ? " weapon-badge--held" : " weapon-badge--dropped"}`}>
+          {weaponHeld ? "⚔ Armed" : "⚔ Pick up weapon!"}
         </span>
         <div className="hud-pills">
           <span className={`boss-state boss-state--${bossState}`}>

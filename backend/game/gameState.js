@@ -81,7 +81,6 @@ const createInitialGameState = (bossConfig, opts = {}) => {
   const now   = Date.now();
   const maxHP = bossConfig.maxHP;
   const gameMode = opts.gameMode || "coop";
-  const soloMode = gameMode === "solo";
 
   const g = {
     gameMode,
@@ -142,7 +141,7 @@ const createInitialGameState = (bossConfig, opts = {}) => {
     _magnetActive:    false,
     startedAt:        now,
     lastTickAt:       now,
-    weapon: { ...randomWeaponPos(), held: soloMode, pickedUpAt: soloMode ? now : 0, pickupLockedUntil: 0 },
+    weapon: { ...randomWeaponPos(), held: false, pickedUpAt: 0, pickupLockedUntil: 0 },
     streakMult:      1,
     streakMultWords: 0,
     furyActive:      false,
