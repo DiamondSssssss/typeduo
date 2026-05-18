@@ -466,7 +466,7 @@ export default class MainScene extends Phaser.Scene {
 
   _drawCharArrow(facing) {
     this.charArrow?.clear();
-    if (!facing || !this.isRunner) return;
+    if (!facing || (!this.isRunner && !this.isSolo)) return;
     const mag = Math.sqrt(facing.x ** 2 + facing.y ** 2);
     if (mag < 0.05) return;
     const a = Math.atan2(facing.y, facing.x);
@@ -1205,8 +1205,15 @@ export default class MainScene extends Phaser.Scene {
         this._renderWord(this.expectedWord, this.localTypedProgress);
         this._setCharLabels(state.players || []);
         const localP = (state.players || []).find(p => p.socketId === this.localSocketId);
-        if (localP && localP.role !== (this.isRunner ? "runner" : "typer")) {
+        if (state.gameMode) this.gameMode = state.gameMode;
+        if (localP) {
+          this.isSolo   = this.gameMode === "solo" || localP.role === "solo";
+          this.isRunner = this.isSolo || localP.role === "runner";
+          this.canType  = this.isSolo || localP.role === "typer";
+        }
+        if (localP && !this.isSolo && localP.role !== (this.isRunner ? "runner" : "typer")) {
           this.isRunner = localP.role === "runner";
+          this.canType  = localP.role === "typer";
           this._updateRoleBadge();
           this._bindKeyboard();
         }
@@ -1280,7 +1287,7 @@ export default class MainScene extends Phaser.Scene {
         const lp = players.find(p => p.socketId === this.localSocketId);
         if (lp) {
           this.isRunner = lp.role === "runner";
-          this.canType = lp.role === "typer";
+          this.canType  = lp.role === "typer";
           this._updateRoleBadge();
           this._bindKeyboard();
         }
@@ -1398,7 +1405,7 @@ export default class MainScene extends Phaser.Scene {
     this._drawBossAura(dt);
 
     // Character
-    const canMove = this.isRunner && (this.isSolo ? this.cursors : this.keys);
+    const canMove = this.isSolo ? Boolean(this.cursors) : Boolean(this.isRunner && this.keys);
     if (!canMove) {
       this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, 0.45);
       this.charY = Phaser.Math.Linear(this.charY, this.charTargetY, 0.45);
@@ -1409,11 +1416,11 @@ export default class MainScene extends Phaser.Scene {
         let nx = this.charTargetX, ny = this.charTargetY, ddx = 0, ddy = 0;
         const k = this.keys;
         const c = this.cursors;
-        if (this.isSolo) {
-          if (c.left.isDown)  { nx -= vel; ddx -= 1; }
-          if (c.right.isDown) { nx += vel; ddx += 1; }
-          if (c.up.isDown)    { ny -= vel; ddy -= 1; }
-          if (c.down.isDown)  { ny += vel; ddy += 1; }
+        if (this.isSolo && c) {
+          if (c.left?.isDown)  { nx -= vel; ddx -= 1; }
+          if (c.right?.isDown) { nx += vel; ddx += 1; }
+          if (c.up?.isDown)    { ny -= vel; ddy -= 1; }
+          if (c.down?.isDown)  { ny += vel; ddy += 1; }
         } else {
           if (k?.left?.isDown)  { nx -= vel; ddx -= 1; }
           if (k?.right?.isDown) { nx += vel; ddx += 1; }
