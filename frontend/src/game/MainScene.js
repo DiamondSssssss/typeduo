@@ -642,7 +642,7 @@ export default class MainScene extends Phaser.Scene {
 
   _updateRoleBadge() {
     if (this.isSolo) {
-      this.roleBadge?.setText("SOLO · Arrows/WASD + Type").setColor("#4ef0d4");
+      this.roleBadge?.setText("SOLO · Arrow keys move · A–Z type").setColor("#4ef0d4");
     } else {
       this.roleBadge?.setText(this.isRunner ? "▶  RUNNER · WASD" : "⌨  TYPER · KEYBOARD").setColor(this.isRunner ? "#4ef0d4" : "#c084fc");
     }
@@ -756,7 +756,6 @@ export default class MainScene extends Phaser.Scene {
 
     if (this.isSolo) {
       this.cursors = this.input.keyboard.createCursorKeys();
-      this.keys = this.input.keyboard.addKeys({ up: "W", left: "A", down: "S", right: "D" });
     } else if (this.isRunner) {
       this.keys = this.input.keyboard.addKeys({ up: "W", left: "A", down: "S", right: "D" });
     }
@@ -1399,7 +1398,8 @@ export default class MainScene extends Phaser.Scene {
     this._drawBossAura(dt);
 
     // Character
-    if (!this.isRunner || (!this.keys && !this.cursors)) {
+    const canMove = this.isRunner && (this.isSolo ? this.cursors : this.keys);
+    if (!canMove) {
       this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, 0.45);
       this.charY = Phaser.Math.Linear(this.charY, this.charTargetY, 0.45);
       this._setCharPos(this.charX, this.charY);
@@ -1409,10 +1409,17 @@ export default class MainScene extends Phaser.Scene {
         let nx = this.charTargetX, ny = this.charTargetY, ddx = 0, ddy = 0;
         const k = this.keys;
         const c = this.cursors;
-        if (k?.left?.isDown || k?.A?.isDown || c?.left?.isDown)  { nx -= vel; ddx -= 1; }
-        if (k?.right?.isDown || k?.D?.isDown || c?.right?.isDown) { nx += vel; ddx += 1; }
-        if (k?.up?.isDown || k?.W?.isDown || c?.up?.isDown)    { ny -= vel; ddy -= 1; }
-        if (k?.down?.isDown || k?.S?.isDown || c?.down?.isDown)  { ny += vel; ddy += 1; }
+        if (this.isSolo) {
+          if (c.left.isDown)  { nx -= vel; ddx -= 1; }
+          if (c.right.isDown) { nx += vel; ddx += 1; }
+          if (c.up.isDown)    { ny -= vel; ddy -= 1; }
+          if (c.down.isDown)  { ny += vel; ddy += 1; }
+        } else {
+          if (k?.left?.isDown)  { nx -= vel; ddx -= 1; }
+          if (k?.right?.isDown) { nx += vel; ddx += 1; }
+          if (k?.up?.isDown)    { ny -= vel; ddy -= 1; }
+          if (k?.down?.isDown)  { ny += vel; ddy += 1; }
+        }
         nx = Phaser.Math.Clamp(nx, 30, 1250);
         ny = Phaser.Math.Clamp(ny, 200, 590);
         this.charTargetX = nx; this.charTargetY = ny;

@@ -12,7 +12,7 @@ function HomeScreen({ onSelectMode }) {
         <button type="button" className="home-card home-card--solo" onClick={() => onSelectMode("solo")}>
           <span className="home-card__icon">🎯</span>
           <span className="home-card__name">Solo</span>
-          <span className="home-card__desc">1 player · Arrow keys + type</span>
+          <span className="home-card__desc">1 player · Arrows move · A–Z type</span>
         </button>
         <button type="button" className="home-card home-card--tutorial" onClick={() => onSelectMode("tutorial")}>
           <span className="home-card__icon">📖</span>

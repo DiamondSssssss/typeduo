@@ -32,7 +32,7 @@ export default function SoloLobby({ socket, currentUser, onBack }) {
         <button type="button" className="btn btn-ghost btn-compact" onClick={onBack}>← Main menu</button>
         <div className="solo-lobby__hero-text">
           <h2>Solo Mode</h2>
-          <p>Move with <strong>arrow keys</strong> or <strong>WASD</strong>, type to attack. Weapon is auto-equipped.</p>
+          <p>Move with <strong>arrow keys only</strong> (WASD is for typing). Type words to attack. Weapon is auto-equipped.</p>
         </div>
       </div>
 
