@@ -419,20 +419,23 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _drawTeamHpBar(hp, maxHP) {
-    const bw = 200, bh = 10, bx = 16, by = H - 48;
+    const bw = 320, bh = 20, bx = 16, by = 48;
     const pct = Math.max(0, Math.min(1, hp / Math.max(1, maxHP)));
     this.teamHpBack.clear();
-    this.teamHpBack.fillStyle(0x1f1230, 0.85);
-    this.teamHpBack.fillRoundedRect(bx, by, bw, bh, 4);
-    this.teamHpBack.lineStyle(1, 0x4ef0d4, 0.45);
-    this.teamHpBack.strokeRoundedRect(bx, by, bw, bh, 4);
+    this.teamHpBack.fillStyle(0x0a1124, 0.92);
+    this.teamHpBack.fillRoundedRect(bx, by, bw, bh, 6);
+    this.teamHpBack.lineStyle(2, 0x4ef0d4, 0.75);
+    this.teamHpBack.strokeRoundedRect(bx, by, bw, bh, 6);
     this.teamHpFill.clear();
     if (pct > 0) {
       const col = pct > 0.5 ? 0x4ade80 : pct > 0.25 ? 0xfbbf24 : 0xef4444;
-      this.teamHpFill.fillStyle(col, 0.92);
-      this.teamHpFill.fillRoundedRect(bx + 1, by + 1, (bw - 2) * pct, bh - 2, 3);
+      this.teamHpFill.fillStyle(col, 0.95);
+      this.teamHpFill.fillRoundedRect(bx + 2, by + 2, (bw - 4) * pct, bh - 4, 5);
     }
-    if (this.teamHpText) this.teamHpText.setText(`Team HP  ${Math.round(hp)} / ${maxHP}`);
+    if (this.teamHpText) {
+      this.teamHpText.setText(`♥ TEAM HP   ${Math.round(hp)} / ${maxHP}`);
+      this.teamHpText.setPosition(bx, by - 6);
+    }
   }
 
   // ── Character ──────────────────────────────────────────────────────────────
@@ -518,14 +521,19 @@ export default class MainScene extends Phaser.Scene {
     this.windUpBarFill = this.add.graphics().setDepth(12).setVisible(false);
     this.windUpLabel   = this.add.text(W / 2, 148, "", { fontFamily: FONT, fontSize: "12px", color: "#fff", fontStyle: "bold", backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 8, y: 3 } }).setOrigin(0.5).setDepth(12).setVisible(false);
 
-    // Team HP overlay bar (bottom-left corner of canvas — always visible during play)
-    this.teamHpBack = this.add.graphics().setDepth(18);
-    this.teamHpFill = this.add.graphics().setDepth(18);
-    this.teamHpText = this.add.text(18, H - 30, "Team HP: — / —", { fontFamily: FONT, fontSize: "11px", color: "#cdd5ff" }).setOrigin(0, 1).setDepth(18);
+    // Team HP overlay (top-left — kept clear of the word panel at the bottom)
+    this.teamHpBack = this.add.graphics().setDepth(26);
+    this.teamHpFill = this.add.graphics().setDepth(26);
+    this.teamHpText = this.add.text(16, 42, "♥ TEAM HP   — / —", {
+      fontFamily: FONT, fontSize: "15px", color: "#4ef0d4", fontStyle: "bold",
+      backgroundColor: "rgba(10,17,36,0.85)", padding: { x: 8, y: 4 },
+    }).setOrigin(0, 1).setDepth(26);
     this._drawTeamHpBar(100, 100);
 
-    // Void-zone warning graphics
-    this.voidZoneGfx = this.add.graphics().setDepth(13);
+    // Attack telegraph layers (void zone, eruption, singularity, dark pulse)
+    this.groundTelegraphGfx = this.add.graphics().setDepth(14);
+    this.bossChargeGfx      = this.add.graphics().setDepth(14);
+    this.voidZoneGfx = this.add.graphics().setDepth(14);
 
     // Fury overlay — fullscreen red pulsing tint (depth 1 so everything renders on top)
     this.furyOverlay = this.add.rectangle(0, 0, W, H, 0xff1a1a, 0).setOrigin(0, 0).setDepth(1).setVisible(false);
@@ -630,7 +638,11 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _updateRoleBadge() {
-    this.roleBadge?.setText(this.isRunner ? "▶  RUNNER · WASD" : "⌨  TYPER · KEYBOARD").setColor(this.isRunner ? "#4ef0d4" : "#c084fc");
+    if (this.isSolo) {
+      this.roleBadge?.setText("SOLO · Arrows/WASD + Type").setColor("#4ef0d4");
+    } else {
+      this.roleBadge?.setText(this.isRunner ? "▶  RUNNER · WASD" : "⌨  TYPER · KEYBOARD").setColor(this.isRunner ? "#4ef0d4" : "#c084fc");
+    }
   }
 
   _updateBossStateText() {
@@ -695,7 +707,10 @@ export default class MainScene extends Phaser.Scene {
     this.localSocketId = this.socket?.id;
     const players = p.players || [];
     const localP  = players.find(pl => pl.socketId === this.localSocketId);
-    this.isRunner  = localP?.role === "runner";
+    this.gameMode = p.gameMode || "coop";
+    this.isSolo   = this.gameMode === "solo" || localP?.role === "solo";
+    this.isRunner = this.isSolo || localP?.role === "runner";
+    this.canType  = this.isSolo || localP?.role === "typer";
     this.roomCode  = p.roomCode;
     // Boss visual config
     const bossId   = p.bossId || "watcher";
@@ -733,10 +748,17 @@ export default class MainScene extends Phaser.Scene {
   // ── Keyboard ──────────────────────────────────────────────────────────────
   _bindKeyboard() {
     if (this.keys) { Object.values(this.keys).forEach(k => k?.destroy?.()); this.keys = null; }
+    if (this.cursors) { this.cursors = null; }
     if (this._onKeydown) { this.input.keyboard?.off("keydown", this._onKeydown, this); this._onKeydown = null; }
-    if (this.isRunner) {
+
+    if (this.isSolo) {
+      this.cursors = this.input.keyboard.createCursorKeys();
       this.keys = this.input.keyboard.addKeys({ up: "W", left: "A", down: "S", right: "D" });
-    } else {
+    } else if (this.isRunner) {
+      this.keys = this.input.keyboard.addKeys({ up: "W", left: "A", down: "S", right: "D" });
+    }
+
+    if (this.canType) {
       this._onKeydown = (e) => {
         const key = String(e?.key || "").toLowerCase();
         if (key.length !== 1 || !/[a-z]/.test(key)) return;
@@ -770,7 +792,8 @@ export default class MainScene extends Phaser.Scene {
     this._cancelCountdown();
     let sec = Math.max(1, Math.ceil(remainMs / 1000));
     this.overlayTxt.setColor("#ffffff").setFontSize(70).setText(String(sec)).setVisible(true);
-    this.subOverlayTxt.setText(this.isRunner ? "Get ready · WASD to dodge" : "Get ready · type to attack").setVisible(true);
+    const hint = this.isSolo ? "Get ready · Arrows + type" : this.isRunner ? "Get ready · WASD to dodge" : "Get ready · type to attack";
+    this.subOverlayTxt.setText(hint).setVisible(true);
     const pop = () => { this.overlayTxt.setScale(1.4); this.tweens.add({ targets: this.overlayTxt, scale: 1, duration: 500, ease: "back.out" }); };
     pop();
     this.countdownTimer = this.time.addEvent({
@@ -967,32 +990,151 @@ export default class MainScene extends Phaser.Scene {
     this.cameras.main.shake(130, 0.010);
   }
 
+  // ── Ground / boss attack telegraphs (Void Crawler) ─────────────────────────
+  _clearGroundTelegraph() {
+    this.groundTelegraphGfx?.clear();
+    this._groundTelegraphAttack = null;
+  }
+
+  _drawGroundTelegraph(x, y, attackType) {
+    if (!this.groundTelegraphGfx) return;
+    this.groundTelegraphGfx.clear();
+    if (attackType === "void_zone") {
+      this.groundTelegraphGfx.fillStyle(0xd946ef, 0.22);
+      this.groundTelegraphGfx.fillCircle(x, y, 90);
+      this.groundTelegraphGfx.lineStyle(3, 0xd946ef, 0.95);
+      this.groundTelegraphGfx.strokeCircle(x, y, 90);
+      this.groundTelegraphGfx.lineStyle(2, 0xff85c2, 0.55);
+      this.groundTelegraphGfx.strokeCircle(x, y, 102);
+    } else if (attackType === "eruption") {
+      this.groundTelegraphGfx.fillStyle(0xff3d9f, 0.2);
+      this.groundTelegraphGfx.fillCircle(x, y, 55);
+      this.groundTelegraphGfx.lineStyle(3, 0xff3d9f, 0.9);
+      this.groundTelegraphGfx.strokeCircle(x, y, 55);
+    }
+  }
+
+  _showBossWindUpTelegraph(attackType, durationMs) {
+    this._clearGroundTelegraph();
+    this._groundTelegraphAttack = ["void_zone", "eruption"].includes(attackType) ? attackType : null;
+    if (this._groundTelegraphAttack) {
+      this._drawGroundTelegraph(this.charTargetX, this.charTargetY, this._groundTelegraphAttack);
+    }
+    if (attackType === "singularity" || attackType === "dark_pulse") {
+      this._showBossChargeRing(attackType, durationMs);
+    }
+  }
+
+  _showBossChargeRing(attackType, durationMs) {
+    const col = attackType === "singularity" ? 0xd946ef : 0x8b5cf6;
+    const bx = this.bossX, by = this.bossY;
+    const ring = this.add.circle(bx, by, 40, col, 0).setStrokeStyle(4, col, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(15);
+    this.tweens.add({ targets: ring, scale: 3.2, alpha: 0, duration: durationMs, ease: "cubic.in", onComplete: () => ring.destroy() });
+    const label = attackType === "singularity" ? "🕳 SINGULARITY" : "🌑 DARK PULSE";
+    const txt = this.add.text(bx, by - 70, label, {
+      fontFamily: FONT, fontSize: "16px", color: "#fae8ff", fontStyle: "bold",
+      backgroundColor: "rgba(0,0,0,0.65)", padding: { x: 10, y: 4 },
+    }).setOrigin(0.5).setDepth(16);
+    this.tweens.add({ targets: txt, alpha: { from: 1, to: 0.25 }, duration: 280, yoyo: true, repeat: Math.floor(durationMs / 560), onComplete: () => txt.destroy() });
+  }
+
+  _showSingularityBurst(x, y, count = 12) {
+    const core = this.add.circle(x, y, 18, 0x1a0b2e, 0.85).setStrokeStyle(5, 0xd946ef, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+    this.tweens.add({ targets: core, scale: 4.5, alpha: 0, duration: 650, ease: "cubic.out", onComplete: () => core.destroy() });
+    for (let i = 0; i < Math.min(count, 20); i++) {
+      const a = (i / count) * Math.PI * 2;
+      const orb = this.add.circle(x, y, 8, 0xd946ef, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+      this.tweens.add({
+        targets: orb, x: x + Math.cos(a) * 120, y: y + Math.sin(a) * 120,
+        alpha: 0, scale: 0.3, duration: 500, ease: "cubic.out", onComplete: () => orb.destroy(),
+      });
+    }
+    this.cameras.main.shake(280, 0.014);
+    this._showFloatingText("SINGULARITY!", "#d946ef", 20);
+  }
+
+  _showDarkPulseWave(x, y, aim, spread = 0.7) {
+    const gfx = this.add.graphics().setDepth(16);
+    const len = 520;
+    const a0 = aim - spread;
+    const a1 = aim + spread;
+    gfx.fillStyle(0x8b5cf6, 0.28);
+    gfx.beginPath();
+    gfx.moveTo(x, y);
+    gfx.arc(x, y, len, a0, a1, false);
+    gfx.closePath();
+    gfx.fillPath();
+    gfx.lineStyle(3, 0xc4b5fd, 0.85);
+    gfx.beginPath();
+    gfx.moveTo(x, y);
+    gfx.lineTo(x + Math.cos(a0) * len, y + Math.sin(a0) * len);
+    gfx.moveTo(x, y);
+    gfx.lineTo(x + Math.cos(a1) * len, y + Math.sin(a1) * len);
+    gfx.strokePath();
+    this.tweens.add({ targets: gfx, alpha: 0, duration: 420, ease: "cubic.out", onComplete: () => gfx.destroy() });
+  }
+
   // ── Void Zone visual ───────────────────────────────────────────────────────
   _showVoidZone(x, y, radius, detonateMs) {
     this.voidZoneGfx.clear();
-    this.voidZoneGfx.lineStyle(3, 0xd946ef, 0.8);
+    const fill = this.add.circle(x, y, radius, 0xd946ef, 0.28).setDepth(14);
+    this.voidZoneGfx.lineStyle(4, 0xd946ef, 1);
     this.voidZoneGfx.strokeCircle(x, y, radius);
-    this.voidZoneGfx.lineStyle(1, 0xd946ef, 0.3);
-    this.voidZoneGfx.strokeCircle(x, y, radius + 10);
+    this.voidZoneGfx.lineStyle(2, 0xff85c2, 0.6);
+    this.voidZoneGfx.strokeCircle(x, y, radius + 14);
 
-    // Warning pulse text
-    const warnTxt = this.add.text(x, y - radius - 16, "⚠ VOID ZONE", {
-      fontFamily: FONT, fontSize: "14px", color: "#d946ef", fontStyle: "bold",
+    const warnTxt = this.add.text(x, y - radius - 22, "⚠ VOID ZONE — MOVE OUT!", {
+      fontFamily: FONT, fontSize: "16px", color: "#fae8ff", fontStyle: "bold",
+      backgroundColor: "rgba(45,10,86,0.85)", padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setDepth(17);
+    this.tweens.add({ targets: warnTxt, alpha: { from: 1, to: 0.3 }, duration: 300, yoyo: true, repeat: Math.floor(detonateMs / 600), onComplete: () => warnTxt.destroy() });
+
+    const countdown = this.add.text(x, y, "2", {
+      fontFamily: FONT, fontSize: "42px", color: "#ffffff", fontStyle: "bold",
+      stroke: "#2d0a56", strokeThickness: 6,
+    }).setOrigin(0.5).setDepth(17);
+    this.tweens.add({ targets: countdown, scale: { from: 1.4, to: 0.8 }, alpha: { from: 1, to: 0 }, duration: detonateMs, ease: "linear", onComplete: () => countdown.destroy() });
+
+    this.tweens.add({
+      targets: fill, scale: 0.12, alpha: 0.05, duration: detonateMs, ease: "linear",
+      onComplete: () => { fill.destroy(); this.voidZoneGfx.clear(); },
+    });
+    const pulse = this.add.circle(x, y, radius + 8, 0xd946ef, 0).setStrokeStyle(3, 0xff85c2, 0.85).setDepth(15);
+    this.tweens.add({
+      targets: pulse, scale: { from: 1, to: 1.18 }, alpha: { from: 0.9, to: 0.2 },
+      duration: 320, yoyo: true, repeat: Math.floor(detonateMs / 640),
+      onComplete: () => pulse.destroy(),
+    });
+  }
+
+  _showHazardZone(x, y, radius, durationMs, color, label) {
+    const fill = this.add.circle(x, y, radius, color, 0.22).setDepth(14);
+    const ring = this.add.circle(x, y, radius, 0, 0).setStrokeStyle(3, color, 0.9).setDepth(15);
+    const txt = this.add.text(x, y - radius - 14, label, {
+      fontFamily: FONT, fontSize: "14px", color: "#ffffff", fontStyle: "bold",
       backgroundColor: "rgba(0,0,0,0.6)", padding: { x: 8, y: 3 },
     }).setOrigin(0.5).setDepth(16);
-    this.tweens.add({ targets: warnTxt, alpha: { from: 1, to: 0.2 }, duration: 350, yoyo: true, repeat: Math.floor(detonateMs / 700), onComplete: () => warnTxt.destroy() });
+    this.tweens.add({ targets: [fill, ring], alpha: 0, scale: 0.2, duration: durationMs, onComplete: () => { fill.destroy(); ring.destroy(); txt.destroy(); } });
+  }
 
-    // Shrinking fill circle (shows countdown)
-    const fill = this.add.circle(x, y, radius, 0xd946ef, 0.08).setDepth(13);
-    this.tweens.add({ targets: fill, scale: 0.1, alpha: 0, duration: detonateMs, ease: "linear", onComplete: () => { fill.destroy(); this.voidZoneGfx.clear(); } });
+  _showDelayedMarker(x, y, detonateMs) {
+    const ring = this.add.circle(x, y, 24, 0xfbbf24, 0).setStrokeStyle(4, 0xfbbf24, 1).setDepth(16);
+    const txt = this.add.text(x, y, "!", { fontFamily: FONT, fontSize: "36px", color: "#fbbf24", fontStyle: "bold" }).setOrigin(0.5).setDepth(17);
+    this.tweens.add({ targets: ring, scale: 4, alpha: 0, duration: detonateMs, ease: "cubic.in", onComplete: () => { ring.destroy(); txt.destroy(); } });
   }
 
   _showVoidZoneExplode(x, y) {
     this.voidZoneGfx.clear();
-    const ring = this.add.circle(x, y, 30, 0xd946ef, 0).setStrokeStyle(6, 0xd946ef, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
-    this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 700, ease: "cubic.out", onComplete: () => ring.destroy() });
-    this.cameras.main.flash(200, 180, 50, 220);
-    this.cameras.main.shake(200, 0.012);
+    const ring = this.add.circle(x, y, 30, 0xd946ef, 0).setStrokeStyle(8, 0xd946ef, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+    this.tweens.add({ targets: ring, scale: 6, alpha: 0, duration: 750, ease: "cubic.out", onComplete: () => ring.destroy() });
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const p = this.add.circle(x, y, 6, 0xa855f7, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+      this.tweens.add({ targets: p, x: x + Math.cos(a) * 100, y: y + Math.sin(a) * 100, alpha: 0, duration: 450, ease: "cubic.out", onComplete: () => p.destroy() });
+    }
+    this._showFloatingText("VOID BURST!", "#d946ef", 18);
+    this.cameras.main.flash(220, 180, 50, 220);
+    this.cameras.main.shake(220, 0.014);
   }
 
   // ── Game-over Return to Lobby button in canvas ─────────────────────────────
@@ -1131,17 +1273,39 @@ export default class MainScene extends Phaser.Scene {
       },
 
       roles_swapped: ({ players }) => {
+        if (this.isSolo) return;
         this._setCharLabels(players);
         const lp = players.find(p => p.socketId === this.localSocketId);
-        if (lp) { this.isRunner = lp.role === "runner"; this._updateRoleBadge(); this._bindKeyboard(); }
+        if (lp) {
+          this.isRunner = lp.role === "runner";
+          this.canType = lp.role === "typer";
+          this._updateRoleBadge();
+          this._bindKeyboard();
+        }
         this._drawBossShape(false, false);
       },
+
+      toxic_pool_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, 0x84cc16, "☣ TOXIC"),
+      slow_field_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, 0x64748b, "🐌 SLOW"),
+      delayed_marker:    ({ x, y, detonateMs }) => this._showDelayedMarker(x, y, detonateMs),
+      tidal_sweep:       () => {
+        [220, 400, 560, 720].forEach((ly) => {
+          const g = this.add.graphics().setDepth(14);
+          g.fillStyle(0x22d3ee, 0.15);
+          g.fillRect(0, ly - 18, W, 36);
+          g.lineStyle(2, 0x22d3ee, 0.7);
+          g.strokeRect(0, ly - 18, W, 36);
+          this.tweens.add({ targets: g, alpha: 0, duration: 800, onComplete: () => g.destroy() });
+        });
+      },
+      shockwave_burst: ({ x, y }) => this._showSingularityBurst(x, y, 8),
 
       boss_attack_changed: ({ attackType }) => {
         this.bossAttackType = attackType;
         this._updateBossStateText();
         this._showAttackWarning(attackType);
         this._hideWindUpBar();
+        this._clearGroundTelegraph();
         this._clearColumnGraphics();
       },
 
@@ -1152,6 +1316,7 @@ export default class MainScene extends Phaser.Scene {
         const vis = this.bossVisual;
         const color = parseInt((vis?.windUpColor || 0xff3399).toString(16).replace("0x", ""), 16);
         this._showWindUpBar(attackType, durationMs, color);
+        this._showBossWindUpTelegraph(attackType, durationMs);
         // Boss glows during wind-up
         this.tweens.add({ targets: this.bossCont, alpha: { from: 0.7, to: 1 }, duration: 200, yoyo: true, repeat: Math.floor(durationMs / 400) });
       },
@@ -1160,6 +1325,7 @@ export default class MainScene extends Phaser.Scene {
         this.bossWindingUp   = false;
         this.bossWindUpAttack = null;
         this._hideWindUpBar();
+        this._clearGroundTelegraph();
         this._updateBossStateText();
       },
 
@@ -1172,8 +1338,14 @@ export default class MainScene extends Phaser.Scene {
 
       eruption_fire: ({ x, y }) => this._showEruptionBurst(x, y),
 
-      void_zone_placed:  ({ x, y, radius, detonateMs }) => this._showVoidZone(x, y, radius, detonateMs),
+      void_zone_placed:  ({ x, y, radius, detonateMs }) => {
+        this._clearGroundTelegraph();
+        this._showVoidZone(x, y, radius, detonateMs);
+      },
       void_zone_explode: ({ x, y }) => this._showVoidZoneExplode(x, y),
+
+      singularity_burst: ({ x, y, count }) => this._showSingularityBurst(x, y, count),
+      dark_pulse_fire:   ({ x, y, aim, spread }) => this._showDarkPulseWave(x, y, aim, spread),
 
       boss_ultimate_start: ({ specialName, windUpMs }) => this._spawnUltimateEffect(specialName, windUpMs),
 
@@ -1224,8 +1396,7 @@ export default class MainScene extends Phaser.Scene {
     this._drawBossAura(dt);
 
     // Character
-    if (!this.isRunner || !this.keys) {
-      // Typer: smooth lerp toward server-authorised position (faster than before)
+    if (!this.isRunner || (!this.keys && !this.cursors)) {
       this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, 0.45);
       this.charY = Phaser.Math.Linear(this.charY, this.charTargetY, 0.45);
       this._setCharPos(this.charX, this.charY);
@@ -1233,10 +1404,12 @@ export default class MainScene extends Phaser.Scene {
       if (this.bossState !== "countdown") {
         const vel = 290 * dt;
         let nx = this.charTargetX, ny = this.charTargetY, ddx = 0, ddy = 0;
-        if (this.keys.left?.isDown)  { nx -= vel; ddx -= 1; }
-        if (this.keys.right?.isDown) { nx += vel; ddx += 1; }
-        if (this.keys.up?.isDown)    { ny -= vel; ddy -= 1; }
-        if (this.keys.down?.isDown)  { ny += vel; ddy += 1; }
+        const k = this.keys;
+        const c = this.cursors;
+        if (k?.left?.isDown || k?.A?.isDown || c?.left?.isDown)  { nx -= vel; ddx -= 1; }
+        if (k?.right?.isDown || k?.D?.isDown || c?.right?.isDown) { nx += vel; ddx += 1; }
+        if (k?.up?.isDown || k?.W?.isDown || c?.up?.isDown)    { ny -= vel; ddy -= 1; }
+        if (k?.down?.isDown || k?.S?.isDown || c?.down?.isDown)  { ny += vel; ddy += 1; }
         nx = Phaser.Math.Clamp(nx, 30, 1250);
         ny = Phaser.Math.Clamp(ny, 200, 590);
         this.charTargetX = nx; this.charTargetY = ny;
@@ -1250,6 +1423,10 @@ export default class MainScene extends Phaser.Scene {
           this.socket?.emit("player_move", { roomCode: this.roomCode, x: nx, y: ny });
         }
       }
+    }
+
+    if (this.bossWindingUp && this._groundTelegraphAttack) {
+      this._drawGroundTelegraph(this.charTargetX, this.charTargetY, this._groundTelegraphAttack);
     }
   }
 
@@ -1269,6 +1446,7 @@ export default class MainScene extends Phaser.Scene {
     this.stars.forEach(s => s.sprite?.destroy?.());
     this.stars = [];
     this.voidZoneGfx?.clear();
+    this.groundTelegraphGfx?.clear();
     if (this.weaponBobTween) { this.weaponBobTween.stop(); this.weaponBobTween = null; }
     if (this.bossPulse) { this.bossPulse.stop(); this.bossPulse = null; }
     if (this.furyTween) { this.furyTween.stop(); this.furyTween = null; }

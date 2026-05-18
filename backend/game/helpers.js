@@ -60,15 +60,22 @@ const computeWeaponDropPosition = (char) => {
   return clampWeaponXY(320 + Math.random() * 640, 360 + Math.random() * 180);
 };
 
-const takeDamage = (io, room, damage, x, y) => {
-  room.game.sharedHP = Math.max(0, room.game.sharedHP - damage);
-  room.game.streak = 0;
+const takeDamage = (io, room, damage, x, y, opts = {}) => {
+  const g = room.game;
+  // Team shield absorbs one hit
+  if (g.teamShield > 0 && !opts.skipShield) {
+    g.teamShield = 0;
+    io.to(room.code).emit("team_shield_break", { x, y });
+    return g.sharedHP;
+  }
+  g.sharedHP = Math.max(0, g.sharedHP - damage);
+  if (!opts.skipStreakReset) g.streak = 0;
 
   // Drop weapon if held and immunity period has passed
   let weaponDropped = false;
   const w = room.game.weapon;
   const now = Date.now();
-  if (w && w.held && (now - w.pickedUpAt) > WEAPON_DROP_IMMUNITY_MS) {
+  if (!opts.skipWeaponDrop && w && w.held && (now - w.pickedUpAt) > WEAPON_DROP_IMMUNITY_MS) {
     const pos = computeWeaponDropPosition(room.game.character);
     w.held = false;
     w.x = pos.x;

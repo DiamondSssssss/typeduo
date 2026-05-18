@@ -1,15 +1,18 @@
 const { getDifficultyWord, getDifficultyPhase, getPhase } = require("./words");
 const { SHARED_MAX_HP, COUNTDOWN_DURATION_MS } = require("./constants");
+const { applyDifficultyToGame } = require("./difficulty");
 
 const randomWeaponPos = () => ({
-  x: 300 + Math.random() * 680, // 300–980 (away from boss zone and edges)
-  y: 350 + Math.random() * 200, // 350–550 (lower half of arena)
+  x: 300 + Math.random() * 680,
+  y: 350 + Math.random() * 200,
 });
 
 const toPublicRoomState = (room) => ({
   code:         room.code,
   hostSocketId: room.hostSocketId,
   selectedBoss: room.selectedBoss,
+  gameMode:     room.gameMode || "coop",
+  difficulty:   room.difficulty || "normal",
   players:      room.players.map(({ socketId, username, role, ready }) => ({
     socketId, username, role, ready: ready || false,
   })),
@@ -25,7 +28,7 @@ const playerStateForClient = (p) => ({
   damageDealt: p.damageDealt || 0,
 });
 
-const buildBossStateForClient = (boss, bossConfig) => ({
+const buildBossStateForClient = (boss, bossConfig, g) => ({
   x:           boss.x,
   y:           boss.y,
   attackType:  boss.windingUp ? (boss.windUpAttack || boss.attackType) : boss.attackType,
@@ -34,7 +37,7 @@ const buildBossStateForClient = (boss, bossConfig) => ({
   windUpRemaining: boss.windingUp ? Math.max(0, boss.windUpUntil - Date.now()) : 0,
   columnState: boss.columnState || null,
   columnX:     boss.columnX || 640,
-  phase:       getPhase(boss._bossHP || 0, bossConfig?.maxHP || 250),
+  phase:       getPhase(g?.bossHP ?? 0, bossConfig?.maxHP || 250),
 });
 
 const emitGameState = (io, room, bossConfig) => {
@@ -42,14 +45,21 @@ const emitGameState = (io, room, bossConfig) => {
   const cfg = bossConfig || { maxHP: g.bossMaxHP };
   io.to(room.code).emit("game_state", {
     roomCode:         room.code,
+    gameMode:         room.gameMode || "coop",
+    difficulty:       room.difficulty || "normal",
     bossId:           room.selectedBoss,
     sharedHP:         g.sharedHP,
     sharedMaxHP:      g.sharedMaxHP,
+    bossHP:           g.bossHP,
+    bossMaxHP:        g.bossMaxHP,
+    bossShield:       g.bossShield || 0,
+    bossShieldMax:    g.bossShieldMax || 0,
+    teamShield:       g.teamShield || 0,
+    poisoned:         Boolean(g.poisonUntil && Date.now() < g.poisonUntil),
+    slowed:           g.slowed || false,
     weaponHeld:       g.weapon?.held  || false,
     weaponX:          g.weapon?.x,
     weaponY:          g.weapon?.y,
-    bossHP:           g.bossHP,
-    bossMaxHP:        g.bossMaxHP,
     bossState:        g.bossState,
     stateEndsAt:      g.stateEndsAt,
     countdownRemaining: g.bossState === "countdown" ? Math.max(0, g.stateEndsAt - Date.now()) : 0,
@@ -61,20 +71,31 @@ const emitGameState = (io, room, bossConfig) => {
     streakMultWords:  g.streakMultWords  || 0,
     furyActive:       g.furyActive      || false,
     character:        g.character,
-    boss:             buildBossStateForClient({ ...g.boss, _bossHP: g.bossHP }, cfg),
+    boss:             buildBossStateForClient({ ...g.boss, _bossHP: g.bossHP }, cfg, g),
     projectiles:      g.projectiles,
     players:          room.players.map(playerStateForClient),
   });
 };
 
-const createInitialGameState = (bossConfig) => {
+const createInitialGameState = (bossConfig, opts = {}) => {
   const now   = Date.now();
   const maxHP = bossConfig.maxHP;
-  return {
+  const gameMode = opts.gameMode || "coop";
+  const soloMode = gameMode === "solo";
+
+  const g = {
+    gameMode,
     sharedHP:    SHARED_MAX_HP,
     sharedMaxHP: SHARED_MAX_HP,
     bossHP:      maxHP,
     bossMaxHP:   maxHP,
+    bossShield:  0,
+    bossShieldMax: 0,
+    shieldInitialized: false,
+    teamShield:  0,
+    poisonUntil: 0,
+    slowed:      false,
+    moveSpeedMult: 1,
     bossState:   "countdown",
     stateEndsAt: now + COUNTDOWN_DURATION_MS,
     triggeredSwapThresholds: [],
@@ -97,37 +118,38 @@ const createInitialGameState = (bossConfig) => {
       lastFireAt:     now,
       spiralAngle:    0,
       circleFired:    false,
-      // Watcher / generic
       hellSpiralAt:   0,
       hellRainAt:     0,
-      // Storm Drake
       tempestSweepAt: 0,
       tempestRainAt:  0,
       tempestChainAt: 0,
-      // Inferno
       wildfireSpreadAt: 0,
       wildfireRainAt:   0,
-      // Glacier
       avalancheFromLeft: false,
-      // Wind-up
       windingUp:     false,
       windUpAttack:  null,
       windUpUntil:   0,
-      // Column attack
       columnState:   null,
       columnX:       640,
       columnStateAt: 0,
     },
     projectiles:      [],
     nextProjectileId: 1,
+    _toxicPools:      [],
+    _slowFields:      [],
+    _delayedSpawns:   [],
+    _voidZoneDetonates: [],
+    _magnetActive:    false,
     startedAt:        now,
     lastTickAt:       now,
-    weapon: { ...randomWeaponPos(), held: false, pickedUpAt: 0, pickupLockedUntil: 0 },
-    // Streak bonus system
-    streakMult:      1,   // damage multiplier for the next streakMultWords words
-    streakMultWords: 0,   // how many words still carry the bonus
+    weapon: { ...randomWeaponPos(), held: soloMode, pickedUpAt: soloMode ? now : 0, pickupLockedUntil: 0 },
+    streakMult:      1,
+    streakMultWords: 0,
     furyActive:      false,
   };
+
+  if (opts.difficulty) applyDifficultyToGame(g, opts.difficulty);
+  return g;
 };
 
 module.exports = { toPublicRoomState, playerStateForClient, emitGameState, createInitialGameState };

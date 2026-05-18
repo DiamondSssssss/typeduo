@@ -89,8 +89,11 @@ exports.applyAttack = (io, room, bossConfig, attackType, now) => {
   // tick if the new attackType IS the column attack type.
   b.columnState   = null;
   b.columnStateAt = 0;
-  // Clear pending void zones when switching attack types
-  if (room.game) room.game._voidZoneDetonates = [];
+  // Clear pending hazards when switching attack types
+  if (room.game) {
+    room.game._voidZoneDetonates = [];
+    room.game._magnetActive = false;
+  }
   if (bossConfig.columnAttack?.type === attackType) {
     b.columnX = 480; // tickColumnAttack will override with the real target
   }
@@ -236,7 +239,11 @@ exports.maybeFireSpecial = (io, room, bossConfig, phase, now) => {
   // Fire the special burst immediately (no timer check — one-shot)
   const specialFn = SPECIAL_MAP[special.id];
   if (specialFn) {
+    bossConfig._io       = io;
+    bossConfig._roomCode = room.code;
     specialFn(g, g.boss, g.character, phase, bossConfig.projSpeed[phase], bossConfig, now);
+    bossConfig._io       = null;
+    bossConfig._roomCode = null;
   }
 
   // Then enter the special attack type for its duration

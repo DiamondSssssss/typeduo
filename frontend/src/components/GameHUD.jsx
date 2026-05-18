@@ -32,7 +32,7 @@ function clampPct(value, max) {
   return Math.max(0, Math.min(1, (value || 0) / safeMax));
 }
 
-function HPBar({ label, hp, maxHP, variant = "team" }) {
+function HPBar({ label, hp, maxHP, variant = "team", prominent = false }) {
   const pct = clampPct(hp, maxHP);
   const prevHpRef = useRef(hp);
   const [flashing, setFlashing] = useState(false);
@@ -69,6 +69,7 @@ function HPBar({ label, hp, maxHP, variant = "team" }) {
 
   const wrapperClass = [
     "hp-bar-wrapper",
+    prominent ? "hp-bar-wrapper--prominent" : "",
     flashing ? "hp-bar-wrapper--flash" : "",
     healing ? "hp-bar-wrapper--heal" : "",
   ]
@@ -76,7 +77,7 @@ function HPBar({ label, hp, maxHP, variant = "team" }) {
     .join(" ");
 
   return (
-    <div className="hp-stack">
+    <div className={["hp-stack", prominent ? "hp-stack--prominent" : ""].filter(Boolean).join(" ")}>
       <div className="hp-meta">
         <span>{label}</span>
         <span className="hp-meta-value">
@@ -177,8 +178,17 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
   const windUpAttack = gamePayload?.boss?.windUpAttack;
   const windUpRemaining = gamePayload?.boss?.windUpRemaining || 0;
   const bossId = gamePayload?.bossId || "watcher";
+  const gameMode = gamePayload?.gameMode || "coop";
+  const isSolo = gameMode === "solo";
+  const columnState = gamePayload?.boss?.columnState;
+  const bossShield = gamePayload?.bossShield ?? 0;
+  const bossShieldMax = gamePayload?.bossShieldMax ?? 0;
+  const poisoned = gamePayload?.poisoned;
+  const slowed = gamePayload?.slowed;
 
   const orderedPlayers = [...players].sort((a, b) => {
+    if (a.role === "solo") return -1;
+    if (b.role === "solo") return 1;
     if (a.role === b.role) return 0;
     return a.role === "runner" ? -1 : 1;
   });
@@ -186,9 +196,11 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
   return (
     <section className="card card-wide hud-card hud-card--compact" aria-label="Game HUD">
       <div className="hud-state-row">
-        <h2 className="title" style={{ fontSize: "1rem", margin: 0 }}>Boss Battle</h2>
-        <span className={`weapon-badge${weaponHeld ? " weapon-badge--held" : " weapon-badge--dropped"}`}>
-          {weaponHeld ? "⚔ Armed" : "⚔ Pick up weapon!"}
+        <h2 className="title" style={{ fontSize: "1rem", margin: 0 }}>
+          {isSolo ? "Solo Battle" : "Boss Battle"}
+        </h2>
+        <span className={`weapon-badge${weaponHeld || isSolo ? " weapon-badge--held" : " weapon-badge--dropped"}`}>
+          {isSolo || weaponHeld ? "⚔ Armed" : "⚔ Pick up weapon!"}
         </span>
         <div className="hud-pills">
           <span className={`boss-state boss-state--${bossState}`}>
@@ -236,7 +248,7 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
 
       {bossState === "roar" && !gameOver ? (
         <div className="callout callout--roar">
-          Boss is roaring — typing locked, brace for role swap!
+          {isSolo ? "Boss is roaring — typing locked, then stunned!" : "Boss is roaring — typing locked, brace for role swap!"}
         </div>
       ) : null}
 
@@ -246,16 +258,22 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
         </div>
       ) : null}
 
-      {laserState === "warning" && !gameOver ? (
+      {bossShield > 0 && !gameOver ? (
+        <div className="callout callout--shield">🛡 Boss shield: {Math.round(bossShield)} / {bossShieldMax}</div>
+      ) : null}
+      {poisoned && !gameOver ? <div className="callout callout--poison">☣ Poisoned</div> : null}
+      {slowed && !gameOver ? <div className="callout callout--slow">🐌 Slowed</div> : null}
+
+      {(columnState === "warning" || laserState === "warning") && !gameOver ? (
         <div className="callout callout--laser">⚠ COLUMN INCOMING — move out of the beam!</div>
       ) : null}
-      {laserState === "active" && !gameOver ? (
+      {(columnState === "active" || laserState === "active") && !gameOver ? (
         <div className="callout callout--laser callout--laser-active">⚡ FIRING!</div>
       ) : null}
 
       <div className="hud-grid">
+        <HPBar label="♥ Team HP" hp={sharedHP} maxHP={sharedMaxHP} prominent />
         <HPBar label="Boss HP" hp={bossHP} maxHP={bossMaxHP} variant="boss" />
-        <HPBar label="Team HP" hp={sharedHP} maxHP={sharedMaxHP} />
       </div>
 
       {furyActive && !gameOver ? (

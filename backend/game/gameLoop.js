@@ -1,14 +1,16 @@
 const {
-  GAME_TICK_MS, HIT_RADIUS, PROJECTILE_DAMAGE,
-  SWAP_THRESHOLDS, ROAR_DURATION_MS, STUN_DURATION_MS, COUNTDOWN_DURATION_MS,
+  GAME_TICK_MS, HIT_RADIUS,
+  SWAP_THRESHOLDS, ROAR_DURATION_MS, STUN_DURATION_MS,
   WEAPON_PICKUP_RADIUS,
 } = require("./constants");
 const { getPhase } = require("./words");
 const { takeDamage } = require("./helpers");
+const { getProjectileDamage } = require("./difficulty");
+const { tickStatusAndHazards } = require("./statusEffects");
+const { maybeInitBossShield } = require("./bossDamage");
 const { moveBoss, tickBossAttacks, steerHomingProjectiles, maybeFireSpecial } = require("./bossAI");
 const { emitGameState, toPublicRoomState } = require("./gameState");
 
-// ── Room loop registry ────────────────────────────────────────────────────────
 const loops = new Map();
 
 const stopLoop = (code) => {
@@ -16,13 +18,13 @@ const stopLoop = (code) => {
   if (h) { clearInterval(h); loops.delete(code); }
 };
 
-// ── Lifecycle helpers ─────────────────────────────────────────────────────────
 const swapRoles = (players) => {
   players.forEach((p) => { p.role = p.role === "runner" ? "typer" : "runner"; });
 };
 
 const advanceBossLifecycle = (io, room, bossConfig, now) => {
   const g = room.game;
+  const soloMode = room.gameMode === "solo" || g.gameMode === "solo";
 
   if (g.bossState === "countdown" && now >= g.stateEndsAt) {
     g.bossState   = "attack";
@@ -33,14 +35,20 @@ const advanceBossLifecycle = (io, room, bossConfig, now) => {
   }
 
   if (g.bossState === "roar" && now >= g.stateEndsAt) {
-    swapRoles(room.players);
-    g.bossState   = "stunned";
-    g.stateEndsAt = now + STUN_DURATION_MS;
-    room.players.forEach((p) => { p.facing = { x: 0, y: 0 }; });
-    io.to(room.code).emit("roles_swapped", {
-      players: room.players.map(({ socketId, username, role }) => ({ socketId, username, role })),
-    });
-    io.to(room.code).emit("room_update", toPublicRoomState(room));
+    if (soloMode) {
+      // Solo: roar → stun only, no role swap
+      g.bossState   = "stunned";
+      g.stateEndsAt = now + STUN_DURATION_MS;
+    } else {
+      swapRoles(room.players);
+      g.bossState   = "stunned";
+      g.stateEndsAt = now + STUN_DURATION_MS;
+      room.players.forEach((p) => { p.facing = { x: 0, y: 0 }; });
+      io.to(room.code).emit("roles_swapped", {
+        players: room.players.map(({ socketId, username, role }) => ({ socketId, username, role })),
+      });
+      io.to(room.code).emit("room_update", toPublicRoomState(room));
+    }
     return;
   }
 
@@ -48,8 +56,6 @@ const advanceBossLifecycle = (io, room, bossConfig, now) => {
     g.bossState   = "attack";
     g.stateEndsAt = 0;
     g.boss.lastFireAt = now;
-    // If a roar/stun interrupted a wind-up, discard it — the client already
-    // dismissed the wind-up bar during the roar animation.
     if (g.boss.windingUp) {
       g.boss.windingUp    = false;
       g.boss.windUpAttack = null;
@@ -59,24 +65,6 @@ const advanceBossLifecycle = (io, room, bossConfig, now) => {
   }
 };
 
-const maybeTriggerRoar = (io, room, prevHP) => {
-  const g = room.game;
-  if (!g || g.bossState === "roar" || g.bossState === "stunned") return;
-  const threshold = SWAP_THRESHOLDS.find(
-    (t) =>
-      !g.triggeredSwapThresholds.includes(t) &&
-      prevHP > (g.bossMaxHP * t / 100) &&
-      g.bossHP <= (g.bossMaxHP * t / 100)
-  );
-  if (!threshold) return;
-  g.triggeredSwapThresholds.push(threshold);
-  g.bossState   = "roar";
-  g.stateEndsAt = Date.now() + ROAR_DURATION_MS;
-  g.projectiles = [];
-  io.to(room.code).emit("boss_roar_start", { threshold, countdownMs: ROAR_DURATION_MS });
-};
-
-// ── Main tick ─────────────────────────────────────────────────────────────────
 const tick = (io, room, bossConfig) => {
   if (!room || room.status !== "in_game" || !room.game) { stopLoop(room.code); return; }
   const g   = room.game;
@@ -88,26 +76,24 @@ const tick = (io, room, bossConfig) => {
   advanceBossLifecycle(io, room, bossConfig, now);
 
   const phase = getPhase(g.bossHP, g.bossMaxHP);
+  maybeInitBossShield(g, bossConfig, phase);
 
-  // Boss movement (not during stun/countdown)
   if (g.bossState !== "countdown" && g.bossState !== "stunned") {
     moveBoss(g, bossConfig, now, deltaSeconds, phase);
   }
 
-  // Boss attacks
   if (g.bossState === "attack") {
     maybeFireSpecial(io, room, bossConfig, phase, now);
     tickBossAttacks(io, room, bossConfig, phase, now, deltaMs);
   }
 
-  // Homing projectile steering
   steerHomingProjectiles(g, bossConfig, deltaSeconds);
+  tickStatusAndHazards(io, room, now, deltaSeconds);
 
-  // Move projectiles + collision
   const char = g.character;
+  const soloMode = room.gameMode === "solo" || g.gameMode === "solo";
 
-  // Weapon pickup check (respect short lock after drop so weapon visibly lands away first)
-  if (g.weapon && !g.weapon.held && now >= (g.weapon.pickupLockedUntil || 0)) {
+  if (g.weapon && !g.weapon.held && !soloMode && now >= (g.weapon.pickupLockedUntil || 0)) {
     const wdx = char.x - g.weapon.x;
     const wdy = char.y - g.weapon.y;
     if (wdx * wdx + wdy * wdy < WEAPON_PICKUP_RADIUS * WEAPON_PICKUP_RADIUS) {
@@ -117,14 +103,16 @@ const tick = (io, room, bossConfig) => {
       io.to(room.code).emit("weapon_picked", { x: g.weapon.x, y: g.weapon.y });
     }
   }
+
+  const projDmg = getProjectileDamage(g);
   g.projectiles = g.projectiles.filter((p) => {
-    if (p.gravity) p.vy += p.gravity * deltaSeconds; // arc gravity
+    if (p.gravity) p.vy += p.gravity * deltaSeconds;
     p.x += p.vx * deltaSeconds;
     p.y += p.vy * deltaSeconds;
     const dx = char.x - p.x;
     const dy = char.y - p.y;
     if (dx * dx + dy * dy < HIT_RADIUS * HIT_RADIUS) {
-      takeDamage(io, room, PROJECTILE_DAMAGE, p.x, p.y);
+      takeDamage(io, room, projDmg, p.x, p.y);
       return false;
     }
     return p.y <= 800 && p.x >= -100 && p.x <= 1380 && p.y >= -100;
@@ -132,7 +120,6 @@ const tick = (io, room, bossConfig) => {
 
   emitGameState(io, room, bossConfig);
 
-  // Game-over check
   if (g.sharedHP <= 0 || g.bossHP <= 0) {
     room.status = "finished";
     stopLoop(room.code);
@@ -140,8 +127,10 @@ const tick = (io, room, bossConfig) => {
       winner:         g.bossHP <= 0 ? "players" : "boss",
       sharedHP:       g.sharedHP,
       bossHP:         g.bossHP,
+      bossShield:     g.bossShield || 0,
       elapsedMs:      now - g.startedAt,
       totalWordsTyped: g.totalWordsTyped,
+      gameMode:       room.gameMode || "coop",
       players: room.players.map(({ socketId, username, wordsTyped, damageDealt }) => ({
         socketId, username, wordsTyped: wordsTyped || 0, damageDealt: damageDealt || 0,
       })),

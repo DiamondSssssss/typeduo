@@ -285,6 +285,9 @@ exports.fireDarkPulse = (game, boss, char, phase, speed, cfg, now) => {
   boss.lastFireAt = now;
   const count = 5;
   const aimA = Math.atan2(char.y - boss.y, char.x - boss.x);
+  if (cfg._io && cfg._roomCode) {
+    cfg._io.to(cfg._roomCode).emit("dark_pulse_fire", { x: boss.x, y: boss.y, aim: aimA, spread: 0.7 });
+  }
   for (let i = 0; i < count; i++) {
     const a = aimA - 0.7 + (1.4 * i / (count - 1));
     spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * speed * 0.75, vy: Math.sin(a) * speed * 0.75, type: "dark_pulse" });
@@ -300,6 +303,9 @@ exports.fireSingularity = (game, boss, char, phase, speed, cfg, now) => {
   if (boss.circleFired) return false;
   boss.circleFired = true;
   const count = 10 + phase * 4;
+  if (cfg._io && cfg._roomCode) {
+    cfg._io.to(cfg._roomCode).emit("singularity_burst", { x: boss.x, y: boss.y, count });
+  }
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2;
     spawnProjectile(game, { x: boss.x, y: boss.y, vx: Math.cos(a) * speed * 0.65, vy: Math.sin(a) * speed * 0.65, type: "singularity", homing: true });
@@ -334,6 +340,9 @@ exports.fireThunderstrike = (game, boss, char, phase, speed, cfg, now) => {
 
 /** Void Crawler: Void Collapse — 4 homing orbs + eruption at char. */
 exports.fireVoidCollapse = (game, boss, char, phase, speed, cfg, now) => {
+  if (cfg._io && cfg._roomCode) {
+    cfg._io.to(cfg._roomCode).emit("eruption_fire", { x: char.x, y: char.y });
+  }
   const orbSpeed = cfg.orbConfig?.speed?.[2] ?? speed * 0.55;
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
@@ -572,3 +581,8 @@ exports.SPECIAL_MAP = {
   eruption_burst: exports.fireEruptionBurst,
   permafrost:     exports.firePermafrost,
 };
+
+// Bosses 6–10
+const { PATTERNS: NEW_PATTERNS, SPECIALS: NEW_SPECIALS } = require("./newBossPatterns");
+Object.assign(exports.PATTERN_MAP, NEW_PATTERNS);
+Object.assign(exports.SPECIAL_MAP, NEW_SPECIALS);
