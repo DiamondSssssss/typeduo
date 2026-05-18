@@ -503,7 +503,10 @@ export default class MainScene extends Phaser.Scene {
     wg.strokeRoundedRect(px, py, pw, ph, 14);
 
     this.wordCont = this.add.container(W / 2, H - 60).setDepth(20);
-    this.typedTxt  = this.add.text(0, 0, "", { fontFamily: MONO, fontSize: "42px", color: "#4ef0d4", fontStyle: "bold" }).setOrigin(0, 0.5);
+    this.typedTxt  = this.add.text(0, 0, "", {
+      fontFamily: MONO, fontSize: "42px", color: "#4ef0d4", fontStyle: "bold",
+      shadow: { offsetX: 0, offsetY: 0, color: "#4ef0d4", blur: 14, stroke: true, fill: true },
+    }).setOrigin(0, 0.5);
     this.remainTxt = this.add.text(0, 0, "", { fontFamily: MONO, fontSize: "42px", color: "#e8ecff" }).setOrigin(0, 0.5);
     this.wordCont.add([this.typedTxt, this.remainTxt]);
 

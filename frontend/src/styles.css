@@ -83,6 +83,10 @@ button {
   gap: 12px;
 }
 
+.game-layout--tutorial .game-root {
+  box-shadow: 0 0 0 1px rgba(78, 240, 212, 0.2), var(--shadow-glow);
+}
+
 
 .app-shell--centered {
   justify-content: center;
@@ -1513,8 +1517,369 @@ button {
 .solo-lobby__diff { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 20px; }
 .solo-lobby__label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
 .btn--active { border-color: var(--accent-cyan) !important; color: var(--accent-cyan) !important; background: rgba(78, 240, 212, 0.1) !important; }
-.boss-grid--solo { max-height: 420px; overflow-y: auto; }
 .tutorial-hint { text-align: center; color: var(--text-muted); padding: 12px; }
+
+/* ── Boss picker (solo + co-op lobby) ───────────────────────────────────── */
+.boss-picker {
+  display: grid;
+  gap: 16px;
+  margin: 8px 0 4px;
+}
+
+.boss-picker__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.boss-picker__label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.boss-picker__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.boss-picker__filter {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.boss-picker__filter:hover {
+  border-color: rgba(78, 240, 212, 0.4);
+  color: var(--text-primary);
+}
+
+.boss-picker__filter--active {
+  border-color: var(--accent-cyan);
+  background: rgba(78, 240, 212, 0.12);
+  color: var(--accent-cyan);
+}
+
+.boss-picker__preview {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 22px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--boss-color, #4ef0d4) 45%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--boss-color, #4ef0d4) 18%, rgba(10, 17, 36, 0.95)),
+    rgba(10, 17, 36, 0.92)
+  );
+  overflow: hidden;
+}
+
+.boss-picker__preview-orb {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--boss-color, #4ef0d4), transparent 68%);
+  box-shadow: 0 0 40px color-mix(in srgb, var(--boss-color, #4ef0d4) 50%, transparent);
+  animation: boss-orb-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes boss-orb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+.boss-picker__preview-body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.boss-picker__preview-eyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.boss-picker__preview-name {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--boss-color, var(--accent-cyan));
+  line-height: 1.15;
+}
+
+.boss-picker__preview-tag {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.boss-picker__preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.boss-picker__preview-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.boss-picker__preview-pill--hp {
+  color: var(--boss-color, var(--accent-cyan));
+  background: color-mix(in srgb, var(--boss-color, #4ef0d4) 15%, transparent);
+}
+
+.boss-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.boss-picker__card {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 14px 14px 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  transition: transform 0.14s ease, border-color 0.14s, box-shadow 0.14s, background 0.14s;
+  overflow: hidden;
+}
+
+.boss-picker__card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--boss-color, #fff) 55%, transparent);
+  background: color-mix(in srgb, var(--boss-color, #fff) 8%, rgba(0, 0, 0, 0.35));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--boss-color, #000) 25%, transparent);
+}
+
+.boss-picker__card--selected {
+  border-color: var(--boss-color, var(--accent-cyan));
+  background: color-mix(in srgb, var(--boss-color, #fff) 14%, rgba(0, 0, 0, 0.45));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--boss-color, #fff) 35%, transparent),
+    0 10px 28px color-mix(in srgb, var(--boss-color, #000) 30%, transparent);
+}
+
+.boss-picker__card-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--boss-color, var(--accent-cyan));
+  border-radius: 4px 0 0 4px;
+}
+
+.boss-picker__card-orb {
+  position: absolute;
+  right: -20px;
+  top: -20px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--boss-color, #fff) 35%, transparent), transparent 70%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.boss-picker__card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 20px;
+}
+
+.boss-picker__card-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--boss-color, var(--text-primary));
+  line-height: 1.25;
+}
+
+.boss-picker__card-tag {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.boss-picker__card-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.boss-picker__card-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--boss-color, var(--accent-cyan));
+  color: #0a1124;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Solo lobby layout ──────────────────────────────────────────────────── */
+.solo-lobby {
+  display: grid;
+  gap: 20px;
+}
+
+.solo-lobby__hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.solo-lobby__hero h2 {
+  margin: 0 0 6px;
+  font-size: 1.5rem;
+}
+
+.solo-lobby__hero p {
+  margin: 0;
+  color: var(--text-muted);
+  max-width: 52ch;
+}
+
+.solo-lobby__diff-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.solo-lobby__diff-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.solo-lobby__diff-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .solo-lobby__diff-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.solo-lobby__diff-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.solo-lobby__diff-btn:hover {
+  border-color: rgba(78, 240, 212, 0.45);
+}
+
+.solo-lobby__diff-btn--active {
+  border-color: var(--accent-cyan);
+  background: rgba(78, 240, 212, 0.1);
+  box-shadow: 0 0 0 1px rgba(78, 240, 212, 0.25);
+}
+
+.solo-lobby__diff-btn-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.solo-lobby__diff-btn-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.solo-lobby__footer {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.solo-lobby__start {
+  display: grid;
+  gap: 4px;
+  padding: 16px 20px !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--boss-color, #4ef0d4) 80%, #1a2347),
+    color-mix(in srgb, var(--boss-color, #4ef0d4) 40%, #0a1124)
+  ) !important;
+  border: 1px solid color-mix(in srgb, var(--boss-color, #4ef0d4) 50%, transparent) !important;
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--boss-color, #4ef0d4) 35%, transparent);
+}
+
+.solo-lobby__start-label {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.solo-lobby__start-sub {
+  font-size: 0.78rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
 .callout--shield { border-color: rgba(251, 191, 36, 0.6); color: #fbbf24; }
 .callout--poison { border-color: rgba(132, 204, 22, 0.6); color: #a3e635; }
 .callout--slow { border-color: rgba(148, 163, 184, 0.6); color: #94a3b8; }

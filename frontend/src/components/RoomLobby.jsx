@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { BOSS_LIST } from "../game/bosses/bossConfigs";
+import BossPicker from "./BossPicker";
 
 function DifficultyStars({ n }) {
   return (
@@ -121,24 +122,7 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
 
         {/* Boss selection — host can pick at any time before the game starts */}
         {isHost && (
-          <div className="boss-select-section">
-            <p className="boss-select-label">Choose your boss</p>
-            <div className="boss-select-grid">
-              {BOSS_LIST.map(boss => (
-                <button
-                  key={boss.id}
-                  type="button"
-                  className={`boss-card${selectedBoss === boss.id ? " boss-card--selected" : ""}`}
-                  style={{ "--boss-color": boss.color }}
-                  onClick={() => selectBoss(boss.id)}
-                >
-                  <span className="boss-card-name">{boss.name}</span>
-                  <DifficultyStars n={boss.difficulty} />
-                  <span className="boss-card-tag">{boss.tagline}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <BossPicker selectedId={selectedBoss} onSelect={selectBoss} />
         )}
 
         {/* Current boss for non-host players */}

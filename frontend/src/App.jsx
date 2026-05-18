@@ -193,7 +193,9 @@ function App() {
       ) : appView === "tutorial" ? (
         <div className="game-layout">
           <div id="tutorial-root" className="game-root" />
-          <p className="tutorial-hint card card-wide">Tutorial — complete all 6 steps or click Skip in-game.</p>
+          <p className="tutorial-hint card card-wide">
+            Same cyan letter glow &amp; particles as co-op. Complete 6 steps or skip via the top-right button.
+          </p>
         </div>
       ) : appView === "solo" ? (
         <SoloLobby socket={socket} currentUser={currentUser} onBack={() => setAppView("home")} />

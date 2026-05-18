@@ -1,16 +1,20 @@
 import { useState } from "react";
+import BossPicker from "./BossPicker";
 import { BOSS_LIST } from "../game/bosses/bossConfigs";
 
-function DifficultyStars({ n }) {
-  return <span className="boss-diff">{"★".repeat(n)}{"☆".repeat(3 - n)}</span>;
-}
+const DIFFICULTY_INFO = {
+  easy:   { label: "Easy",   desc: "More HP · slower attacks" },
+  normal: { label: "Normal", desc: "Balanced challenge" },
+  hard:   { label: "Hard",   desc: "Less HP · faster attacks" },
+};
 
-function SoloLobby({ socket, currentUser, onGameStarted, onBack }) {
+export default function SoloLobby({ socket, currentUser, onBack }) {
   const [selectedBoss, setSelectedBoss] = useState("rust_golem");
   const [difficulty, setDifficulty] = useState("normal");
   const [starting, setStarting] = useState(false);
   const [status, setStatus] = useState("");
   const username = currentUser?.username || currentUser?.email;
+  const selected = BOSS_LIST.find((b) => b.id === selectedBoss);
 
   const startSolo = () => {
     if (!socket?.connected || starting) return;
@@ -18,56 +22,54 @@ function SoloLobby({ socket, currentUser, onGameStarted, onBack }) {
     setStatus("");
     socket.emit("start_solo", { username, bossId: selectedBoss, difficulty }, (res) => {
       setStarting(false);
-      if (!res?.ok) { setStatus(res?.message || "Could not start solo game."); return; }
+      if (!res?.ok) setStatus(res?.message || "Could not start solo game.");
     });
   };
 
   return (
     <section className="card card-wide solo-lobby">
-      <div className="solo-lobby__head">
-        <button type="button" className="btn btn-ghost btn-compact" onClick={onBack}>← Back</button>
-        <h2>Solo Mode</h2>
-        <p>Move with <strong>arrow keys</strong> (or WASD) and <strong>type</strong> to attack. Weapon is auto-equipped.</p>
+      <div className="solo-lobby__hero">
+        <button type="button" className="btn btn-ghost btn-compact" onClick={onBack}>← Main menu</button>
+        <div className="solo-lobby__hero-text">
+          <h2>Solo Mode</h2>
+          <p>Move with <strong>arrow keys</strong> or <strong>WASD</strong>, type to attack. Weapon is auto-equipped.</p>
+        </div>
       </div>
 
-      <div className="solo-lobby__diff">
-        <span className="solo-lobby__label">Difficulty</span>
-        {["easy", "normal", "hard"].map((d) => (
-          <button
-            key={d}
-            type="button"
-            className={`btn btn-ghost ${difficulty === d ? "btn--active" : ""}`}
-            onClick={() => setDifficulty(d)}
-          >
-            {d.charAt(0).toUpperCase() + d.slice(1)}
-          </button>
-        ))}
+      <div className="solo-lobby__diff-panel">
+        <span className="solo-lobby__diff-label">Difficulty</span>
+        <div className="solo-lobby__diff-options">
+          {["easy", "normal", "hard"].map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={`solo-lobby__diff-btn${difficulty === d ? " solo-lobby__diff-btn--active" : ""}`}
+              onClick={() => setDifficulty(d)}
+            >
+              <span className="solo-lobby__diff-btn-title">{DIFFICULTY_INFO[d].label}</span>
+              <span className="solo-lobby__diff-btn-desc">{DIFFICULTY_INFO[d].desc}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="boss-grid boss-grid--solo">
-        {BOSS_LIST.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            className={`boss-card ${selectedBoss === b.id ? "boss-card--selected" : ""}`}
-            style={{ "--boss-accent": b.color }}
-            onClick={() => setSelectedBoss(b.id)}
-          >
-            <span className="boss-card__name">{b.name}</span>
-            <DifficultyStars n={b.difficulty} />
-            <span className="boss-card__tag">{b.tagline}</span>
-            <span className="boss-card__hp">{b.maxHP} HP</span>
-          </button>
-        ))}
+      <BossPicker selectedId={selectedBoss} onSelect={setSelectedBoss} disabled={starting} />
+
+      <div className="solo-lobby__footer">
+        {status ? <p className="form-error">{status}</p> : null}
+        <button
+          type="button"
+          className="btn btn-primary btn-wide solo-lobby__start"
+          disabled={starting || !socket?.connected}
+          onClick={startSolo}
+          style={{ "--boss-color": selected?.color }}
+        >
+          <span className="solo-lobby__start-label">
+            {starting ? "Starting…" : `Fight ${selected?.name || "Boss"}`}
+          </span>
+          <span className="solo-lobby__start-sub">{DIFFICULTY_INFO[difficulty].label} · {selected?.maxHP} HP boss</span>
+        </button>
       </div>
-
-      {status ? <p className="form-error">{status}</p> : null}
-
-      <button type="button" className="btn btn-primary btn-wide" disabled={starting || !socket?.connected} onClick={startSolo}>
-        {starting ? "Starting…" : "Start Solo Fight"}
-      </button>
     </section>
   );
 }
-
-export default SoloLobby;
