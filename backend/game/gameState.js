@@ -1,6 +1,8 @@
-const { getDifficultyWord, getDifficultyPhase, getPhase } = require("./words");
+const { getPhase } = require("./words");
 const { SHARED_MAX_HP, COUNTDOWN_DURATION_MS } = require("./constants");
 const { applyDifficultyToGame } = require("./difficulty");
+const { DEFAULT_WEAPON_ID } = require("./weapons");
+const { refreshWeaponWord } = require("./weaponCombat");
 
 const randomWeaponPos = () => ({
   x: 300 + Math.random() * 680,
@@ -13,8 +15,9 @@ const toPublicRoomState = (room) => ({
   selectedBoss: room.selectedBoss,
   gameMode:     room.gameMode || "coop",
   difficulty:   room.difficulty || "normal",
-  players:      room.players.map(({ socketId, username, role, ready }) => ({
+  players:      room.players.map(({ socketId, username, role, ready, weaponTypeId }) => ({
     socketId, username, role, ready: ready || false,
+    weaponTypeId: weaponTypeId || DEFAULT_WEAPON_ID,
   })),
   status:       room.status,
 });
@@ -58,18 +61,17 @@ const emitGameState = (io, room, bossConfig) => {
     poisoned:         Boolean(g.poisonUntil && Date.now() < g.poisonUntil),
     slowed:           g.slowed || false,
     weaponHeld:       g.weapon?.held  || false,
+    weaponTypeId:     g.weapon?.typeId || DEFAULT_WEAPON_ID,
     weaponX:          g.weapon?.x,
     weaponY:          g.weapon?.y,
+    weaponStreak:     g.weaponStreak || 0,
+    wordExpiresAt:    g.wordExpiresAt || 0,
     bossState:        g.bossState,
     stateEndsAt:      g.stateEndsAt,
     countdownRemaining: g.bossState === "countdown" ? Math.max(0, g.stateEndsAt - Date.now()) : 0,
     currentWord:      g.currentWord,
     currentWordPhase: g.currentWordPhase,
     typedProgress:    g.typedProgress,
-    streak:           g.streak,
-    streakMult:       g.streakMult      || 1,
-    streakMultWords:  g.streakMultWords  || 0,
-    furyActive:       g.furyActive      || false,
     character:        g.character,
     boss:             buildBossStateForClient({ ...g.boss, _bossHP: g.bossHP }, cfg, g),
     projectiles:      g.projectiles,
@@ -104,10 +106,9 @@ const createInitialGameState = (bossConfig, opts = {}) => {
     _combat:           bossConfig.combatProfile ? { state: "idle", currentId: null, startedAt: 0, cooldowns: {}, data: {} } : null,
     _groundHazards:    [],
     _telegraphs:       [],
-    currentWord:      getDifficultyWord(maxHP, maxHP),
-    currentWordPhase: getDifficultyPhase(maxHP, maxHP),
     typedProgress: 0,
-    streak:        0,
+    weaponStreak:  0,
+    wordExpiresAt: 0,
     totalWordsTyped: 0,
     character: { x: 640, y: 490 },
     boss: {
@@ -148,11 +149,16 @@ const createInitialGameState = (bossConfig, opts = {}) => {
     _magnetActive:    false,
     startedAt:        now,
     lastTickAt:       now,
-    weapon: { ...randomWeaponPos(), held: false, pickedUpAt: 0, pickupLockedUntil: 0 },
-    streakMult:      1,
-    streakMultWords: 0,
-    furyActive:      false,
+    weapon: {
+      ...randomWeaponPos(),
+      held: false,
+      typeId: opts.weaponTypeId || DEFAULT_WEAPON_ID,
+      pickedUpAt: 0,
+      pickupLockedUntil: 0,
+    },
   };
+
+  refreshWeaponWord(g);
 
   if (opts.difficulty) applyDifficultyToGame(g, opts.difficulty);
   return g;

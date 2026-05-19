@@ -69,7 +69,7 @@ const takeDamage = (io, room, damage, x, y, opts = {}) => {
     return g.sharedHP;
   }
   g.sharedHP = Math.max(0, g.sharedHP - damage);
-  if (!opts.skipStreakReset) g.streak = 0;
+  if (!opts.skipWeaponStreakReset) g.weaponStreak = 0;
 
   // Drop weapon if held and immunity period has passed
   let weaponDropped = false;

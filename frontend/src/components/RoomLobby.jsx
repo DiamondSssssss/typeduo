@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { BOSS_LIST } from "../game/bosses/bossConfigs";
 import BossPicker from "./BossPicker";
+import WeaponPicker from "./WeaponPicker";
+import { DEFAULT_WEAPON_ID, getWeapon } from "../game/weapons";
 
 function DifficultyStars({ n }) {
   return (
@@ -79,6 +81,13 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
     });
   };
 
+  const selectWeapon = (weaponTypeId) => {
+    if (!socket || !roomState?.code) return;
+    socket.emit("select_weapon", { code: roomState.code, weaponTypeId }, (res) => {
+      if (!res?.ok) setStatus(res?.message || "Could not select weapon.");
+    });
+  };
+
   const toggleReady = useCallback(() => {
     if (!socket || !roomState?.code) return;
     socket.emit("player_ready", { code: roomState.code }, (res) => {
@@ -123,6 +132,13 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
         {/* Boss selection — host can pick at any time before the game starts */}
         {isHost && (
           <BossPicker selectedId={selectedBoss} onSelect={selectBoss} />
+        )}
+
+        {myRole === "typer" && (
+          <WeaponPicker
+            selectedId={myPlayer?.weaponTypeId || DEFAULT_WEAPON_ID}
+            onSelect={selectWeapon}
+          />
         )}
 
         {/* Current boss for non-host players */}

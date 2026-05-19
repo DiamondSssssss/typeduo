@@ -1156,7 +1156,66 @@ const getDifficultyPhase = (hp, maxHP) => PHASE_LABELS[getPhase(hp, maxHP)];
 const computeWordDamage = (word) =>
   Math.max(6, Math.min(30, Math.round((word?.length || 0) * 1.7)));
 
+/** Curated pools per weapon — built once from length filters on existing lists. */
+const _weaponPools = {};
+
+const _filterByLen = (words, min, max) =>
+  words.filter((w) => w.length >= min && w.length <= max);
+
+const _buildWeaponPools = () => {
+  const shortEasy = _filterByLen(SHORT_WORDS, 3, 5);
+  const shortMed = _filterByLen(SHORT_WORDS, 4, 6);
+  const medMid = _filterByLen(MED_WORDS, 5, 8);
+  const medLong = _filterByLen(MED_WORDS, 7, 10);
+  const hardLong = _filterByLen(HARD_WORDS, 9, 16);
+  const hardFallback = _filterByLen(HARD_WORDS, 8, 16);
+
+  _weaponPools.swift = shortEasy.length ? shortEasy : _filterByLen(SHORT_WORDS, 3, 6);
+  _weaponPools.balanced = [...new Set([...shortMed, ...medMid])];
+  _weaponPools.steady = medMid.length ? medMid : MED_WORDS.slice(0, 500);
+  _weaponPools.fury = _filterByLen([...medMid, ..._filterByLen(SHORT_WORDS, 5, 7)], 5, 7);
+  _weaponPools.heavy = hardLong.length ? hardLong : hardFallback.length ? hardFallback : HARD_WORDS.slice(0, 800);
+
+  if (!_weaponPools.balanced.length) _weaponPools.balanced = SHORT_WORDS.slice(0, 800);
+  if (!_weaponPools.fury.length) _weaponPools.fury = _weaponPools.balanced;
+};
+
+const _pickFromPool = (pool) => pool[Math.floor(Math.random() * pool.length)];
+
+const getWeaponWord = (weaponId, hp, maxHP) => {
+  if (!_weaponPools.swift) _buildWeaponPools();
+
+  const pools = {
+    swift_blade: "swift",
+    shortsword: "balanced",
+    greatsword: "heavy",
+    lifestaff: "steady",
+    fury_axe: "fury",
+  };
+  const key = pools[weaponId] || "balanced";
+  let pool = _weaponPools[key] || _weaponPools.balanced;
+
+  // Greatsword gets harder words as boss HP drops
+  if (weaponId === "greatsword") {
+    const phase = getPhase(hp, maxHP);
+    if (phase >= 2) pool = _weaponPools.heavy;
+    else if (phase === 1) pool = [..._weaponPools.heavy, ..._filterByLen(MED_WORDS, 8, 11)];
+  }
+
+  return _pickFromPool(pool);
+};
+
+const getWeaponWordPhase = (weaponId, word) => {
+  const len = word?.length || 0;
+  if (weaponId === "greatsword") return len >= 9 ? "hard" : len >= 6 ? "medium" : "short";
+  if (weaponId === "swift_blade") return "short";
+  if (len <= 5) return "short";
+  if (len <= 8) return "medium";
+  return "hard";
+};
+
 module.exports = {
   SHORT_WORDS, MED_WORDS, HARD_WORDS,
   getPhase, getDifficultyWord, getDifficultyPhase, computeWordDamage,
+  getWeaponWord, getWeaponWordPhase,
 };

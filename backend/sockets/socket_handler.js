@@ -3,14 +3,17 @@
  */
 const {
   MAX_PLAYERS_PER_ROOM, DEFAULT_BOSS_ID,
-  STUN_DAMAGE_MULTIPLIER, STREAK_TIERS, FURY_REFRESH_EVERY, FURY_REFRESH_HEAL,
   ROAR_DURATION_MS, SWAP_THRESHOLDS,
 } = require("../game/constants");
-const { getDifficultyWord, getDifficultyPhase, computeWordDamage } = require("../game/words");
 const { getBoss, BOSS_LIST } = require("../game/bosses");
+const { WEAPON_LIST, DEFAULT_WEAPON_ID, getWeapon } = require("../game/weapons");
+const {
+  bumpWordTimer,
+  handleTypo,
+  completeWord,
+} = require("../game/weaponCombat");
 const { emitGameState, toPublicRoomState, playerStateForClient, createInitialGameState } = require("../game/gameState");
 const { startGameLoop, stopLoop } = require("../game/gameLoop");
-const { applyBossWordDamage } = require("../game/bossDamage");
 
 const rooms = new Map();
 /** How long a disconnected player can resume the same in-progress game. */
@@ -26,10 +29,11 @@ const uniqueCode = () => { let c = generateCode(); while (rooms.has(c)) c = gene
 
 const buildPlayer = (socketId, username, role) => ({
   socketId, username, role,
-  facing:      { x: 0, y: 0 },
-  wordsTyped:  0,
-  damageDealt: 0,
-  ready:       false,
+  facing:         { x: 0, y: 0 },
+  wordsTyped:     0,
+  damageDealt:    0,
+  ready:          false,
+  weaponTypeId:   DEFAULT_WEAPON_ID,
 });
 
 const buildStartPayload = (room, g) => ({
@@ -45,7 +49,10 @@ const buildStartPayload = (room, g) => ({
   stateEndsAt:        g.stateEndsAt,
   countdownRemaining: Math.max(0, g.stateEndsAt - Date.now()),
   currentWord: g.currentWord, currentWordPhase: g.currentWordPhase,
-  typedProgress: 0, streak: 0,
+  typedProgress: 0,
+  weaponStreak: g.weaponStreak || 0,
+  weaponTypeId: g.weapon?.typeId || DEFAULT_WEAPON_ID,
+  wordExpiresAt: g.wordExpiresAt || 0,
   character: g.character,
   boss: { x: g.boss.x, y: g.boss.y, attackType: g.boss.attackType, windingUp: false, windUpRemaining: 0, columnState: null, phase: 0 },
   weaponHeld: g.weapon?.held || false, weaponX: g.weapon.x, weaponY: g.weapon.y,
@@ -86,10 +93,12 @@ const handleDisconnect = (io, socket) => {
 
 const startGameForRoom = (io, room, cb) => {
   const bossConfig = getBoss(room.selectedBoss);
+  const carrier = room.players.find((p) => p.role === "typer" || p.role === "solo");
   room.status = "in_game";
   room.game   = createInitialGameState(bossConfig, {
-    gameMode:   room.gameMode || "coop",
-    difficulty: room.difficulty || "normal",
+    gameMode:     room.gameMode || "coop",
+    difficulty:   room.difficulty || "normal",
+    weaponTypeId: carrier?.weaponTypeId || DEFAULT_WEAPON_ID,
   });
   const g = room.game;
   const startPayload = buildStartPayload(room, g);
@@ -121,10 +130,13 @@ const registerSocketHandlers = (io) => {
       io.to(code).emit("room_update", toPublicRoomState(room));
     });
 
-    socket.on("start_solo", ({ username, bossId, difficulty }, cb) => {
+    socket.on("start_solo", ({ username, bossId, difficulty, weaponTypeId }, cb) => {
       if (!username) { cb?.({ ok: false, message: "Username required." }); return; }
       const boss = getBoss(bossId || DEFAULT_BOSS_ID);
+      const weapon = getWeapon(weaponTypeId);
       const code = uniqueCode();
+      const player = buildPlayer(socket.id, username, "solo");
+      player.weaponTypeId = weapon.id;
       const room = {
         code,
         hostSocketId: socket.id,
@@ -132,7 +144,7 @@ const registerSocketHandlers = (io) => {
         gameMode:  "solo",
         difficulty: difficulty || "normal",
         status:  "in_game",
-        players: [buildPlayer(socket.id, username, "solo")],
+        players: [player],
         game:    null,
       };
       rooms.set(code, room);
@@ -153,6 +165,25 @@ const registerSocketHandlers = (io) => {
       socket.join(roomCode);
       io.to(roomCode).emit("room_update", toPublicRoomState(room));
       cb?.({ ok: true, room: toPublicRoomState(room), bossList: BOSS_LIST });
+    });
+
+    socket.on("select_weapon", ({ code, weaponTypeId }, cb) => {
+      const roomCode = (code || "").toUpperCase().trim();
+      const room     = rooms.get(roomCode);
+      if (!room) { cb?.({ ok: false, message: "Room not found." }); return; }
+      const player = room.players.find((p) => p.socketId === socket.id);
+      if (!player) { cb?.({ ok: false, message: "Not in room." }); return; }
+      if (player.role !== "typer" && player.role !== "solo") {
+        cb?.({ ok: false, message: "Only the typer can choose a weapon." });
+        return;
+      }
+      const weapon = getWeapon(weaponTypeId);
+      player.weaponTypeId = weapon.id;
+      if (room.game?.weapon && !room.game.weapon.held) {
+        room.game.weapon.typeId = weapon.id;
+      }
+      io.to(roomCode).emit("room_update", toPublicRoomState(room));
+      cb?.({ ok: true, weaponTypeId: weapon.id });
     });
 
     socket.on("select_boss", ({ code, bossId }, cb) => {
@@ -282,77 +313,24 @@ const registerSocketHandlers = (io) => {
       const expected = g.currentWord[g.typedProgress];
       if (input === expected) {
         g.typedProgress += 1;
+        bumpWordTimer(g);
       } else {
-        g.typedProgress    = input === g.currentWord[0] ? 1 : 0;
-        g.streak           = 0;
-        g.streakMult       = 1;
-        g.streakMultWords  = 0;
-        g.furyActive       = false;
+        g.typedProgress = input === g.currentWord[0] ? 1 : 0;
+        handleTypo(g);
         io.to(code).emit("typo", { socketId: player.socketId, char: input, expected });
       }
 
       if (g.typedProgress >= g.currentWord.length) {
-        const bossConfig    = getBoss(room.selectedBoss);
-        const completedWord = g.currentWord;
-        const base          = computeWordDamage(completedWord);
-        const stunMult   = g.bossState === "stunned" ? STUN_DAMAGE_MULTIPLIER : 1;
-        const streakMult = g.streakMultWords > 0 ? g.streakMult : 1;
-        const damage     = Math.round(base * stunMult * streakMult);
+        const bossConfig = getBoss(room.selectedBoss);
+        const result = completeWord(room, player);
 
-        if (g.streakMultWords > 0) {
-          g.streakMultWords--;
-          if (g.streakMultWords === 0) {
-            g.streakMult = 1;
-            if (g.streak < 10) g.furyActive = false;
-          }
-        }
-
-        const prevHP = g.bossHP;
-        const prevShield = g.bossShield || 0;
-        applyBossWordDamage(g, damage);
-        player.wordsTyped++;
-        player.damageDealt += damage;
-        g.totalWordsTyped++;
-        g.streak++;
-
-        let healed = 0;
-        let streakEvent = null;
-        const tier = STREAK_TIERS.find((t) => t.at === g.streak);
-        if (tier) {
-          healed = tier.heal;
-          streakEvent = tier.event;
-          if (tier.mult > 1) { g.streakMult = tier.mult; g.streakMultWords = tier.multWords; }
-          if (tier.event === "fury") g.furyActive = true;
-        } else if (g.streak > 10 && (g.streak - 10) % FURY_REFRESH_EVERY === 0) {
-          healed = FURY_REFRESH_HEAL;
-          streakEvent = "fury";
-          g.streakMult = 2.0;
-          g.streakMultWords = 3;
-          g.furyActive = true;
-        }
-        if (healed > 0) g.sharedHP = Math.min(g.sharedMaxHP, g.sharedHP + healed);
-
-        g.currentWord      = getDifficultyWord(g.bossHP, g.bossMaxHP);
-        g.currentWordPhase = getDifficultyPhase(g.bossHP, g.bossMaxHP);
-        g.typedProgress    = 0;
-
-        io.to(code).emit("word_completed", {
-          socketId: player.socketId, by: player.username, word: completedWord,
-          damage, baseDamage: base,
-          appliedMult: Math.round(stunMult * streakMult * 10) / 10,
-          stunBonus: stunMult > 1, streakBonus: streakMult > 1,
-          bossHP: g.bossHP, bossShield: g.bossShield || 0,
-          shieldBroken: prevShield > 0 && (g.bossShield || 0) === 0,
-          streak: g.streak, healed, streakEvent,
-          streakMult: g.streakMult, streakMultWords: g.streakMultWords,
-          furyActive: g.furyActive, wordsTyped: player.wordsTyped,
-        });
+        io.to(code).emit("word_completed", result);
 
         const soloMode = room.gameMode === "solo";
         const threshold = SWAP_THRESHOLDS.find(
           (t) =>
             !g.triggeredSwapThresholds.includes(t) &&
-            prevHP > (g.bossMaxHP * t / 100) &&
+            result.prevHP > (g.bossMaxHP * t / 100) &&
             g.bossHP <= (g.bossMaxHP * t / 100)
         );
         if (threshold && g.bossState !== "roar" && g.bossState !== "stunned") {
@@ -364,7 +342,13 @@ const registerSocketHandlers = (io) => {
         }
       }
 
-      io.to(code).emit("typing_progress", { currentWord: g.currentWord, typedProgress: g.typedProgress, streak: g.streak });
+      io.to(code).emit("typing_progress", {
+        currentWord: g.currentWord,
+        typedProgress: g.typedProgress,
+        weaponStreak: g.weaponStreak || 0,
+        wordExpiresAt: g.wordExpiresAt || 0,
+        weaponTypeId: g.weapon?.typeId,
+      });
       emitGameState(io, room, getBoss(room.selectedBoss));
       cb?.({ ok: true });
     });

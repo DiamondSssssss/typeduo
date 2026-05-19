@@ -114,43 +114,61 @@ const phaseLabel = (phase) => {
 
 import { ATTACK_LABELS } from "../game/bosses/bossConfigs";
 
-// Milestone positions in the streak bar (dot index 1-based)
-const STREAK_MILESTONES = [3, 5, 8, 10];
+import { getWeapon } from "../game/weapons";
 
-/** Visual streak bar — 10 dots, milestone markers at 3 / 5 / 8 / 10 */
-function StreakBar({ streak, streakMult, streakMultWords, furyActive }) {
-  const capped = Math.min(streak, 10);
+function WordTimerBar({ expiresAt }) {
+  const [pct, setPct] = useState(1);
+  const totalRef = useRef(0);
+  const startRef = useRef(0);
+  useEffect(() => {
+    if (!expiresAt) return undefined;
+    const now = Date.now();
+    totalRef.current = Math.max(400, expiresAt - now);
+    startRef.current = now;
+    const tick = () => {
+      const p = Math.max(0, 1 - (Date.now() - startRef.current) / totalRef.current);
+      setPct(p);
+      if (p > 0) requestAnimationFrame(tick);
+    };
+    const id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [expiresAt]);
+  if (!expiresAt) return null;
   return (
-    <div className="streak-section">
-      <div className="streak-meta">
-        <span className="streak-label">STREAK</span>
-        <span className="streak-count">×{streak}</span>
-        {furyActive && <span className="fury-badge">FURY</span>}
-        {streakMult > 1 && (
-          <span className={`streak-bonus-badge${furyActive ? " streak-bonus-badge--fury" : ""}`}>
-            {streakMult.toFixed(1)}× <span className="streak-bonus-words">({streakMultWords}w left)</span>
-          </span>
-        )}
+    <div className="weapon-timer-track">
+      <div className="weapon-timer-fill" style={{ width: `${pct * 100}%` }} />
+    </div>
+  );
+}
+
+function WeaponHudPanel({ weaponTypeId, weaponHeld, weaponStreak, wordExpiresAt }) {
+  const weapon = getWeapon(weaponTypeId);
+  if (!weaponHeld) {
+    return (
+      <div className="weapon-hud">
+        <span className="weapon-hud__tag">Nhặt vũ khí trên map để bắt đầu gõ</span>
       </div>
-      <div className="streak-bar-track" aria-label={`Streak ${streak}`}>
-        {[1,2,3,4,5,6,7,8,9,10].map((i) => {
-          const lit       = capped >= i;
-          const milestone = STREAK_MILESTONES.includes(i);
-          const isFury    = i === 10;
-          return (
-            <div
-              key={i}
-              className={[
-                "streak-dot",
-                lit       ? "streak-dot--lit"       : "",
-                milestone ? "streak-dot--milestone"  : "",
-                isFury    ? "streak-dot--fury"        : "",
-              ].filter(Boolean).join(" ")}
-              title={isFury ? "×10 Fury" : milestone ? `×${i} milestone` : ""}
-            />
-          );
-        })}
+    );
+  }
+  return (
+    <div className="weapon-hud" style={{ "--weapon-color": weapon.color }}>
+      <div className="weapon-hud__row">
+        <span className="weapon-hud__icon">{weapon.icon}</span>
+        <span className="weapon-hud__name">{weapon.nameVi}</span>
+        <span className="weapon-hud__tag">{weapon.tag}</span>
+        {weapon.healOnWord ? <span className="weapon-hud__tag">+{weapon.healOnWord} HP/từ</span> : null}
+        {weapon.streakDamage && weaponStreak > 0 ? (
+          <span className="weapon-hud__tag">Chuỗi ×{weaponStreak}</span>
+        ) : null}
       </div>
+      {weapon.wordTimer ? <WordTimerBar expiresAt={wordExpiresAt} /> : null}
+      {weapon.streakDamage ? (
+        <div className="weapon-streak-bar">
+          {Array.from({ length: 10 }, (_, i) => (
+            <span key={i} className={`weapon-streak-dot${weaponStreak > i ? " weapon-streak-dot--lit" : ""}`} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -163,10 +181,9 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
   const bossMaxHP = gamePayload?.bossMaxHP ?? 100;
   const bossState = gamePayload?.bossState || "countdown";
   const phase = gamePayload?.currentWordPhase || "short";
-  const streak = gamePayload?.streak || 0;
-  const streakMult = gamePayload?.streakMult || 1;
-  const streakMultWords = gamePayload?.streakMultWords || 0;
-  const furyActive = gamePayload?.furyActive || false;
+  const weaponTypeId = gamePayload?.weaponTypeId || "shortsword";
+  const weaponStreak = gamePayload?.weaponStreak || 0;
+  const wordExpiresAt = gamePayload?.wordExpiresAt || 0;
   const countdownRemaining = gamePayload?.countdownRemaining || 0;
   const gameOver = gamePayload?.gameOver;
   const winner = gameOver?.winner;
@@ -205,8 +222,11 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
         <h2 className="title" style={{ fontSize: "1rem", margin: 0 }}>
           {isSolo ? "Solo Battle" : "Boss Battle"}
         </h2>
-        <span className={`weapon-badge${weaponHeld ? " weapon-badge--held" : " weapon-badge--dropped"}`}>
-          {weaponHeld ? "⚔ Armed" : "⚔ Pick up weapon!"}
+        <span
+          className={`weapon-badge${weaponHeld ? " weapon-badge--held" : " weapon-badge--dropped"}`}
+          style={weaponHeld ? { borderColor: getWeapon(weaponTypeId).color } : undefined}
+        >
+          {weaponHeld ? `${getWeapon(weaponTypeId).icon} ${getWeapon(weaponTypeId).nameVi}` : "⚔ Nhặt vũ khí!"}
         </span>
         <div className="hud-pills">
           <span className={`boss-state boss-state--${bossState}`}>
@@ -217,9 +237,6 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
             Boss · {bossState}
           </span>
           <span className={`phase-pill phase-pill--${phase}`}>{phaseLabel(phase)}</span>
-          {furyActive && (
-            <span className="fury-pill">FURY ×2</span>
-          )}
           {bossState === "attack" && !windingUp && (
             <span className="attack-badge" data-type={bossAttack} title={`Boss attack: ${bossAttack}`}>
               {ATTACK_LABELS[bossAttack] || bossAttack}
@@ -241,14 +258,7 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
 
       {bossState === "stunned" && !gameOver ? (
         <div className="callout callout--stun">
-          Boss stunned! Type now for{" "}
-          <strong>
-            {furyActive
-              ? "4× damage (Stun + Fury!)"
-              : streakMult > 1
-              ? `${(2 * streakMult).toFixed(1)}× damage (Stun + ${streakMult.toFixed(1)}×!)`
-              : "2× damage"}
-          </strong>
+          Boss stunned! Gõ ngay để gây <strong>2× sát thương</strong>
         </div>
       ) : null}
 
@@ -282,17 +292,11 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
         <HPBar label="Boss HP" hp={bossHP} maxHP={bossMaxHP} variant="boss" />
       </div>
 
-      {furyActive && !gameOver ? (
-        <div className="fury-callout">
-          FURY MODE · 2× damage for the next {streakMultWords > 0 ? streakMultWords : "?"} word{streakMultWords !== 1 ? "s" : ""}
-        </div>
-      ) : null}
-
-      <StreakBar
-        streak={streak}
-        streakMult={streakMult}
-        streakMultWords={streakMultWords}
-        furyActive={furyActive}
+      <WeaponHudPanel
+        weaponTypeId={weaponTypeId}
+        weaponHeld={weaponHeld}
+        weaponStreak={weaponStreak}
+        wordExpiresAt={wordExpiresAt}
       />
 
       <div className="players-row">

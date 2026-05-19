@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { BOSS_VISUALS, PROJ_VISUALS, ATTACK_LABELS } from "./bosses/bossConfigs";
+import { getWeapon, DEFAULT_WEAPON_ID } from "./weapons";
 
 // ── Scene constants ───────────────────────────────────────────────────────────
 const W = 1280;
@@ -73,7 +74,9 @@ export default class MainScene extends Phaser.Scene {
     this.bossWindingUp = false;
     this.bossWindUpAttack = null;
     this.bossWindUpRemaining = 0;
-    this.streak = 0;
+    this.weaponTypeId = DEFAULT_WEAPON_ID;
+    this.weaponStreak = 0;
+    this.wordExpiresAt = 0;
     this.countdownTimer = null;
     this.roarTimer = null;
     this.windUpBarTween = null;
@@ -737,7 +740,9 @@ export default class MainScene extends Phaser.Scene {
     this.bossWindingUp     = p.boss?.windingUp || false;
     this.bossWindUpAttack  = p.boss?.windUpAttack || null;
     this.bossWindUpRemaining = p.boss?.windUpRemaining || 0;
-    this.streak = p.streak || 0;
+    this.weaponTypeId = p.weaponTypeId || DEFAULT_WEAPON_ID;
+    this.weaponStreak = p.weaponStreak || 0;
+    this.wordExpiresAt = p.wordExpiresAt || 0;
 
     if (p.character) { this.charX = p.character.x; this.charY = p.character.y; this.charTargetX = this.charX; this.charTargetY = this.charY; this._setCharPos(this.charX, this.charY); }
     if (p.boss)      { this.bossX = p.boss.x || 640; this.bossY = p.boss.y || 110; this.bossTX = this.bossX; this.bossTY = this.bossY; this.bossCont.x = this.bossX; this.bossCont.y = this.bossY; }
@@ -752,7 +757,10 @@ export default class MainScene extends Phaser.Scene {
     this._updateBossStateText();
     // Weapon state
     this.weaponHeld = p.weaponHeld || false;
-    if (!this.weaponHeld && p.weaponX != null) this._setWeaponPos(p.weaponX, p.weaponY);
+    if (!this.weaponHeld && p.weaponX != null) {
+      this._setWeaponPos(p.weaponX, p.weaponY, p.weaponTypeId);
+    }
+    this._updateWeaponHeldBadge();
   }
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
@@ -834,15 +842,17 @@ export default class MainScene extends Phaser.Scene {
   }
 
   // ── Spawn effects ──────────────────────────────────────────────────────────
-  _spawnDamageBurst(damage, isCrit) {
+  _spawnDamageBurst(damage, isCrit, color = 0xff9ec8) {
     const bx = this.bossX, by = this.bossY;
-    const txt = this.add.text(bx, by - 40, `−${damage}${isCrit ? " ×2" : ""}`, { fontFamily: FONT, fontSize: isCrit ? "26px" : "21px", color: isCrit ? "#fbbf24" : "#ff9ec8", fontStyle: "bold" }).setOrigin(0.5).setDepth(45);
+    const hex = color.toString(16).padStart(6, "0");
+    const txt = this.add.text(bx, by - 40, `−${damage}${isCrit ? " ×2" : ""}`, {
+      fontFamily: FONT, fontSize: isCrit ? "26px" : "21px", color: `#${hex}`, fontStyle: "bold",
+    }).setOrigin(0.5).setDepth(45);
     this.tweens.add({ targets: txt, y: by - 90, alpha: 0, duration: 950, ease: "cubic.out", onComplete: () => txt.destroy() });
-    const pc = isCrit ? 0xfbbf24 : 0xff9ec8;
-    const n  = isCrit ? 14 : 9;
+    const n = isCrit ? 14 : 9;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, d = 40 + Math.random() * 60;
-      const p = this.add.circle(bx, by, 4, pc, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(30);
+      const p = this.add.circle(bx, by, 4, color, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(30);
       this.tweens.add({ targets: p, x: bx + Math.cos(a) * d, y: by + Math.sin(a) * d, alpha: 0, scale: 0.2, delay: i * 15, duration: 500 + Math.random() * 180, ease: "cubic.out", onComplete: () => p.destroy() });
     }
     this.bossFlash.clear();
@@ -850,10 +860,50 @@ export default class MainScene extends Phaser.Scene {
     if (this.bossVisual?.shape === "hex")     this.bossFlash.fillPoints(hexPts(80, Math.PI / 6), true);
     else if (this.bossVisual?.shape === "diamond") this.bossFlash.fillPoints(diamondPts(80), true);
     else if (this.bossVisual?.shape === "crystal") this.bossFlash.fillPoints(octaPts(78), true);
-    else this.bossFlash.fillCircle(0, 0, 70); // flame, spider, fallback
+    else this.bossFlash.fillCircle(0, 0, 70);
     this.bossFlash.x = bx; this.bossFlash.y = by;
     this.tweens.add({ targets: this.bossFlash, alpha: 0, duration: 220, ease: "cubic.out", onComplete: () => this.bossFlash?.clear() });
     this.tweens.add({ targets: this.bossCont, x: { from: bx - 6, to: bx }, duration: 180, ease: "back.out" });
+  }
+
+  _spawnWeaponAttack(weaponTypeId, damage, isCrit) {
+    const weapon = getWeapon(weaponTypeId);
+    const col = parseInt(String(weapon.color || "#ff9ec8").replace("#", ""), 16);
+    const fx = this.charX, fy = this.charY;
+    const bx = this.bossX, by = this.bossY;
+
+    const projectile = this.add.circle(fx, fy, 6, col, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(42);
+    const duration = weaponTypeId === "swift_blade" ? 180 : weaponTypeId === "greatsword" ? 420 : 280;
+
+    if (weaponTypeId === "greatsword") {
+      const slash = this.add.graphics().setDepth(41);
+      slash.lineStyle(8, col, 0.9);
+      slash.beginPath();
+      slash.moveTo(fx - 20, fy + 10);
+      slash.lineTo(bx, by);
+      slash.strokePath();
+      this.tweens.add({ targets: slash, alpha: 0, duration: 350, onComplete: () => slash.destroy() });
+    } else if (weaponTypeId === "lifestaff") {
+      const orb = this.add.circle(fx, fy, 10, 0x4ade80, 0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(41);
+      this.tweens.add({
+        targets: orb, x: bx, y: by, scale: 1.8, alpha: 0,
+        duration, ease: "sine.in",
+        onComplete: () => orb.destroy(),
+      });
+    } else if (weaponTypeId === "fury_axe") {
+      projectile.setScale(1 + Math.min(this.weaponStreak, 10) * 0.08);
+    }
+
+    this.tweens.add({
+      targets: projectile,
+      x: bx, y: by,
+      duration,
+      ease: weaponTypeId === "swift_blade" ? "power2" : "sine.in",
+      onComplete: () => {
+        projectile.destroy();
+        this._spawnDamageBurst(damage, isCrit, col);
+      },
+    });
   }
 
   _spawnRoarShockwave() {
@@ -888,27 +938,44 @@ export default class MainScene extends Phaser.Scene {
   }
 
   // ── Weapon ────────────────────────────────────────────────────────────────
+  _drawWeaponGraphic(gfx, typeId) {
+    const weapon = getWeapon(typeId);
+    const col = parseInt(String(weapon.color).replace("#", ""), 16);
+    gfx.clear();
+    gfx.lineStyle(3, col, 1);
+    if (typeId === "greatsword") {
+      gfx.lineBetween(-4, 16, -4, -18);
+      gfx.lineBetween(4, 14, 4, -14);
+      gfx.lineBetween(-12, -4, 12, -4);
+    } else if (typeId === "fury_axe") {
+      gfx.lineBetween(0, 12, 0, -10);
+      gfx.lineBetween(-10, -6, 10, -6);
+      gfx.fillStyle(col, 1);
+      gfx.fillTriangle(-14, -8, 0, -20, 14, -8);
+    } else if (typeId === "lifestaff") {
+      gfx.lineBetween(0, 14, 0, -14);
+      gfx.fillStyle(col, 0.9);
+      gfx.fillCircle(0, -16, 6);
+    } else if (typeId === "swift_blade") {
+      gfx.lineBetween(-2, 12, -2, -14);
+      gfx.lineBetween(2, 10, 6, -12);
+    } else {
+      gfx.lineBetween(0, 12, 0, -12);
+      gfx.lineBetween(-8, -2, 8, -2);
+    }
+    gfx.fillStyle(col, 1);
+    gfx.fillCircle(0, typeId === "lifestaff" ? -16 : -14, 4);
+  }
+
   _createWeapon() {
-    // Weapon container: glow ring + staff shape
     this.weaponCont = this.add.container(640, 490).setDepth(8).setVisible(false);
+    this.weaponGlow = this.add.circle(0, 0, 26, 0xfbbf24, 0.18).setBlendMode(Phaser.BlendModes.ADD);
+    this.weaponRing = this.add.circle(0, 0, 18, 0xfbbf24, 0).setStrokeStyle(2.5, 0xfde68a, 0.9);
+    this.weaponGfx = this.add.graphics();
+    this._drawWeaponGraphic(this.weaponGfx, DEFAULT_WEAPON_ID);
+    this.weaponCont.add([this.weaponGlow, this.weaponRing, this.weaponGfx]);
 
-    const glow = this.add.circle(0, 0, 26, 0xfbbf24, 0.18).setBlendMode(Phaser.BlendModes.ADD);
-    const ring = this.add.circle(0, 0, 18, 0xfbbf24, 0).setStrokeStyle(2.5, 0xfde68a, 0.9);
-
-    // Staff/wand shape: vertical bar + crossguard
-    const staff = this.add.graphics();
-    staff.lineStyle(3.5, 0xfde68a, 1);
-    staff.lineBetween(0, -14, 0, 14);   // shaft
-    staff.lineBetween(-7, -6, 7, -6);   // crossguard
-    staff.fillStyle(0xfbbf24, 1);
-    staff.fillCircle(0, -16, 5);         // gem tip
-    staff.fillStyle(0xffffff, 0.7);
-    staff.fillCircle(-1, -17, 2);        // gem highlight
-
-    this.weaponCont.add([glow, ring, staff]);
-
-    // Floating label
-    this.weaponLabel = this.add.text(640, 460, "PICK UP", {
+    this.weaponLabel = this.add.text(640, 460, "NHẶT VŨ KHÍ", {
       fontFamily: FONT, fontSize: "10px", color: "#fde68a", fontStyle: "bold",
       backgroundColor: "rgba(0,0,0,0.5)", padding: { x: 4, y: 2 },
     }).setOrigin(0.5).setDepth(8).setVisible(false);
@@ -921,7 +988,7 @@ export default class MainScene extends Phaser.Scene {
     this.weaponBobTween.stop();
 
     // HUD indicator for when weapon is held (top-right of canvas)
-    this.weaponHeldBadge = this.add.text(W - 16, H - 30, "⚔ ARMED", {
+    this.weaponHeldBadge = this.add.text(W - 16, H - 30, "", {
       fontFamily: FONT, fontSize: "11px", color: "#fde68a", fontStyle: "bold",
       backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 6, y: 2 },
     }).setOrigin(1, 1).setDepth(18).setVisible(false);
@@ -933,9 +1000,21 @@ export default class MainScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(52).setAlpha(0);
   }
 
-  _setWeaponPos(x, y) {
+  _updateWeaponHeldBadge() {
+    if (!this.weaponHeldBadge) return;
+    const w = getWeapon(this.weaponTypeId);
+    this.weaponHeldBadge.setText(`${w.icon} ${w.nameVi}`).setColor(w.color).setVisible(this.weaponHeld);
+  }
+
+  _setWeaponPos(x, y, typeId = this.weaponTypeId) {
+    this.weaponTypeId = typeId || DEFAULT_WEAPON_ID;
+    const w = getWeapon(this.weaponTypeId);
+    const col = parseInt(String(w.color).replace("#", ""), 16);
+    this._drawWeaponGraphic(this.weaponGfx, this.weaponTypeId);
+    this.weaponGlow.setFillStyle(col, 0.2);
+    this.weaponRing.setStrokeStyle(2.5, col, 0.9);
     this.weaponCont.setPosition(x, y).setVisible(true);
-    this.weaponLabel.setPosition(x, y - 34).setVisible(true);
+    this.weaponLabel.setText(`${w.icon} ${w.nameVi}`).setPosition(x, y - 34).setColor(w.color).setVisible(true);
     if (this.weaponBobTween) {
       this.weaponBobTween.stop();
       this.weaponBobTween = this.tweens.add({
@@ -945,28 +1024,29 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
-  _onWeaponPickup(x, y) {
+  _onWeaponPickup(x, y, weaponTypeId) {
+    if (weaponTypeId) this.weaponTypeId = weaponTypeId;
     this.weaponHeld = true;
     this.weaponCont.setVisible(false);
     this.weaponLabel.setVisible(false);
     if (this.weaponBobTween) { this.weaponBobTween.stop(); }
-    this.weaponHeldBadge.setVisible(true);
+    this._updateWeaponHeldBadge();
 
-    // Pickup burst effect
+    const col = parseInt(String(getWeapon(this.weaponTypeId).color).replace("#", ""), 16);
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2, d = 20 + Math.random() * 30;
-      const p = this.add.circle(x, y, 4, 0xfbbf24, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(20);
+      const p = this.add.circle(x, y, 4, col, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(20);
       this.tweens.add({ targets: p, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0, scale: 0.2, duration: 400, ease: "cubic.out", onComplete: () => p.destroy() });
     }
-    const flash = this.add.circle(x, y, 30, 0xfde68a, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(20);
+    const flash = this.add.circle(x, y, 30, col, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(20);
     this.tweens.add({ targets: flash, scale: 3, alpha: 0, duration: 350, ease: "cubic.out", onComplete: () => flash.destroy() });
-    this._showFloatingText("⚔ Armed!", "#fde68a", 22);
+    this._showFloatingText(`${getWeapon(this.weaponTypeId).icon} ${getWeapon(this.weaponTypeId).nameVi}`, getWeapon(this.weaponTypeId).color, 22);
   }
 
   _onWeaponDrop(x, y) {
     this.weaponHeld = false;
     this.weaponHeldBadge.setVisible(false);
-    this._setWeaponPos(x, y);
+    this._setWeaponPos(x, y, this.weaponTypeId);
 
     // Drop impact flash
     const flash = this.add.circle(x, y, 16, 0xff8c00, 0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(20);
@@ -1217,9 +1297,14 @@ export default class MainScene extends Phaser.Scene {
         if (state.sharedHP !== undefined) this._drawTeamHpBar(state.sharedHP, state.sharedMaxHP ?? 100);
         // Sync weapon state (catch-up on reconnect / desync)
         if (state.weaponHeld !== undefined) {
-          if (state.weaponHeld && !this.weaponHeld) this._onWeaponPickup(state.weaponX ?? this.charX, state.weaponY ?? this.charY);
-          else if (!state.weaponHeld && this.weaponHeld) this._onWeaponDrop(state.weaponX ?? W / 2, state.weaponY ?? H / 2);
-          else if (!state.weaponHeld && state.weaponX != null) this._setWeaponPos(state.weaponX, state.weaponY);
+          if (state.weaponHeld && !this.weaponHeld) {
+            this._onWeaponPickup(state.weaponX ?? this.charX, state.weaponY ?? this.charY, state.weaponTypeId);
+          } else if (!state.weaponHeld && this.weaponHeld) {
+            this._onWeaponDrop(state.weaponX ?? W / 2, state.weaponY ?? H / 2);
+          } else if (!state.weaponHeld && state.weaponX != null) {
+            this._setWeaponPos(state.weaponX, state.weaponY, state.weaponTypeId);
+          }
+          if (state.weaponTypeId) this.weaponTypeId = state.weaponTypeId;
         }
         if (this.bossHP < prevHP) this.tweens.add({ targets: this.bossHpFill, alpha: { from: 0.4, to: 1 }, duration: 140 });
 
@@ -1229,11 +1314,11 @@ export default class MainScene extends Phaser.Scene {
           this._drawBossShape(isRoar, isStun);
         }
         this._updateBossStateText();
-        this.streak = state.streak || 0;
-        this.streakText?.setVisible(this.streak >= 2);
-        if (this.streak >= 2) this.streakText?.setText(`STREAK ×${this.streak}`);
-        // Sync fury overlay from authoritative game state
-        this._updateFuryOverlay(state.furyActive || false);
+        this.weaponTypeId = state.weaponTypeId || this.weaponTypeId;
+        this.weaponStreak = state.weaponStreak || 0;
+        this.wordExpiresAt = state.wordExpiresAt || 0;
+        this.streakText?.setVisible(this.weaponStreak >= 2 && getWeapon(this.weaponTypeId).streakDamage);
+        if (this.streakText?.visible) this.streakText.setText(`CHUỖI ×${this.weaponStreak}`);
         this.expectedWord = state.currentWord || "";
         this.localTypedProgress = state.typedProgress || 0;
         this._renderWord(this.expectedWord, this.localTypedProgress);
@@ -1267,27 +1352,39 @@ export default class MainScene extends Phaser.Scene {
         this.projectileSprites.forEach((sp, id) => { if (!active.has(id)) { sp.destroy(); this.projectileSprites.delete(id); } });
       },
 
-      typing_progress: ({ currentWord, typedProgress, streak }) => {
+      typing_progress: ({ currentWord, typedProgress, weaponStreak, wordExpiresAt, weaponTypeId }) => {
         this.expectedWord = currentWord || ""; this.localTypedProgress = typedProgress || 0;
-        if (streak != null) this.streak = streak;
+        if (weaponStreak != null) this.weaponStreak = weaponStreak;
+        if (wordExpiresAt != null) this.wordExpiresAt = wordExpiresAt;
+        if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         this._renderWord(this.expectedWord, this.localTypedProgress);
+      },
+
+      word_expired: ({ currentWord, weaponTypeId }) => {
+        this.expectedWord = currentWord || "";
+        this.localTypedProgress = 0;
+        this.weaponTypeId = weaponTypeId || this.weaponTypeId;
+        this._renderWord(this.expectedWord, 0);
+        this._shakeWord();
+        this._showFloatingText("Hết giờ!", "#22d3ee", 20);
       },
 
       typo:           ({ socketId }) => { if (socketId === this.localSocketId) this._shakeWord(); },
 
-      word_completed: ({ by, word, damage, stunBonus, healed, streakEvent, furyActive }) => {
+      word_completed: ({ by, word, damage, stunBonus, healed, weaponTypeId, weaponStreak }) => {
+        if (weaponTypeId) this.weaponTypeId = weaponTypeId;
+        if (weaponStreak != null) this.weaponStreak = weaponStreak;
         if (by && word) {
           this.flashTxt.setText(`${by} typed "${word}"  −${damage}${stunBonus ? " ×2" : ""}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
           this.flashTxt.y = 260;
           this.tweens.add({ targets: this.flashTxt, y: 220, alpha: 0, duration: 850, ease: "cubic.out" });
-          this._spawnDamageBurst(damage, Boolean(stunBonus));
+          this._spawnWeaponAttack(weaponTypeId || this.weaponTypeId, damage, Boolean(stunBonus));
           if (healed > 0) {
             const t = this.add.text(W / 2, 275, `+${healed} HP`, { fontFamily: FONT, fontSize: "21px", color: "#4ade80", fontStyle: "bold" }).setOrigin(0.5).setDepth(45);
             this.tweens.add({ targets: t, y: 235, alpha: 0, duration: 900, ease: "cubic.out", onComplete: () => t.destroy() });
           }
         }
-        if (streakEvent) this._onStreakMilestone(streakEvent, healed);
-        this._updateFuryOverlay(furyActive || false);
+        this._updateWeaponHeldBadge();
       },
 
       player_hit: ({ isLaser, isColumn, sharedHP, sharedMaxHP }) => {
@@ -1437,7 +1534,7 @@ export default class MainScene extends Phaser.Scene {
       column_warning: (data) => this._showColumnWarning(data),
       column_fire:    (data) => this._showColumnFire(data),
 
-      weapon_picked:  ({ x, y }) => this._onWeaponPickup(x, y),
+      weapon_picked:  ({ x, y, weaponTypeId }) => this._onWeaponPickup(x, y, weaponTypeId),
       weapon_dropped: ({ x, y }) => this._onWeaponDrop(x, y),
       no_weapon:      ({ socketId }) => { if (socketId === this.localSocketId) this._showNoWeaponFeedback(); },
 

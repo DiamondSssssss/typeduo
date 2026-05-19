@@ -10,7 +10,7 @@ const tickStatusAndHazards = (io, room, now, deltaSeconds) => {
   if (g.poisonUntil && now < g.poisonUntil) {
     if (!g.lastPoisonTick || now - g.lastPoisonTick >= POISON_TICK_MS) {
       g.lastPoisonTick = now;
-      takeDamage(io, room, POISON_TICK_DAMAGE, g.character.x, g.character.y, { skipStreakReset: true, skipWeaponDrop: true });
+      takeDamage(io, room, POISON_TICK_DAMAGE, g.character.x, g.character.y, { skipWeaponStreakReset: true, skipWeaponDrop: true });
       io.to(room.code).emit("status_tick", { type: "poison", damage: POISON_TICK_DAMAGE });
     }
   } else if (g.poisonUntil) {
@@ -29,7 +29,7 @@ const tickStatusAndHazards = (io, room, now, deltaSeconds) => {
         g.poisonUntil = Math.max(g.poisonUntil || 0, now + 3500);
         if (!g.lastPoisonTick || now - g.lastPoisonTick >= POISON_TICK_MS) {
           g.lastPoisonTick = now;
-          takeDamage(io, room, POISON_TICK_DAMAGE, pool.x, pool.y, { skipStreakReset: true, skipWeaponDrop: true });
+          takeDamage(io, room, POISON_TICK_DAMAGE, pool.x, pool.y, { skipWeaponStreakReset: true, skipWeaponDrop: true });
         }
       }
       return true;
@@ -75,7 +75,7 @@ const tickStatusAndHazards = (io, room, now, deltaSeconds) => {
       if (dx * dx + dy * dy < h.r * h.r) {
         if (!g.lastHazardTick || now - g.lastHazardTick >= 800) {
           g.lastHazardTick = now;
-          takeDamage(io, room, h.damage, h.x, h.y, { skipStreakReset: true, skipWeaponDrop: true });
+          takeDamage(io, room, h.damage, h.x, h.y, { skipWeaponStreakReset: true, skipWeaponDrop: true });
         }
       }
       return true;

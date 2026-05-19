@@ -10,6 +10,8 @@ const { tickStatusAndHazards } = require("./statusEffects");
 const { maybeInitBossShield } = require("./bossDamage");
 const { moveBoss, tickBossAttacks, steerHomingProjectiles, maybeFireSpecial } = require("./bossAI");
 const { emitGameState, toPublicRoomState } = require("./gameState");
+const { DEFAULT_WEAPON_ID } = require("./weapons");
+const { refreshWeaponWord, tickWordExpiry } = require("./weaponCombat");
 
 const loops = new Map();
 
@@ -91,16 +93,28 @@ const tick = (io, room, bossConfig) => {
   steerHomingProjectiles(g, bossConfig, deltaSeconds);
   tickStatusAndHazards(io, room, now, deltaSeconds);
 
+  if (tickWordExpiry(io, room, now)) {
+    emitGameState(io, room, bossConfig);
+  }
+
   const char = g.character;
 
   if (g.weapon && !g.weapon.held && now >= (g.weapon.pickupLockedUntil || 0)) {
     const wdx = char.x - g.weapon.x;
     const wdy = char.y - g.weapon.y;
     if (wdx * wdx + wdy * wdy < WEAPON_PICKUP_RADIUS * WEAPON_PICKUP_RADIUS) {
+      const carrier = room.players.find((p) => p.role === "typer" || p.role === "solo");
+      g.weapon.typeId = carrier?.weaponTypeId || g.weapon.typeId || DEFAULT_WEAPON_ID;
       g.weapon.held = true;
       g.weapon.pickedUpAt = now;
       g.weapon.pickupLockedUntil = 0;
-      io.to(room.code).emit("weapon_picked", { x: g.weapon.x, y: g.weapon.y });
+      g.weaponStreak = 0;
+      refreshWeaponWord(g);
+      io.to(room.code).emit("weapon_picked", {
+        x: g.weapon.x,
+        y: g.weapon.y,
+        weaponTypeId: g.weapon.typeId,
+      });
     }
   }
 

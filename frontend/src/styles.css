@@ -2127,6 +2127,89 @@ button {
   width: min(100%, 1200px);
 }
 
+/* Weapon picker (lobby) */
+.weapon-picker { margin: 16px 0; }
+.weapon-picker__head { margin-bottom: 12px; }
+.weapon-picker__title { margin: 0 0 4px; font-size: 1.05rem; }
+.weapon-picker__sub { margin: 0; color: var(--text-muted); font-size: 0.88rem; }
+.weapon-picker__grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.weapon-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glow);
+  background: rgba(8, 12, 28, 0.75);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.weapon-card:hover:not(:disabled) {
+  border-color: var(--weapon-color, var(--accent-cyan));
+}
+.weapon-card--active {
+  border-color: var(--weapon-color, var(--accent-cyan));
+  box-shadow: 0 0 20px color-mix(in srgb, var(--weapon-color, #22d3ee) 35%, transparent);
+}
+.weapon-card__icon { font-size: 1.4rem; }
+.weapon-card__name { font-weight: 700; font-size: 0.92rem; }
+.weapon-card__tag {
+  font-size: 0.68rem;
+  color: var(--weapon-color, var(--accent-cyan));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.weapon-card__desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.35; }
+
+/* Weapon HUD (in-game) */
+.weapon-hud {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glow);
+  background: rgba(6, 10, 24, 0.85);
+}
+.weapon-hud__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.weapon-hud__icon { font-size: 1.25rem; }
+.weapon-hud__name { font-weight: 700; font-size: 0.9rem; }
+.weapon-hud__tag { font-size: 0.72rem; color: var(--text-muted); }
+.weapon-timer-track {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.weapon-timer-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee, #06b6d4);
+  transition: width 0.08s linear;
+}
+.weapon-streak-bar {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.weapon-streak-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+.weapon-streak-dot--lit {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
+}
+
 .solo-lobby__hero {
   display: flex;
   flex-wrap: wrap;

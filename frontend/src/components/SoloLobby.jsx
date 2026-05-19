@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import BossPicker from "./BossPicker";
+import WeaponPicker from "./WeaponPicker";
 import { BOSS_LIST } from "../game/bosses/bossConfigs";
+import { DEFAULT_WEAPON_ID } from "../game/weapons";
 
 const ACTIVE_GAME_KEY = "typeduo_active_game";
 const clearStaleSession = () => {
@@ -15,6 +17,7 @@ const DIFFICULTY_INFO = {
 
 export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }) {
   const [selectedBoss, setSelectedBoss] = useState("void_serpent");
+  const [weaponTypeId, setWeaponTypeId] = useState(DEFAULT_WEAPON_ID);
 
   useEffect(() => {
     clearStaleSession();
@@ -30,7 +33,7 @@ export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }
     clearStaleSession();
     setStarting(true);
     setStatus("");
-    socket.emit("start_solo", { username, bossId: selectedBoss, difficulty }, (res) => {
+    socket.emit("start_solo", { username, bossId: selectedBoss, difficulty, weaponTypeId }, (res) => {
       setStarting(false);
       if (!res?.ok) setStatus(res?.message || "Could not start solo game.");
     });
@@ -42,7 +45,7 @@ export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }
         <button type="button" className="btn btn-ghost btn-compact" onClick={onBack}>← Main menu</button>
         <div className="solo-lobby__hero-text">
           <h2>Solo Mode</h2>
-          <p>Move with <strong>arrow keys only</strong> (WASD is for typing). Walk over the weapon to pick it up, then type to attack.</p>
+          <p>Move with <strong>arrow keys only</strong> (WASD is for typing). Chọn vũ khí, nhặt trên map, rồi gõ để tấn công boss.</p>
           {onOpenAlmanac ? (
             <button type="button" className="btn btn-ghost btn-compact solo-lobby__almanac-link" onClick={onOpenAlmanac}>
               📚 Boss Almanac — study attacks first
@@ -67,6 +70,8 @@ export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }
           ))}
         </div>
       </div>
+
+      <WeaponPicker selectedId={weaponTypeId} onSelect={setWeaponTypeId} disabled={starting} />
 
       <BossPicker selectedId={selectedBoss} onSelect={setSelectedBoss} disabled={starting} />
 
