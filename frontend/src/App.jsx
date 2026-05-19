@@ -240,7 +240,7 @@ function App() {
   const inGame = Boolean(gamePayload);
 
   return (
-    <main className={`app-shell${!inGame && appView !== "home" ? " app-shell--lobby" : ""}`}>
+    <main className={`app-shell${!inGame && appView !== "home" ? " app-shell--lobby" : ""}${appView === "almanac" ? " app-shell--almanac" : ""}`}>
       <header className="app-header">
         <h1 className="brand">TypeDuo</h1>
         <div className="session-line">
@@ -278,7 +278,12 @@ function App() {
       ) : appView === "almanac" ? (
         <BossAlmanac onBack={() => setAppView("home")} />
       ) : appView === "solo" ? (
-        <SoloLobby socket={socket} currentUser={currentUser} onBack={() => setAppView("home")} />
+        <SoloLobby
+          socket={socket}
+          currentUser={currentUser}
+          onBack={() => setAppView("home")}
+          onOpenAlmanac={() => setAppView("almanac")}
+        />
       ) : appView === "coop" ? (
         <RoomLobby
           socket={socket}

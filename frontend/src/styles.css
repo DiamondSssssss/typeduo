@@ -2123,6 +2123,10 @@ button {
   flex-direction: column;
 }
 
+.app-shell--almanac .card-wide {
+  width: min(100%, 1200px);
+}
+
 .solo-lobby__hero {
   display: flex;
   flex-wrap: wrap;

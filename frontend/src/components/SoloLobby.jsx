@@ -13,7 +13,7 @@ const DIFFICULTY_INFO = {
   hard:   { label: "Hard",   desc: "Less HP · faster attacks" },
 };
 
-export default function SoloLobby({ socket, currentUser, onBack }) {
+export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }) {
   const [selectedBoss, setSelectedBoss] = useState("void_serpent");
 
   useEffect(() => {
@@ -43,6 +43,11 @@ export default function SoloLobby({ socket, currentUser, onBack }) {
         <div className="solo-lobby__hero-text">
           <h2>Solo Mode</h2>
           <p>Move with <strong>arrow keys only</strong> (WASD is for typing). Walk over the weapon to pick it up, then type to attack.</p>
+          {onOpenAlmanac ? (
+            <button type="button" className="btn btn-ghost btn-compact solo-lobby__almanac-link" onClick={onOpenAlmanac}>
+              📚 Boss Almanac — study attacks first
+            </button>
+          ) : null}
         </div>
       </div>
 
