@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { BOSS_VISUALS, PROJ_VISUALS, ATTACK_LABELS } from "./bosses/bossConfigs";
 import { getWeapon, DEFAULT_WEAPON_ID } from "./weapons";
+import { resolveHazardPreset } from "./hazardVisuals";
 
 // ── Scene constants ───────────────────────────────────────────────────────────
 const W = 1280;
@@ -1196,14 +1197,93 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _showHazardZone(x, y, radius, durationMs, color, label) {
-    const fill = this.add.circle(x, y, radius, color, 0.22).setDepth(14);
-    const ring = this.add.circle(x, y, radius, 0, 0).setStrokeStyle(3, color, 0.9).setDepth(15);
-    const txt = this.add.text(x, y - radius - 14, label, {
-      fontFamily: FONT, fontSize: "14px", color: "#ffffff", fontStyle: "bold",
-      backgroundColor: "rgba(0,0,0,0.6)", padding: { x: 8, y: 3 },
-    }).setOrigin(0.5).setDepth(16);
-    this.tweens.add({ targets: [fill, ring], alpha: 0, scale: 0.2, duration: durationMs, onComplete: () => { fill.destroy(); ring.destroy(); txt.destroy(); } });
+  _spawnHazardParticle(x, y, radius, preset) {
+    const p = preset.particles;
+    const colors = p.colors || [preset.color];
+    const col = colors[Math.floor(Math.random() * colors.length)];
+    const ang = Math.random() * Math.PI * 2;
+    const dist = Math.random() * radius * 0.85;
+    const px = x + Math.cos(ang) * dist;
+    const py = y + Math.sin(ang) * dist;
+    const size = p.sizeMin + Math.random() * (p.sizeMax - p.sizeMin);
+    const dot = this.add.circle(px, py, size, col, 0.85)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(15);
+
+    let tx = px;
+    let ty = py;
+    let dur = 600 + Math.random() * 500;
+
+    if (p.drift === "rise" || p.drift === "ember") {
+      ty -= 35 + Math.random() * 45;
+      tx += (Math.random() - 0.5) * 24;
+      dur = p.drift === "ember" ? 450 + Math.random() * 350 : 700 + Math.random() * 400;
+    } else if (p.drift === "bubble") {
+      ty -= 20 + Math.random() * 30;
+      tx += (Math.random() - 0.5) * 18;
+      dur = 900 + Math.random() * 500;
+    } else {
+      tx += (Math.random() - 0.5) * 40;
+      ty += (Math.random() - 0.5) * 20;
+      dur = 1100 + Math.random() * 600;
+    }
+
+    this.tweens.add({
+      targets: dot,
+      x: tx,
+      y: ty,
+      alpha: 0,
+      scale: p.drift === "ember" ? 0.1 : 0.25,
+      duration: dur,
+      ease: p.drift === "bubble" ? "sine.out" : "cubic.out",
+      onComplete: () => dot.destroy(),
+    });
+  }
+
+  _showHazardZone(x, y, radius, durationMs, hazardType, serverColor) {
+    const preset = resolveHazardPreset(hazardType, serverColor);
+    const glow = preset.glow || preset.color;
+    const fill = this.add.circle(x, y, radius, preset.color, preset.fillAlpha)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(14);
+    const ring = this.add.circle(x, y, radius, 0, 0)
+      .setStrokeStyle(preset.ringWidth || 3, glow, 0.9)
+      .setDepth(15);
+    const halo = this.add.circle(x, y, radius * 1.12, glow, 0)
+      .setStrokeStyle(1.5, glow, 0.28)
+      .setDepth(14);
+
+    this.tweens.add({
+      targets: ring,
+      scale: { from: 1, to: 1.05 },
+      alpha: { from: 0.95, to: 0.55 },
+      duration: 900,
+      yoyo: true,
+      repeat: Math.ceil(durationMs / 900),
+    });
+
+    const pCfg = preset.particles;
+    const particleTimer = this.time.addEvent({
+      delay: pCfg.interval,
+      repeat: Math.max(0, Math.floor(durationMs / pCfg.interval)),
+      callback: () => {
+        const n = pCfg.burst || 2;
+        for (let i = 0; i < n; i++) this._spawnHazardParticle(x, y, radius, preset);
+      },
+    });
+
+    this.tweens.add({
+      targets: [fill, ring, halo],
+      alpha: { from: 1, to: 0 },
+      duration: durationMs,
+      ease: "sine.in",
+      onComplete: () => {
+        particleTimer.remove(false);
+        fill.destroy();
+        ring.destroy();
+        halo.destroy();
+      },
+    });
   }
 
   _showDelayedMarker(x, y, detonateMs) {
@@ -1425,8 +1505,8 @@ export default class MainScene extends Phaser.Scene {
         this._drawBossShape(false, false);
       },
 
-      toxic_pool_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, 0x84cc16, "☣ TOXIC"),
-      slow_field_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, 0x64748b, "🐌 SLOW"),
+      toxic_pool_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, "toxic"),
+      slow_field_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, "slow"),
       delayed_marker:    ({ x, y, detonateMs }) => this._showDelayedMarker(x, y, detonateMs),
       tidal_sweep:       () => {
         [220, 400, 560, 720].forEach((ly) => {
@@ -1477,8 +1557,7 @@ export default class MainScene extends Phaser.Scene {
       },
       ground_hazard_placed: ({ x, y, r, expiresAt, color, type }) => {
         const dur = Math.max(1000, (expiresAt || Date.now() + 5000) - Date.now());
-        const label = type === "fire" ? "🔥 BURN" : "🔮 RUNE";
-        this._showHazardZone(x, y, r, dur, color || 0x7c3aed, label);
+        this._showHazardZone(x, y, r, dur, type || "rune", color);
       },
       aoe_telegraph: ({ x, y, radius, color, durationMs }) => {
         const ring = this.add.circle(x, y, radius, color || 0xff4444, 0).setStrokeStyle(4, color || 0xff4444, 0.9).setDepth(16);
