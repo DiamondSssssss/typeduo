@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BOSS_VISUALS, PROJ_VISUALS, ATTACK_LABELS } from "./bosses/bossConfigs";
-import { getWeapon, DEFAULT_WEAPON_ID } from "./weapons";
+import { getWeapon, DEFAULT_WEAPON_ID, weaponColorToInt } from "./weapons";
 import { resolveHazardPreset } from "./hazardVisuals";
 
 // ── Scene constants ───────────────────────────────────────────────────────────
@@ -510,8 +510,8 @@ export default class MainScene extends Phaser.Scene {
     const wg = this.add.graphics();
     wg.fillStyle(0x0a1124, 0.65);
     wg.fillRoundedRect(px, py, pw, ph, 14);
-    wg.lineStyle(1, 0x82aaff, 0.35);
-    wg.strokeRoundedRect(px, py, pw, ph, 14);
+    this.wordPanelGfx = wg;
+    this._wordPanelBounds = { pw, ph, px, py };
 
     this.wordCont = this.add.container(W / 2, H - 60).setDepth(20);
     this.typedTxt  = this.add.text(0, 0, "", {
@@ -641,6 +641,59 @@ export default class MainScene extends Phaser.Scene {
     this.windUpLabel.setVisible(false);
   }
 
+  _applyWeaponTypingStyle() {
+    const weapon = getWeapon(this.weaponTypeId);
+    const col = weapon.color;
+    let blur = weapon.glowBlur ?? 14;
+    if (weapon.streakDamage) {
+      blur += Math.min(this.weaponStreak || 0, 12) * 1.1;
+    }
+
+    this.typedTxt.setColor(col);
+    this.typedTxt.setShadow(0, 0, col, blur, true, true);
+
+    if (this.wordPanelGfx && this._wordPanelBounds) {
+      const { pw, ph, px, py } = this._wordPanelBounds;
+      const border = weaponColorToInt(col);
+      this.wordPanelGfx.clear();
+      this.wordPanelGfx.fillStyle(0x0a1124, 0.65);
+      this.wordPanelGfx.fillRoundedRect(px, py, pw, ph, 14);
+      this.wordPanelGfx.lineStyle(1.5, border, 0.5);
+      this.wordPanelGfx.strokeRoundedRect(px, py, pw, ph, 14);
+    }
+
+    if (this.streakText?.visible) {
+      this.streakText.setColor(col);
+    }
+  }
+
+  _spawnLetterSpark(x, y) {
+    const weapon = getWeapon(this.weaponTypeId);
+    const col = weaponColorToInt(weapon.color);
+    const n = weapon.sparkCount ?? 6;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = 10 + Math.random() * 26;
+      const p = this.add.circle(x, y, 2 + Math.random() * 3, col, 0.92)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(30);
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(a) * d,
+        y: y + Math.sin(a) * d - 4,
+        alpha: 0,
+        scale: 0.15,
+        duration: 260 + Math.random() * 140,
+        ease: "cubic.out",
+        onComplete: () => p.destroy(),
+      });
+    }
+    const flash = this.add.circle(x, y, 7, 0xffffff, 0.65)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(29);
+    this.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 180, onComplete: () => flash.destroy() });
+  }
+
   _renderWord(word, progress) {
     const w = word || "", p = Math.max(0, Math.min(w.length, progress || 0));
     this.typedTxt.setText(w.slice(0, p));
@@ -649,6 +702,7 @@ export default class MainScene extends Phaser.Scene {
     const sx = -total / 2;
     this.typedTxt.setX(sx);
     this.remainTxt.setX(sx + this.typedTxt.width);
+    this._applyWeaponTypingStyle();
   }
 
   _updateRoleBadge() {
@@ -762,6 +816,7 @@ export default class MainScene extends Phaser.Scene {
       this._setWeaponPos(p.weaponX, p.weaponY, p.weaponTypeId);
     }
     this._updateWeaponHeldBadge();
+    this._applyWeaponTypingStyle();
   }
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
@@ -782,8 +837,22 @@ export default class MainScene extends Phaser.Scene {
         if (key.length !== 1 || !/[a-z]/.test(key)) return;
         if (this.bossState === "countdown" || this.bossState === "roar") return;
         if (this.expectedWord && this.localTypedProgress < this.expectedWord.length) {
-          if (key === this.expectedWord[this.localTypedProgress]) { this.localTypedProgress++; this._renderWord(this.expectedWord, this.localTypedProgress); }
-          else this._shakeWord();
+          if (key === this.expectedWord[this.localTypedProgress]) {
+            this.localTypedProgress++;
+            this._renderWord(this.expectedWord, this.localTypedProgress);
+            const letterX = this.wordCont.x + this.typedTxt.x + this.typedTxt.width - 8;
+            const letterY = this.wordCont.y;
+            this._spawnLetterSpark(letterX, letterY);
+            this.tweens.killTweensOf(this.wordCont);
+            this.tweens.add({
+              targets: this.wordCont,
+              scale: { from: 1.035, to: 1 },
+              duration: 85,
+              ease: "sine.out",
+            });
+          } else {
+            this._shakeWord();
+          }
         }
         this.socket?.emit("typer_input", { roomCode: this.roomCode, char: key });
       };
@@ -1027,6 +1096,7 @@ export default class MainScene extends Phaser.Scene {
 
   _onWeaponPickup(x, y, weaponTypeId) {
     if (weaponTypeId) this.weaponTypeId = weaponTypeId;
+    this._applyWeaponTypingStyle();
     this.weaponHeld = true;
     this.weaponCont.setVisible(false);
     this.weaponLabel.setVisible(false);
@@ -1438,6 +1508,7 @@ export default class MainScene extends Phaser.Scene {
         if (wordExpiresAt != null) this.wordExpiresAt = wordExpiresAt;
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         this._renderWord(this.expectedWord, this.localTypedProgress);
+        if (weaponStreak != null || weaponTypeId) this._applyWeaponTypingStyle();
       },
 
       word_expired: ({ currentWord, weaponTypeId }) => {
@@ -1454,6 +1525,7 @@ export default class MainScene extends Phaser.Scene {
       word_completed: ({ by, word, damage, stunBonus, healed, weaponTypeId, weaponStreak }) => {
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         if (weaponStreak != null) this.weaponStreak = weaponStreak;
+        this._applyWeaponTypingStyle();
         if (by && word) {
           this.flashTxt.setText(`${by} typed "${word}"  −${damage}${stunBonus ? " ×2" : ""}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
           this.flashTxt.y = 260;
