@@ -8,6 +8,13 @@ const GRID = 40;
 const FONT = '"Outfit","Inter","Segoe UI",system-ui,sans-serif';
 const MONO = '"JetBrains Mono","Fira Code","SF Mono",Consolas,monospace';
 
+/** Player move speed (px/s). */
+const PLAYER_SPEED = 300;
+/** Snap to server when forced movement (magnet, pull) exceeds this distance. */
+const CHAR_RECONCILE_SQ = 55 * 55;
+/** Typer/coop follow smoothing — higher = snappier catch-up. */
+const CHAR_SMOOTH_RATE = 18;
+
 const hexPts = (r, angle0 = 0) => {
   const pts = [];
   for (let i = 0; i < 6; i++) {
@@ -1157,16 +1164,43 @@ export default class MainScene extends Phaser.Scene {
     this.tweens.add({ targets: [btnBg, btnTxt], alpha: { from: 0, to: 1 }, duration: 600, ease: "cubic.out" });
   }
 
+  /** True when this client drives character movement (solo or runner). */
+  _isLocalMover() {
+    return this.isSolo || this.isRunner;
+  }
+
+  /**
+   * Apply server character position.
+   * Local mover: client prediction — only snap on large desync (status pulls).
+   * Remote viewer: update interpolation target.
+   */
+  _syncCharFromServer(sx, sy) {
+    if (!this._isLocalMover()) {
+      this.charTargetX = sx;
+      this.charTargetY = sy;
+      return;
+    }
+    const dx = sx - this.charX;
+    const dy = sy - this.charY;
+    if (dx * dx + dy * dy > CHAR_RECONCILE_SQ) {
+      this.charX = sx;
+      this.charY = sy;
+      this.charTargetX = sx;
+      this.charTargetY = sy;
+      this._setCharPos(sx, sy);
+    }
+  }
+
   // ── Socket binding ─────────────────────────────────────────────────────────
   _bindSocket() {
     if (!this.socket) return;
     const s = this.socket;
 
     this._ev = {
-      character_moved: ({ x, y }) => { this.charTargetX = x; this.charTargetY = y; },
+      character_moved: ({ x, y }) => { this._syncCharFromServer(x, y); },
 
       game_state: (state) => {
-        if (state.character) { this.charTargetX = state.character.x; this.charTargetY = state.character.y; }
+        if (state.character) this._syncCharFromServer(state.character.x, state.character.y);
         if (state.boss) {
           this.bossTX = state.boss.x; this.bossTY = state.boss.y;
           const newPhase = state.boss.phase ?? 0;
@@ -1466,38 +1500,45 @@ export default class MainScene extends Phaser.Scene {
     this.bossFlash.x = this.bossX; this.bossFlash.y = this.bossY;
     this._drawBossAura(dt);
 
-    // Character
+    // Character — local mover uses prediction; others interpolate smoothly
     const canMove = this.isSolo ? Boolean(this.cursors) : Boolean(this.isRunner && this.keys);
     if (!canMove) {
-      this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, 0.45);
-      this.charY = Phaser.Math.Linear(this.charY, this.charTargetY, 0.45);
+      const smooth = 1 - Math.exp(-CHAR_SMOOTH_RATE * dt);
+      this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, smooth);
+      this.charY = Phaser.Math.Linear(this.charY, this.charTargetY, smooth);
       this._setCharPos(this.charX, this.charY);
-    } else {
-      if (this.bossState !== "countdown") {
-        const vel = 290 * dt;
-        let nx = this.charTargetX, ny = this.charTargetY, ddx = 0, ddy = 0;
-        const k = this.keys;
-        const c = this.cursors;
-        if (this.isSolo && c) {
-          if (c.left?.isDown)  { nx -= vel; ddx -= 1; }
-          if (c.right?.isDown) { nx += vel; ddx += 1; }
-          if (c.up?.isDown)    { ny -= vel; ddy -= 1; }
-          if (c.down?.isDown)  { ny += vel; ddy += 1; }
-        } else {
-          if (k?.left?.isDown)  { nx -= vel; ddx -= 1; }
-          if (k?.right?.isDown) { nx += vel; ddx += 1; }
-          if (k?.up?.isDown)    { ny -= vel; ddy -= 1; }
-          if (k?.down?.isDown)  { ny += vel; ddy += 1; }
-        }
+    } else if (this.bossState !== "countdown") {
+      const vel = PLAYER_SPEED * dt;
+      let ddx = 0;
+      let ddy = 0;
+      const k = this.keys;
+      const c = this.cursors;
+      if (this.isSolo && c) {
+        if (c.left?.isDown)  ddx -= 1;
+        if (c.right?.isDown) ddx += 1;
+        if (c.up?.isDown)    ddy -= 1;
+        if (c.down?.isDown)  ddy += 1;
+      } else {
+        if (k?.left?.isDown)  ddx -= 1;
+        if (k?.right?.isDown) ddx += 1;
+        if (k?.up?.isDown)    ddy -= 1;
+        if (k?.down?.isDown)  ddy += 1;
+      }
+      if (ddx !== 0 || ddy !== 0) {
+        const m = Math.sqrt(ddx * ddx + ddy * ddy);
+        ddx /= m;
+        ddy /= m;
+        let nx = this.charX + ddx * vel;
+        let ny = this.charY + ddy * vel;
         nx = Phaser.Math.Clamp(nx, 30, 1250);
         ny = Phaser.Math.Clamp(ny, 200, 590);
-        this.charTargetX = nx; this.charTargetY = ny;
-        // Runner sees instant movement — no network lag on their own input
-        this.charX = nx; this.charY = ny;
+        this.charX = nx;
+        this.charY = ny;
+        this.charTargetX = nx;
+        this.charTargetY = ny;
         this._setCharPos(nx, ny);
-        if (ddx !== 0 || ddy !== 0) { const m = Math.sqrt(ddx ** 2 + ddy ** 2); this._drawCharArrow({ x: ddx / m, y: ddy / m }); }
-        // Throttle network send — every 33ms when moving for snappier server sync
-        if (time - this.lastSentAt > 33 && (ddx !== 0 || ddy !== 0)) {
+        this._drawCharArrow({ x: ddx, y: ddy });
+        if (time - this.lastSentAt > 20) {
           this.lastSentAt = time;
           this.socket?.emit("player_move", { roomCode: this.roomCode, x: nx, y: ny });
         }
