@@ -67,6 +67,7 @@ const advanceBossLifecycle = (io, room, bossConfig, now) => {
 
 const tick = (io, room, bossConfig) => {
   if (!room || room.status !== "in_game" || !room.game) { stopLoop(room.code); return; }
+  try {
   const g   = room.game;
   const now = Date.now();
   const deltaMs      = now - g.lastTickAt;
@@ -134,6 +135,9 @@ const tick = (io, room, bossConfig) => {
         socketId, username, wordsTyped: wordsTyped || 0, damageDealt: damageDealt || 0,
       })),
     });
+  }
+  } catch (err) {
+    console.error(`[gameLoop] tick error room=${room?.code}:`, err.message);
   }
 };
 

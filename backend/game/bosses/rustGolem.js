@@ -27,6 +27,6 @@ module.exports = {
       { id: "boss_dash",    weight: 16, minRange: 160 },
       { id: "gear_spread",  weight: 10, minRange: 40 },
     ],
-    ultimate: { id: "matron_ultimate", triggerHpPct: 0.5, name: "Meltdown Core" },
+    ultimate: { id: "matron_ultimate", triggerHpPct: 0.5, name: "Iron Overload" },
   },
 };

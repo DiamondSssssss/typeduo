@@ -11,6 +11,7 @@
 const { AttackContext } = require("./AttackContext");
 const { TelegraphSystem } = require("./TelegraphSystem");
 const { getAttack } = require("./AttackRegistry");
+const { SPECIAL_MAP } = require("../attackPatterns");
 
 class AttackManager {
   tick(io, room, bossConfig, phase, now, deltaMs) {
@@ -25,6 +26,9 @@ class AttackManager {
 
     const profile = bossConfig.combatProfile;
     const combat  = ctx.combat;
+
+    // ── Legacy low-HP special burst (e.g. Meltdown at 10%) ────────────────────
+    this._maybeFireLowHpSpecial(ctx, phase);
 
     // ── Ultimate at HP threshold (e.g. 50%) ───────────────────────────────────
     if (profile.ultimate && !game.ultimateTriggered) {
@@ -79,6 +83,30 @@ class AttackManager {
    * Weighted RNG selection with distance-aware filtering.
    * TWEAK: adjust entry.weight per boss combatProfile.attacks[]
    */
+  /** Fire bossConfig.special once (rust meltdown, etc.) for combat-profile bosses. */
+  _maybeFireLowHpSpecial(ctx, phase) {
+    const special = ctx.bossConfig.special;
+    if (!special || ctx.game.lowHpSpecialTriggered) return;
+    if (ctx.game.bossState !== "attack") return;
+    const pct = ctx.game.bossHP / Math.max(1, ctx.game.bossMaxHP);
+    if (pct > (special.triggerHpPct ?? 0.1)) return;
+
+    ctx.game.lowHpSpecialTriggered = true;
+    const fn = SPECIAL_MAP[special.id];
+    if (fn) {
+      ctx.bossConfig._io       = ctx.io;
+      ctx.bossConfig._roomCode = ctx.room.code;
+      fn(ctx.game, ctx.boss, ctx.char, phase, ctx.speed, ctx.bossConfig, ctx.now);
+      ctx.bossConfig._io = null;
+      ctx.bossConfig._roomCode = null;
+    }
+    ctx.emit("boss_ultimate_start", {
+      specialId: special.id,
+      specialName: special.name,
+      windUpMs: special.windUpMs || 0,
+    });
+  }
+
   _pickAttack(ctx, profile) {
     const entries = profile.attacks || [];
     const candidates = [];

@@ -544,8 +544,10 @@ exports.firePermafrost = (game, boss, char, phase, speed, cfg, now) => {
   }
 };
 
+const { wrapPatternMap } = require("./combat/patternConfigDefaults");
+
 // ── Dispatch map ──────────────────────────────────────────────────────────────
-exports.PATTERN_MAP = {
+const PATTERN_MAP_RAW = {
   normal:          exports.fireNormal,
   spread:          exports.fireSpread,
   rain:            exports.fireRain,
@@ -584,5 +586,7 @@ exports.SPECIAL_MAP = {
 
 // Bosses 6–10
 const { PATTERNS: NEW_PATTERNS, SPECIALS: NEW_SPECIALS } = require("./newBossPatterns");
-Object.assign(exports.PATTERN_MAP, NEW_PATTERNS);
+Object.assign(PATTERN_MAP_RAW, NEW_PATTERNS);
 Object.assign(exports.SPECIAL_MAP, NEW_SPECIALS);
+
+exports.PATTERN_MAP = wrapPatternMap(PATTERN_MAP_RAW);

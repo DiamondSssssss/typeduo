@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import BossPicker from "./BossPicker";
 import { BOSS_LIST } from "../game/bosses/bossConfigs";
+
+const ACTIVE_GAME_KEY = "typeduo_active_game";
+const clearStaleSession = () => {
+  try { sessionStorage.removeItem(ACTIVE_GAME_KEY); } catch (_e) { /* ignore */ }
+};
 
 const DIFFICULTY_INFO = {
   easy:   { label: "Easy",   desc: "More HP · slower attacks" },
@@ -9,7 +14,11 @@ const DIFFICULTY_INFO = {
 };
 
 export default function SoloLobby({ socket, currentUser, onBack }) {
-  const [selectedBoss, setSelectedBoss] = useState("iron_matron");
+  const [selectedBoss, setSelectedBoss] = useState("void_serpent");
+
+  useEffect(() => {
+    clearStaleSession();
+  }, []);
   const [difficulty, setDifficulty] = useState("normal");
   const [starting, setStarting] = useState(false);
   const [status, setStatus] = useState("");
@@ -18,6 +27,7 @@ export default function SoloLobby({ socket, currentUser, onBack }) {
 
   const startSolo = () => {
     if (!socket?.connected || starting) return;
+    clearStaleSession();
     setStarting(true);
     setStatus("");
     socket.emit("start_solo", { username, bossId: selectedBoss, difficulty }, (res) => {

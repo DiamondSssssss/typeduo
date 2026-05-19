@@ -99,6 +99,7 @@ const createInitialGameState = (bossConfig, opts = {}) => {
     stateEndsAt: now + COUNTDOWN_DURATION_MS,
     triggeredSwapThresholds: [],
     ultimateTriggered: false,
+    lowHpSpecialTriggered: false,
     bossInvulnUntil:   0,
     _combat:           bossConfig.combatProfile ? { state: "idle", currentId: null, startedAt: 0, cooldowns: {}, data: {} } : null,
     _groundHazards:    [],
@@ -115,8 +116,10 @@ const createInitialGameState = (bossConfig, opts = {}) => {
       targetX: 640,
       targetY: bossConfig.yBase || 110,
       nextMoveAt: now + 2000,
-      attackType:     bossConfig.attackQueues[0][0],
-      attackTimer:    bossConfig.attackDurations[bossConfig.attackQueues[0][0]] || 5000,
+      attackType:     bossConfig.combatProfile?.attacks?.[0]?.id || bossConfig.attackQueues[0][0],
+      attackTimer:    bossConfig.attackDurations?.[bossConfig.combatProfile?.attacks?.[0]?.id]
+                   || bossConfig.attackDurations?.[bossConfig.attackQueues[0][0]]
+                   || 5000,
       attackQueueIdx: 0,
       lastFireAt:     now,
       spiralAngle:    0,

@@ -4,6 +4,7 @@
  */
 const { BaseAttack } = require("../BaseAttack");
 const { PATTERN_MAP } = require("../../attackPatterns");
+const { ensurePatternConfig } = require("../patternConfigDefaults");
 
 class PatternBridgeAttack extends BaseAttack {
   constructor(id, opts = {}) {
@@ -33,6 +34,7 @@ class PatternBridgeAttack extends BaseAttack {
   _firePattern(ctx) {
     const fn = PATTERN_MAP[this.patternId];
     if (!fn) return;
+    ensurePatternConfig(ctx.bossConfig, this.patternId);
     ctx.bossConfig._io       = ctx.io;
     ctx.bossConfig._roomCode = ctx.room.code;
     ctx.boss.attackType = this.patternId;
@@ -51,6 +53,7 @@ class PatternBridgeAttack extends BaseAttack {
     }
     const fn = PATTERN_MAP[this.patternId];
     if (fn) {
+      ensurePatternConfig(ctx.bossConfig, this.patternId);
       ctx.bossConfig._io       = ctx.io;
       ctx.bossConfig._roomCode = ctx.room.code;
       fn(ctx.game, ctx.boss, ctx.char, ctx.phase, ctx.speed, ctx.bossConfig, ctx.now);
