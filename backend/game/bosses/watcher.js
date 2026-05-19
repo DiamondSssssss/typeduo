@@ -9,7 +9,7 @@ module.exports = {
   id:         "watcher",
   name:       "The Watcher",
   tagline:    "An ancient arcane entity that sees all.",
-  difficulty: 2,
+  difficulty: 3,
   maxHP:      550,
 
   // Movement

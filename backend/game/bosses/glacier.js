@@ -10,7 +10,7 @@ module.exports = {
   id:         "glacier",
   name:       "Glacier",
   tagline:    "Cold, patient, inevitable.",
-  difficulty: 3,
+  difficulty: 4,
   maxHP:      760,
 
   moveSpeed: [58,  88, 130],  // slow and deliberate

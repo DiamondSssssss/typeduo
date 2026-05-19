@@ -1,5 +1,6 @@
 /** Apply word damage — respects boss shield. Returns actual HP damage dealt. */
 const applyBossWordDamage = (g, damage) => {
+  if (g.bossInvulnUntil && Date.now() < g.bossInvulnUntil) return 0;
   let remaining = damage;
   if (g.bossShield > 0) {
     const absorbed = Math.min(g.bossShield, remaining);

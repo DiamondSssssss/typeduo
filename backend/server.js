@@ -28,6 +28,11 @@ app.get("/health", (_req, res) => {
 app.post("/api/auth/register", register);
 app.post("/api/auth/login", login);
 
+const { BOSS_LIST } = require("./game/bosses");
+app.get("/api/bosses", (_req, res) => {
+  res.json(BOSS_LIST);
+});
+
 registerSocketHandlers(io);
 
 const PORT = process.env.PORT || 5000;

@@ -1,7 +1,7 @@
 /** Abyss Leviathan — tidal lanes and whirlpool. */
 module.exports = {
   id: "leviathan", name: "Abyss Leviathan",
-  tagline: "The deep claims all.", difficulty: 3, maxHP: 780,
+  tagline: "The deep claims all.", difficulty: 4, maxHP: 780,
   moveSpeed: [80, 115, 155], yBase: 95, yRange: 50,
   projSpeed: [160, 215, 280],
   attackQueues: [

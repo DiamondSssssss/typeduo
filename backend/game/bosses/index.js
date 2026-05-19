@@ -8,6 +8,10 @@ const plagueHerald = require("./plagueHerald");
 const chronarch   = require("./chronarch");
 const leviathan   = require("./leviathan");
 const sovereign   = require("./sovereign");
+const phantomReaper = require("./phantomReaper");
+const cinderMaw     = require("./cinderMaw");
+const ironMatron    = require("./ironMatron");
+const voidSerpent   = require("./voidSerpent");
 
 const BOSSES = {
   [watcher.id]:      watcher,
@@ -20,6 +24,10 @@ const BOSSES = {
   [chronarch.id]:    chronarch,
   [leviathan.id]:    leviathan,
   [sovereign.id]:    sovereign,
+  [phantomReaper.id]: phantomReaper,
+  [cinderMaw.id]:     cinderMaw,
+  [ironMatron.id]:    ironMatron,
+  [voidSerpent.id]:   voidSerpent,
 };
 
 const getBoss = (id) => BOSSES[id] || watcher;

@@ -5,6 +5,7 @@
 const { PATTERN_MAP, SPECIAL_MAP } = require("./attackPatterns");
 const { takeDamage } = require("./helpers");
 const { BOSS_X_MIN, BOSS_X_MAX } = require("./constants");
+const { getAttackManager } = require("./combat/AttackManager");
 
 // ── Movement ──────────────────────────────────────────────────────────────────
 exports.moveBoss = (game, bossConfig, now, deltaSeconds, phase) => {
@@ -19,6 +20,8 @@ exports.moveBoss = (game, bossConfig, now, deltaSeconds, phase) => {
     b.x += (dx / dist) * move;
     b.y += (dy / dist) * move;
   }
+
+  if (b.combatLockMove) return;
 
   if (now >= b.nextMoveAt) {
     // Hold position during column attack wind-up
@@ -39,10 +42,12 @@ exports.moveBoss = (game, bossConfig, now, deltaSeconds, phase) => {
  */
 exports.beginWindUp = (io, room, nextAttack, windUpMs) => {
   const b = room.game.boss;
+  const mult = room.game.windUpMult ?? 1;
+  const ms = Math.round(windUpMs * mult);
   b.windingUp     = true;
   b.windUpAttack  = nextAttack;
-  b.windUpUntil   = Date.now() + windUpMs;
-  io.to(room.code).emit("boss_windup_start", { attackType: nextAttack, durationMs: windUpMs });
+  b.windUpUntil   = Date.now() + ms;
+  io.to(room.code).emit("boss_windup_start", { attackType: nextAttack, durationMs: ms });
 };
 
 /**
@@ -166,6 +171,12 @@ exports.tickColumnAttack = (io, room, bossConfig, now) => {
 
 // ── Main attack tick ──────────────────────────────────────────────────────────
 exports.tickBossAttacks = (io, room, bossConfig, phase, now, deltaMs) => {
+  // Modern combat profile (FSM + Attack Manager)
+  if (bossConfig.combatProfile) {
+    getAttackManager().tick(io, room, bossConfig, phase, now, deltaMs);
+    return;
+  }
+
   const b    = room.game.boss;
   const char = room.game.character;
   const speed = bossConfig.projSpeed[phase];
@@ -228,6 +239,7 @@ exports.steerHomingProjectiles = (game, bossConfig, deltaSeconds) => {
 // ── Ultimate / special trigger ────────────────────────────────────────────────
 exports.maybeFireSpecial = (io, room, bossConfig, phase, now) => {
   const g = room.game;
+  if (bossConfig.combatProfile) return; // Ultimate handled by AttackManager at HP threshold
   const special = bossConfig.special;
   if (!special) return;
   if (g.ultimateTriggered) return;

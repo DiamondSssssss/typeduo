@@ -9,7 +9,7 @@ const DIFFICULTY_INFO = {
 };
 
 export default function SoloLobby({ socket, currentUser, onBack }) {
-  const [selectedBoss, setSelectedBoss] = useState("rust_golem");
+  const [selectedBoss, setSelectedBoss] = useState("iron_matron");
   const [difficulty, setDifficulty] = useState("normal");
   const [starting, setStarting] = useState(false);
   const [status, setStatus] = useState("");

@@ -1309,6 +1309,68 @@ export default class MainScene extends Phaser.Scene {
       },
       shockwave_burst: ({ x, y }) => this._showSingularityBurst(x, y, 8),
 
+      melee_telegraph: ({ x, y, angle, radius, arcDeg, color, durationMs }) => {
+        const g = this.add.graphics().setDepth(16);
+        g.lineStyle(4, color || 0xff6b6b, 0.85);
+        g.beginPath();
+        g.arc(x, y, radius, angle - (arcDeg * Math.PI / 180) / 2, angle + (arcDeg * Math.PI / 180) / 2);
+        g.strokePath();
+        this.tweens.add({ targets: g, alpha: 0, duration: durationMs || 900, onComplete: () => g.destroy() });
+        this._showFloatingText("⚔ SWIPE!", "#ff6b6b", 16);
+      },
+      melee_slam: ({ x, y, radius, color }) => {
+        const ring = this.add.circle(x, y, radius, color || 0xff6b6b, 0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+        this.tweens.add({ targets: ring, scale: 1.4, alpha: 0, duration: 280, onComplete: () => ring.destroy() });
+        this.cameras.main.shake(180, 0.012);
+      },
+      dash_telegraph: ({ fromX, fromY, toX, toY, color, durationMs }) => {
+        const g = this.add.graphics().setDepth(15);
+        g.lineStyle(3, color || 0x38bdf8, 0.8);
+        g.lineBetween(fromX, fromY, toX, toY);
+        this.tweens.add({ targets: g, alpha: 0, duration: durationMs || 1100, onComplete: () => g.destroy() });
+        this._showFloatingText("💨 DASH!", "#38bdf8", 16);
+      },
+      boss_dash: ({ toX, toY, color }) => {
+        const trail = this.add.circle(toX, toY, 40, color || 0x38bdf8, 0.4).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+        this.tweens.add({ targets: trail, scale: 2, alpha: 0, duration: 400, onComplete: () => trail.destroy() });
+      },
+      teleport_telegraph: ({ x, y, color, durationMs }) => {
+        const ring = this.add.circle(x, y, 36, color || 0xa855f7, 0).setStrokeStyle(3, color || 0xa855f7, 1).setDepth(16);
+        this.tweens.add({ targets: ring, scale: 2.5, alpha: 0, duration: durationMs || 600, onComplete: () => ring.destroy() });
+      },
+      boss_teleport: ({ fromX, fromY, toX, toY, color }) => {
+        const flash = this.add.circle(fromX, fromY, 28, color || 0xa855f7, 0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+        this.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 250, onComplete: () => flash.destroy() });
+        const arrive = this.add.circle(toX, toY, 24, color || 0xa855f7, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+        this.tweens.add({ targets: arrive, scale: 1.8, alpha: 0, duration: 350, onComplete: () => arrive.destroy() });
+      },
+      ground_hazard_placed: ({ x, y, r, expiresAt, color, type }) => {
+        const dur = Math.max(1000, (expiresAt || Date.now() + 5000) - Date.now());
+        const label = type === "fire" ? "🔥 BURN" : "🔮 RUNE";
+        this._showHazardZone(x, y, r, dur, color || 0x7c3aed, label);
+      },
+      aoe_telegraph: ({ x, y, radius, color, durationMs }) => {
+        const ring = this.add.circle(x, y, radius, color || 0xff4444, 0).setStrokeStyle(4, color || 0xff4444, 0.9).setDepth(16);
+        this.tweens.add({ targets: ring, alpha: 0, scale: 1.2, duration: durationMs || 500, onComplete: () => ring.destroy() });
+      },
+      aoe_detonate: ({ x, y, radius, color }) => {
+        const blast = this.add.circle(x, y, radius, color || 0xff4444, 0.45).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+        this.tweens.add({ targets: blast, scale: 1.3, alpha: 0, duration: 350, onComplete: () => blast.destroy() });
+        this.cameras.main.shake(280, 0.018);
+      },
+      ultimate_pull: ({ centerX, centerY, color, durationMs }) => {
+        const ring = this.add.circle(centerX, centerY, 80, color || 0xff3d9f, 0).setStrokeStyle(4, color || 0xff3d9f, 0.8).setDepth(16);
+        this.tweens.add({ targets: ring, scale: 2.2, alpha: 0, duration: durationMs || 1200, onComplete: () => ring.destroy() });
+        this._showFloatingText("PULL!", "#ff3d9f", 20);
+      },
+      ultimate_blast: ({ x, y, radius, color }) => {
+        const blast = this.add.circle(x, y, radius, color || 0xff3d9f, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+        this.tweens.add({ targets: blast, scale: 1.5, alpha: 0, duration: 500, onComplete: () => blast.destroy() });
+        this.cameras.main.flash(400, 200, 50, 200);
+        this.cameras.main.shake(400, 0.025);
+      },
+      ultimate_minions: () => this._showFloatingText("MINIONS!", "#d946ef", 18),
+
       boss_attack_changed: ({ attackType }) => {
         this.bossAttackType = attackType;
         this._updateBossStateText();

@@ -1,7 +1,7 @@
 /** Chronarch — delayed attacks and slow fields. */
 module.exports = {
   id: "chronarch", name: "Chronarch",
-  tagline: "Time is its weapon.", difficulty: 3, maxHP: 700,
+  tagline: "Time is its weapon.", difficulty: 4, maxHP: 700,
   moveSpeed: [65, 95, 130], yBase: 108, yRange: 42,
   projSpeed: [140, 190, 250],
   attackQueues: [

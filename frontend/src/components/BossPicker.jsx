@@ -1,15 +1,16 @@
-import { useMemo, useState } from "react";
-import { BOSS_LIST } from "../game/bosses/bossConfigs";
+﻿import { useMemo, useState } from "react";
+import { BOSS_LIST, DIFFICULTY_LABELS } from "../game/bosses/bossConfigs";
 
 function DifficultyStars({ n }) {
-  return <span className="boss-diff" aria-label={`Difficulty ${n} of 3`}>{"★".repeat(n)}{"☆".repeat(3 - n)}</span>;
+  const stars = Math.max(1, Math.min(5, n || 1));
+  return (
+    <span className="boss-diff" aria-label={`Difficulty ${stars} of 5`}>
+      {"★".repeat(stars)}
+      <span className="boss-diff__empty">{"☆".repeat(5 - stars)}</span>
+    </span>
+  );
 }
 
-const DIFFICULTY_LABELS = { 1: "Easy", 2: "Medium", 3: "Hard" };
-
-/**
- * Polished boss selection grid with filter, preview, and accent styling.
- */
 export default function BossPicker({ selectedId, onSelect, disabled = false }) {
   const [filter, setFilter] = useState("all");
 
@@ -21,17 +22,21 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
 
   const selected = BOSS_LIST.find((b) => b.id === selectedId) || BOSS_LIST[0];
 
+  const filters = [
+    { id: "all", label: "All" },
+    { id: "1", label: "★" },
+    { id: "2", label: "★★" },
+    { id: "3", label: "★★★" },
+    { id: "4", label: "★★★★" },
+    { id: "5", label: "★★★★★" },
+  ];
+
   return (
     <div className="boss-picker">
       <div className="boss-picker__toolbar">
         <p className="boss-picker__label">Choose your boss</p>
         <div className="boss-picker__filters" role="tablist" aria-label="Filter by difficulty">
-          {[
-            { id: "all", label: "All" },
-            { id: "1", label: "★ Easy" },
-            { id: "2", label: "★★ Med" },
-            { id: "3", label: "★★★ Hard" },
-          ].map((f) => (
+          {filters.map((f) => (
             <button
               key={f.id}
               type="button"

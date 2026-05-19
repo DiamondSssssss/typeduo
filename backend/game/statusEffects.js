@@ -65,11 +65,29 @@ const tickStatusAndHazards = (io, room, now, deltaSeconds) => {
     });
   }
 
-  // Magnet pull (Rust Golem) — gentle pull toward boss during attack
-  if (g._magnetActive && g.boss) {
+  // Ground hazards (combat system runes/pools)
+  if (g._groundHazards?.length) {
     const char = g.character;
-    const dx = g.boss.x - char.x;
-    const dy = g.boss.y - char.y;
+    g._groundHazards = g._groundHazards.filter((h) => {
+      if (now >= h.expiresAt) return false;
+      const dx = char.x - h.x;
+      const dy = char.y - h.y;
+      if (dx * dx + dy * dy < h.r * h.r) {
+        if (!g.lastHazardTick || now - g.lastHazardTick >= 800) {
+          g.lastHazardTick = now;
+          takeDamage(io, room, h.damage, h.x, h.y, { skipStreakReset: true, skipWeaponDrop: true });
+        }
+      }
+      return true;
+    });
+  }
+
+  // Magnet pull — toward boss OR ultimate center target
+  if (g._magnetActive && (g.boss || g._magnetTarget)) {
+    const char = g.character;
+    const target = g._magnetTarget || g.boss;
+    const dx = target.x - char.x;
+    const dy = target.y - char.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > 40 && dist < 200) {
       const pull = 45 * deltaSeconds;

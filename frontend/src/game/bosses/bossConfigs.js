@@ -116,6 +116,54 @@ export const BOSS_VISUALS = {
     stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
     auraColors: [0x22d3ee, 0x38bdf8, 0x7dd3fc], windUpColor: 0x22d3ee,
   },
+  phantom_reaper: {
+    id: "phantom_reaper", label: "PHANTOM REAPER", shape: "spider",
+    size: { body: 54, border: 72, aura: 88 },
+    phases: [
+      { body: 0x1e1035, outer: 0x3b1f5c, border: 0xc084fc, eye: 0xe9d5ff, core: 0xa855f7 },
+      { body: 0x150c28, outer: 0x2d1550, border: 0xd946ef, eye: 0xfae8ff, core: 0xc026d3 },
+      { body: 0x0a0616, outer: 0x1a0a30, border: 0xffffff, eye: 0xffffff, core: 0xff85c2 },
+    ],
+    roar: { body: 0x3b1f5c, outer: 0x6b21a8, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0xc084fc, 0xd946ef, 0xffffff], windUpColor: 0xc084fc,
+  },
+  cinder_maw: {
+    id: "cinder_maw", label: "CINDER MAW", shape: "flame",
+    size: { body: 62, border: 80, aura: 96 },
+    phases: [
+      { body: 0x5c1a06, outer: 0x9a3412, border: 0xf97316, eye: 0xfed7aa, core: 0xea580c },
+      { body: 0x431407, outer: 0x7c2d12, border: 0xfb923c, eye: 0xffedd5, core: 0xf97316 },
+      { body: 0x2a0a04, outer: 0x5c1a06, border: 0xff4500, eye: 0xffffff, core: 0xff6600 },
+    ],
+    roar: { body: 0x9a3412, outer: 0xea580c, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0xf97316, 0xfb923c, 0xff4500], windUpColor: 0xfbbf24,
+  },
+  iron_matron: {
+    id: "iron_matron", label: "IRON MATRON", shape: "hex",
+    size: { body: 58, border: 76, aura: 90 },
+    phases: [
+      { body: 0x334155, outer: 0x475569, border: 0x94a3b8, eye: 0xe2e8f0, core: 0x64748b },
+      { body: 0x1e293b, outer: 0x334155, border: 0xcbd5e1, eye: 0xf8fafc, core: 0x94a3b8 },
+      { body: 0x0f172a, outer: 0x1e293b, border: 0xffffff, eye: 0xffffff, core: 0xe2e8f0 },
+    ],
+    roar: { body: 0x475569, outer: 0x64748b, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0x94a3b8, 0xcbd5e1, 0xffffff], windUpColor: 0x94a3b8,
+  },
+  void_serpent: {
+    id: "void_serpent", label: "VOID SERPENT", shape: "spider",
+    size: { body: 68, border: 86, aura: 104 },
+    phases: [
+      { body: 0x1e1b4b, outer: 0x312e81, border: 0x6366f1, eye: 0xc7d2fe, core: 0x4f46e5 },
+      { body: 0x15123a, outer: 0x3730a3, border: 0x818cf8, eye: 0xe0e7ff, core: 0x6366f1 },
+      { body: 0x0a0820, outer: 0x1e1b4b, border: 0xffffff, eye: 0xffffff, core: 0xa5b4fc },
+    ],
+    roar: { body: 0x312e81, outer: 0x4f46e5, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0x6366f1, 0x818cf8, 0xffffff], windUpColor: 0x818cf8,
+  },
   sovereign: {
     id: "sovereign", label: "THE SOVEREIGN", shape: "hex",
     size: { body: 68, border: 86, aura: 102 },
@@ -190,6 +238,7 @@ export const PROJ_VISUALS = {
   crown_volley:   { color: 0xfbbf24, glow: 0xfffbeb, r: 8 },
   knight_charge:  { color: 0xf59e0b, glow: 0xfff7ed, r: 10 },
   judgment_beam:  { color: 0xc026d3, glow: 0xfae8ff, r: 9 },
+  minion_orb:     { color: 0xd946ef, glow: 0xfae8ff, r: 8, homing: true },
 };
 
 /** Human-readable attack labels for the HUD. */
@@ -250,18 +299,41 @@ export const ATTACK_LABELS = {
   scrap_beam:      "🔩 Scrap Beam",
   time_slice:      "⏱ Time Slice",
   royal_lance:     "👑 Royal Lance",
+  melee_swipe:     "⚔ Melee Swipe",
+  boss_dash:       "💨 Dash Charge",
+  boss_teleport:   "✨ Teleport",
+  shadow_runes:    "🔮 Shadow Runes",
+  ember_pools:     "🔥 Ember Pools",
+  phantom_volley:  "👻 Phantom Volley",
+  reaper_ultimate: "🌙 Harvest Moon",
+  serpent_ultimate:"🐍 Abyss Maw",
+  cinder_ultimate: "👑 Inferno Crown",
+  matron_ultimate: "⚖ Iron Judgment",
 };
 
-/** Lobby-facing boss list (mirrors backend). */
+/** 5-star difficulty labels (mirrors backend bosses/). */
+export const DIFFICULTY_LABELS = {
+  1: "Beginner",
+  2: "Easy",
+  3: "Medium",
+  4: "Hard",
+  5: "Nightmare",
+};
+
+/** Lobby-facing boss list (mirrors backend /api/bosses). */
 export const BOSS_LIST = [
-  { id: "watcher",     name: "The Watcher",  tagline: "An ancient arcane entity that sees all.",      difficulty: 2, color: "#ff6b9d" },
-  { id: "storm_drake", name: "Storm Drake",  tagline: "Rider of storms, herald of lightning.",         difficulty: 2, color: "#38bdf8" },
-  { id: "void_crawler",name: "Void Crawler", tagline: "From the space between stars.",                 difficulty: 3, color: "#a855f7" },
-  { id: "inferno",     name: "Inferno",      tagline: "The living pyre. Heat incarnate.",              difficulty: 2, color: "#ff6600" },
-  { id: "glacier",     name: "Glacier",      tagline: "Cold, patient, inevitable.",                    difficulty: 3, color: "#7dd3fc" },
-  { id: "rust_golem",  name: "Rust Golem",   tagline: "Ancient iron that never rests.",                difficulty: 1, color: "#b45309" },
-  { id: "plague_herald", name: "Plague Herald", tagline: "Where it walks, life withers.",              difficulty: 2, color: "#84cc16" },
-  { id: "chronarch",   name: "Chronarch",    tagline: "Time is its weapon.",                           difficulty: 3, color: "#fbbf24" },
-  { id: "leviathan",   name: "Abyss Leviathan", tagline: "The deep claims all.",                       difficulty: 3, color: "#22d3ee" },
-  { id: "sovereign",   name: "The Sovereign", tagline: "Kneel or perish.",                              difficulty: 3, color: "#fbbf24" },
+  { id: "iron_matron",    name: "Iron Matron",      tagline: "Forged in wrath, tempered in battle.",           difficulty: 1, maxHP: 520,  color: "#94a3b8" },
+  { id: "rust_golem",     name: "Rust Golem",       tagline: "Ancient iron that never rests.",                difficulty: 2, maxHP: 580,  color: "#b45309" },
+  { id: "watcher",        name: "The Watcher",      tagline: "An ancient arcane entity that sees all.",       difficulty: 3, maxHP: 550,  color: "#ff6b9d" },
+  { id: "storm_drake",    name: "Storm Drake",      tagline: "Rider of storms, herald of lightning.",          difficulty: 3, maxHP: 620,  color: "#38bdf8" },
+  { id: "inferno",        name: "Inferno",          tagline: "The living pyre. Heat incarnate.",              difficulty: 3, maxHP: 600,  color: "#ff6600" },
+  { id: "plague_herald",  name: "Plague Herald",    tagline: "Where it walks, life withers.",                 difficulty: 3, maxHP: 650,  color: "#84cc16" },
+  { id: "phantom_reaper", name: "Phantom Reaper",   tagline: "Death moves faster than you can type.",         difficulty: 3, maxHP: 640,  color: "#c084fc" },
+  { id: "void_crawler",   name: "Void Crawler",     tagline: "From the space between stars.",                 difficulty: 4, maxHP: 720,  color: "#a855f7" },
+  { id: "glacier",        name: "Glacier",          tagline: "Cold, patient, inevitable.",                    difficulty: 4, maxHP: 760,  color: "#7dd3fc" },
+  { id: "chronarch",      name: "Chronarch",        tagline: "Time is its weapon.",                           difficulty: 4, maxHP: 700,  color: "#fbbf24" },
+  { id: "leviathan",      name: "Abyss Leviathan",  tagline: "The deep claims all.",                          difficulty: 4, maxHP: 780,  color: "#22d3ee" },
+  { id: "cinder_maw",     name: "Cinder Maw",       tagline: "The arena becomes an oven.",                    difficulty: 4, maxHP: 720,  color: "#f97316" },
+  { id: "sovereign",      name: "The Sovereign",    tagline: "Kneel or perish.",                              difficulty: 5, maxHP: 900,  color: "#eab308" },
+  { id: "void_serpent",   name: "Void Serpent",     tagline: "Coils of nothingness devour the unwary.",       difficulty: 5, maxHP: 950,  color: "#6366f1" },
 ];

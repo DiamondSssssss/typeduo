@@ -1,7 +1,7 @@
 /** The Sovereign — final boss with shield phase. */
 module.exports = {
   id: "sovereign", name: "The Sovereign",
-  tagline: "Kneel or perish.", difficulty: 3, maxHP: 900,
+  tagline: "Kneel or perish.", difficulty: 5, maxHP: 900,
   shieldMax: 80, shieldPhase: 1,
   moveSpeed: [90, 130, 175], yBase: 100, yRange: 48,
   projSpeed: [170, 230, 300],

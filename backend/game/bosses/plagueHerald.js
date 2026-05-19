@@ -1,7 +1,7 @@
 /** Plague Herald — toxic pools and poison. */
 module.exports = {
   id: "plague_herald", name: "Plague Herald",
-  tagline: "Where it walks, life withers.", difficulty: 2, maxHP: 650,
+  tagline: "Where it walks, life withers.", difficulty: 3, maxHP: 650,
   moveSpeed: [75, 110, 150], yBase: 100, yRange: 45,
   projSpeed: [150, 200, 260],
   attackQueues: [

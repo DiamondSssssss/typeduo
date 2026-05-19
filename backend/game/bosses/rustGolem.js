@@ -1,7 +1,7 @@
 /** Rust Golem — slow mechanical boss, magnet pull. */
 module.exports = {
   id: "rust_golem", name: "Rust Golem",
-  tagline: "Ancient iron that never rests.", difficulty: 1, maxHP: 580,
+  tagline: "Ancient iron that never rests.", difficulty: 2, maxHP: 580,
   moveSpeed: [55, 80, 110], yBase: 115, yRange: 35,
   projSpeed: [130, 170, 220],
   attackQueues: [
@@ -18,4 +18,15 @@ module.exports = {
   spreadConfig: { counts: [4, 5, 7], halfSpread: [0.3, 0.45, 0.55] },
   columnAttack: { type: "scrap_beam", warnMs: 1100, activeMs: 550, width: 80, damage: 20, color: 0xb45309, targetMode: "random" },
   special: { id: "meltdown", name: "Meltdown", triggerHpPct: 0.1, windUpMs: 2000, durationMs: 8000, attackType: "shockwave" },
+  combatProfile: {
+    attacks: [
+      { id: "melee_swipe",  weight: 22, maxRange: 185 },
+      { id: "rust_shot",    weight: 20, minRange: 50 },
+      { id: "shockwave",    weight: 18, maxRange: 260 },
+      { id: "magnet_pull",  weight: 14, minRange: 80, maxRange: 350 },
+      { id: "boss_dash",    weight: 16, minRange: 160 },
+      { id: "gear_spread",  weight: 10, minRange: 40 },
+    ],
+    ultimate: { id: "matron_ultimate", triggerHpPct: 0.5, name: "Meltdown Core" },
+  },
 };
