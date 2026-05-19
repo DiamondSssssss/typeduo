@@ -11,6 +11,27 @@ import MainScene from "./game/MainScene";
 import TutorialScene from "./game/TutorialScene";
 
 const STORED_USER_KEY = "typeduo_user";
+const ACTIVE_GAME_KEY = "typeduo_active_game";
+
+const saveActiveGame = (roomCode, username) => {
+  try {
+    sessionStorage.setItem(ACTIVE_GAME_KEY, JSON.stringify({ roomCode, username }));
+  } catch (_e) { /* ignore */ }
+};
+
+const clearActiveGame = () => {
+  try { sessionStorage.removeItem(ACTIVE_GAME_KEY); } catch (_e) { /* ignore */ }
+};
+
+const readActiveGame = () => {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_GAME_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed?.roomCode && parsed?.username) return parsed;
+  } catch (_e) { /* ignore */ }
+  return null;
+};
 
 const readStoredUser = () => {
   try {
@@ -30,6 +51,7 @@ function App() {
   const [appView, setAppView] = useState("home");
   const [roomState, setRoomState] = useState(null);
   const [gamePayload, setGamePayload] = useState(null);
+  const [connectionNotice, setConnectionNotice] = useState("");
   const gameRef = useRef(null);
   const tutorialRef = useRef(null);
 
@@ -53,19 +75,65 @@ function App() {
 
   const socket = useMemo(() => {
     if (!currentUser) return null;
-    return io(socketUrl, { transports: ["websocket"] });
+    return io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
   }, [currentUser, socketUrl]);
+
+  const tryResumeGame = useCallback(() => {
+    if (!socket?.connected || !currentUser) return;
+    const saved = readActiveGame();
+    if (!saved) return;
+
+    setConnectionNotice("Reconnecting to your game…");
+    socket.emit("resume_game", saved, (res) => {
+      if (res?.ok) {
+        setConnectionNotice("");
+        return;
+      }
+      clearActiveGame();
+      setConnectionNotice(res?.message || "Could not resume game.");
+      if (res?.message?.includes("expired") || res?.message?.includes("No active")) {
+        setGamePayload(null);
+        setAppView("home");
+      }
+    });
+  }, [socket, currentUser]);
 
   useEffect(() => {
     if (!socket) return undefined;
-    const onConnect = () => setSocketConnected(true);
-    const onDisconnect = () => setSocketConnected(false);
+    const onConnect = () => {
+      setSocketConnected(true);
+      setConnectionNotice("");
+      tryResumeGame();
+    };
+    const onDisconnect = (reason) => {
+      setSocketConnected(false);
+      if (readActiveGame()) {
+        setConnectionNotice(reason === "io server disconnect"
+          ? "Disconnected from server — reconnecting…"
+          : "Connection lost — reconnecting…");
+      }
+    };
     const onRoomUpdate = (payload) => setRoomState(payload);
-    const onGameState = (payload) => setGamePayload((prev) => ({ ...(prev || {}), ...payload }));
-    const onGameOver = (payload) => setGamePayload((prev) => ({ ...(prev || {}), gameOver: payload }));
+    const onGameState = (payload) => {
+      setConnectionNotice("");
+      setGamePayload((prev) => ({ ...(prev || {}), ...payload }));
+    };
+    const onGameOver = (payload) => {
+      clearActiveGame();
+      setGamePayload((prev) => ({ ...(prev || {}), gameOver: payload }));
+    };
     const onStartGame = (payload) => {
+      const username = currentUser?.username || currentUser?.email;
+      if (payload?.roomCode && username) saveActiveGame(payload.roomCode, username);
       setGamePayload(payload);
       setAppView("game");
+      setConnectionNotice("");
     };
 
     socket.on("connect", onConnect);
@@ -74,6 +142,8 @@ function App() {
     socket.on("game_state", onGameState);
     socket.on("game_over", onGameOver);
     socket.on("startGame", onStartGame);
+
+    if (socket.connected) onConnect();
 
     return () => {
       socket.off("connect", onConnect);
@@ -84,7 +154,7 @@ function App() {
       socket.off("startGame", onStartGame);
       socket.disconnect();
     };
-  }, [socket]);
+  }, [socket, currentUser, tryResumeGame]);
 
   useEffect(() => {
     if (!socket || !gamePayload || gameRef.current) return;
@@ -138,6 +208,8 @@ function App() {
   const handleLeaveRoom = useCallback(() => {
     const code = roomState?.code || gamePayload?.roomCode;
     const finish = () => {
+      clearActiveGame();
+      setConnectionNotice("");
       setRoomState(null);
       setGamePayload(null);
       setAppView("home");
@@ -188,7 +260,12 @@ function App() {
       {inGame ? (
         <div className="game-layout">
           <div id="game-root" className="game-root" />
-          <GameHUD gamePayload={gamePayload} onLeaveRoom={handleLeaveRoom} />
+          <GameHUD
+            gamePayload={gamePayload}
+            socketConnected={socketConnected}
+            connectionNotice={connectionNotice}
+            onLeaveRoom={handleLeaveRoom}
+          />
         </div>
       ) : appView === "tutorial" ? (
         <div className="game-layout">

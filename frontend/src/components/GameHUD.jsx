@@ -155,7 +155,7 @@ function StreakBar({ streak, streakMult, streakMultWords, furyActive }) {
   );
 }
 
-function GameHUD({ gamePayload, onLeaveRoom }) {
+function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", onLeaveRoom }) {
   const players = gamePayload?.players || [];
   const sharedHP = gamePayload?.sharedHP ?? 100;
   const sharedMaxHP = gamePayload?.sharedMaxHP ?? 100;
@@ -195,6 +195,12 @@ function GameHUD({ gamePayload, onLeaveRoom }) {
 
   return (
     <section className="card card-wide hud-card hud-card--compact" aria-label="Game HUD">
+      {(!socketConnected || connectionNotice) && !gameOver ? (
+        <div className="connection-banner" role="status">
+          <span className="connection-banner__dot" aria-hidden="true" />
+          {connectionNotice || "Reconnecting…"}
+        </div>
+      ) : null}
       <div className="hud-state-row">
         <h2 className="title" style={{ fontSize: "1rem", margin: 0 }}>
           {isSolo ? "Solo Battle" : "Boss Battle"}

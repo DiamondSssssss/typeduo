@@ -16,6 +16,9 @@ const io = new Server(server, {
     origin: "*",
     methods: ["GET", "POST"],
   },
+  // Tolerate brief network drops / laggy hosts without instant disconnect
+  pingTimeout:  60000,
+  pingInterval: 25000,
 });
 
 app.use(cors());

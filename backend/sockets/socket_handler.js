@@ -13,6 +13,8 @@ const { startGameLoop, stopLoop } = require("../game/gameLoop");
 const { applyBossWordDamage } = require("../game/bossDamage");
 
 const rooms = new Map();
+/** How long a disconnected player can resume the same in-progress game. */
+const DISCONNECT_GRACE_MS = 5 * 60 * 1000;
 
 const generateCode = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -60,6 +62,20 @@ const handleDisconnect = (io, socket) => {
   for (const [code, room] of rooms.entries()) {
     const idx = room.players.findIndex((p) => p.socketId === socket.id);
     if (idx === -1) continue;
+    const player = room.players[idx];
+
+    // In-progress game: keep state + game loop — client can resume_game after reconnect
+    if (room.status === "in_game" && room.game) {
+      player.socketId = null;
+      player.disconnectedAt = Date.now();
+      io.to(code).emit("player_disconnected", {
+        username: player.username,
+        graceMs: DISCONNECT_GRACE_MS,
+      });
+      return;
+    }
+
+    // Lobby: remove player as before
     room.players.splice(idx, 1);
     if (room.players.length === 0) { stopLoop(code); rooms.delete(code); return; }
     if (room.hostSocketId === socket.id) room.hostSocketId = room.players[0].socketId;
@@ -173,6 +189,40 @@ const registerSocketHandlers = (io) => {
       const nonHost = room.players.filter((p) => p.socketId !== room.hostSocketId);
       if (!nonHost.every((p) => p.ready)) { cb?.({ ok: false, message: "Not all players are ready." }); return; }
       startGameForRoom(io, room, cb);
+    });
+
+    socket.on("resume_game", ({ roomCode, username }, cb) => {
+      const code = (roomCode || "").toUpperCase().trim();
+      const room = rooms.get(code);
+      if (!room || room.status !== "in_game" || !room.game) {
+        cb?.({ ok: false, message: "No active game found for this room." });
+        return;
+      }
+      const player = room.players.find(
+        (p) => p.username.toLowerCase() === String(username || "").toLowerCase()
+      );
+      if (!player) {
+        cb?.({ ok: false, message: "You were not in this game." });
+        return;
+      }
+      if (player.disconnectedAt && Date.now() - player.disconnectedAt > DISCONNECT_GRACE_MS) {
+        cb?.({ ok: false, message: "Session expired. Start a new game." });
+        return;
+      }
+
+      player.socketId = socket.id;
+      player.disconnectedAt = null;
+      const hostGone = !room.players.some((p) => p.socketId === room.hostSocketId);
+      if (hostGone) room.hostSocketId = socket.id;
+
+      socket.join(code);
+      const bossConfig = getBoss(room.selectedBoss);
+      startGameLoop(io, room, bossConfig);
+      const payload = buildStartPayload(room, room.game);
+      socket.emit("startGame", payload);
+      emitGameState(io, room, bossConfig);
+      io.to(code).emit("player_reconnected", { username: player.username, socketId: socket.id });
+      cb?.({ ok: true, roomCode: code, resumed: true });
     });
 
     socket.on("leave_room", ({ code }, cb) => {
