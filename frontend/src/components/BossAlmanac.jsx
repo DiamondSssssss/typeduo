@@ -1,0 +1,225 @@
+import { useMemo, useState } from "react";
+import { BOSS_LIST, DIFFICULTY_LABELS } from "../game/bosses/bossConfigs";
+import { ATTACK_CATEGORIES, getAlmanacEntries } from "../data/bossAlmanac";
+
+function Stars({ n }) {
+  const s = Math.max(1, Math.min(5, n || 1));
+  return (
+    <span className="boss-diff" aria-label={`${s} of 5 stars`}>
+      {"★".repeat(s)}
+      <span className="boss-diff__empty">{"☆".repeat(5 - s)}</span>
+    </span>
+  );
+}
+
+function CategoryBadge({ category }) {
+  const meta = ATTACK_CATEGORIES[category] || ATTACK_CATEGORIES.projectile;
+  return (
+    <span className="almanac-cat" style={{ "--cat-color": meta.color }}>
+      {meta.icon} {meta.label}
+    </span>
+  );
+}
+
+function AttackCard({ attack }) {
+  return (
+    <article className="almanac-attack">
+      <header className="almanac-attack__head">
+        <h4 className="almanac-attack__name">{attack.name}</h4>
+        <CategoryBadge category={attack.category} />
+      </header>
+      <p className="almanac-attack__desc">{attack.description}</p>
+      <dl className="almanac-attack__meta">
+        <div>
+          <dt>Telegraph</dt>
+          <dd>{attack.telegraph}</dd>
+        </div>
+        <div className="almanac-attack__dodge">
+          <dt>How to dodge</dt>
+          <dd>{attack.dodge}</dd>
+        </div>
+      </dl>
+    </article>
+  );
+}
+
+function PhaseBlock({ title, data }) {
+  if (!data) return null;
+  return (
+    <section className="almanac-phase almanac-phase--special">
+      <h3 className="almanac-phase__title">{title}</h3>
+      <div className="almanac-attack almanac-attack--highlight">
+        <header className="almanac-attack__head">
+          <h4 className="almanac-attack__name">{data.name}</h4>
+          <span className="almanac-trigger">{data.trigger}</span>
+        </header>
+        <p className="almanac-attack__desc">{data.description}</p>
+        <dl className="almanac-attack__meta">
+          <div>
+            <dt>Telegraph</dt>
+            <dd>{data.telegraph}</dd>
+          </div>
+          <div className="almanac-attack__dodge">
+            <dt>How to dodge</dt>
+            <dd>{data.dodge}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+  );
+}
+
+export default function BossAlmanac({ onBack }) {
+  const entries = useMemo(() => getAlmanacEntries(BOSS_LIST), []);
+  const [selectedId, setSelectedId] = useState(entries[0]?.id || "iron_matron");
+  const [filter, setFilter] = useState("all");
+  const [tab, setTab] = useState("overview");
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return entries;
+    const d = Number(filter);
+    return entries.filter((b) => b.difficulty === d);
+  }, [entries, filter]);
+
+  const boss = entries.find((b) => b.id === selectedId) || entries[0];
+
+  return (
+    <section className="card card-wide almanac">
+      <header className="almanac__header">
+        <button type="button" className="btn btn-ghost btn-compact" onClick={onBack}>
+          ← Back
+        </button>
+        <div className="almanac__header-text">
+          <h2 className="almanac__title">Boss Almanac</h2>
+          <p className="almanac__sub">
+            Study every attack, telegraph, and dodge before you fight.
+          </p>
+        </div>
+      </header>
+
+      <div className="almanac__filters" role="tablist" aria-label="Filter difficulty">
+        {[
+          { id: "all", label: "All bosses" },
+          { id: "1", label: "★ Beginner" },
+          { id: "2", label: "★★ Easy" },
+          { id: "3", label: "★★★ Med" },
+          { id: "4", label: "★★★★ Hard" },
+          { id: "5", label: "★★★★★" },
+        ].map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            role="tab"
+            aria-selected={filter === f.id}
+            className={`almanac__filter${filter === f.id ? " almanac__filter--active" : ""}`}
+            onClick={() => setFilter(f.id)}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="almanac__layout">
+        <nav className="almanac__list" aria-label="Boss list">
+          {filtered.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className={`almanac__list-item${b.id === selectedId ? " almanac__list-item--active" : ""}`}
+              style={{ "--boss-color": b.color }}
+              onClick={() => { setSelectedId(b.id); setTab("overview"); }}
+            >
+              <span className="almanac__list-orb" aria-hidden="true" />
+              <span className="almanac__list-body">
+                <span className="almanac__list-name">{b.name}</span>
+                <Stars n={b.difficulty} />
+              </span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="almanac__detail" style={{ "--boss-color": boss.color }}>
+          <div className="almanac__detail-hero">
+            <span className="almanac__detail-orb" aria-hidden="true" />
+            <div>
+              <h3 className="almanac__detail-name">{boss.name}</h3>
+              <p className="almanac__detail-tag">{boss.tagline}</p>
+              <div className="almanac__detail-pills">
+                <Stars n={boss.difficulty} />
+                <span className="almanac-pill">{DIFFICULTY_LABELS[boss.difficulty]}</span>
+                <span className="almanac-pill">{boss.maxHP} HP</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="almanac__tabs" role="tablist">
+            {[
+              { id: "overview", label: "Overview" },
+              { id: "attacks", label: `Attacks (${boss.attacks?.length || 0})` },
+              { id: "tips", label: "Tips" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={`almanac__tab${tab === t.id ? " almanac__tab--active" : ""}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="almanac__panel">
+            {tab === "overview" && (
+              <div className="almanac-overview">
+                <p className="almanac-overview__text">{boss.overview}</p>
+                <div className="almanac-callout">
+                  <strong>Playstyle</strong>
+                  <p>{boss.playstyle}</p>
+                </div>
+                <PhaseBlock title="Ultimate" data={boss.ultimate} />
+                <PhaseBlock title="Enrage (low HP)" data={boss.special} />
+              </div>
+            )}
+
+            {tab === "attacks" && (
+              <div className="almanac-attacks">
+                <p className="almanac-attacks__intro">
+                  Each attack shows what it does, how you know it is coming (telegraph), and how to survive it.
+                </p>
+                <div className="almanac-legend">
+                  {Object.entries(ATTACK_CATEGORIES).map(([key, meta]) => (
+                    <span key={key} className="almanac-cat almanac-cat--small" style={{ "--cat-color": meta.color }}>
+                      {meta.icon} {meta.label}
+                    </span>
+                  ))}
+                </div>
+                <div className="almanac-attack-grid">
+                  {boss.attacks?.length ? boss.attacks.map((a) => (
+                    <AttackCard key={a.id} attack={a} />
+                  )) : (
+                    <p className="almanac-empty">No attack data yet for this boss.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {tab === "tips" && (
+              <ul className="almanac-tips">
+                <li className="almanac-tip almanac-tip--core">
+                  <strong>Core rules:</strong> Runner/solo moves with arrows · Typer attacks with keyboard ·
+                  Pick up the weapon on the ground before your words deal damage.
+                </li>
+                {boss.tips?.map((tip, i) => (
+                  <li key={i} className="almanac-tip">{tip}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

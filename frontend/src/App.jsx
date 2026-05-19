@@ -5,6 +5,7 @@ import Login from "./components/Login";
 import HomeScreen from "./components/HomeScreen";
 import RoomLobby from "./components/RoomLobby";
 import SoloLobby from "./components/SoloLobby";
+import BossAlmanac from "./components/BossAlmanac";
 import GameHUD from "./components/GameHUD";
 import { phaserConfig } from "./game/phaserConfig";
 import MainScene from "./game/MainScene";
@@ -274,6 +275,8 @@ function App() {
             Same cyan letter glow &amp; particles as co-op. Complete 6 steps or skip via the top-right button.
           </p>
         </div>
+      ) : appView === "almanac" ? (
+        <BossAlmanac onBack={() => setAppView("home")} />
       ) : appView === "solo" ? (
         <SoloLobby socket={socket} currentUser={currentUser} onBack={() => setAppView("home")} />
       ) : appView === "coop" ? (

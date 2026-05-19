@@ -19,6 +19,11 @@ function HomeScreen({ onSelectMode }) {
           <span className="home-card__name">Tutorial</span>
           <span className="home-card__desc">6 steps · Learn dodge & typing</span>
         </button>
+        <button type="button" className="home-card home-card--almanac" onClick={() => onSelectMode("almanac")}>
+          <span className="home-card__icon">📚</span>
+          <span className="home-card__name">Boss Almanac</span>
+          <span className="home-card__desc">Attacks · Telegraphs · Dodge guides</span>
+        </button>
       </div>
     </section>
   );
