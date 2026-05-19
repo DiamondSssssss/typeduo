@@ -41,41 +41,51 @@ export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }
 
   return (
     <section className="card card-wide solo-lobby">
-      <div className="solo-lobby__hero">
-        <button type="button" className="btn btn-ghost btn-compact" onClick={onBack}>← Main menu</button>
-        <div className="solo-lobby__hero-text">
+      <header className="solo-lobby__top">
+        <button type="button" className="btn btn-ghost btn-compact" onClick={onBack}>
+          ← Main menu
+        </button>
+        <div className="solo-lobby__top-text">
           <h2>Solo Mode</h2>
-          <p>Move with <strong>arrow keys only</strong> (WASD is for typing). Chọn vũ khí, nhặt trên map, rồi gõ để tấn công boss.</p>
-          {onOpenAlmanac ? (
-            <button type="button" className="btn btn-ghost btn-compact solo-lobby__almanac-link" onClick={onOpenAlmanac}>
-              📚 Boss Almanac — study attacks first
-            </button>
-          ) : null}
+          <p>
+            Di chuyển bằng <strong>phím mũi tên</strong> (WASD để gõ). Chọn vũ khí và boss, nhặt vũ khí trên map rồi gõ để đánh.
+          </p>
+        </div>
+        {onOpenAlmanac ? (
+          <button type="button" className="btn btn-ghost btn-compact solo-lobby__almanac" onClick={onOpenAlmanac}>
+            📚 Almanac
+          </button>
+        ) : null}
+      </header>
+
+      <div className="solo-lobby__body">
+        <div className="solo-lobby__column solo-lobby__column--setup">
+          <section className="solo-lobby__section" aria-label="Difficulty">
+            <span className="solo-lobby__section-label">Difficulty</span>
+            <div className="solo-lobby__diff-options">
+              {["easy", "normal", "hard"].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`solo-lobby__diff-btn${difficulty === d ? " solo-lobby__diff-btn--active" : ""}`}
+                  onClick={() => setDifficulty(d)}
+                >
+                  <span className="solo-lobby__diff-btn-title">{DIFFICULTY_INFO[d].label}</span>
+                  <span className="solo-lobby__diff-btn-desc">{DIFFICULTY_INFO[d].desc}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <WeaponPicker selectedId={weaponTypeId} onSelect={setWeaponTypeId} disabled={starting} />
+        </div>
+
+        <div className="solo-lobby__column solo-lobby__column--boss">
+          <BossPicker selectedId={selectedBoss} onSelect={setSelectedBoss} disabled={starting} />
         </div>
       </div>
 
-      <div className="solo-lobby__diff-panel">
-        <span className="solo-lobby__diff-label">Difficulty</span>
-        <div className="solo-lobby__diff-options">
-          {["easy", "normal", "hard"].map((d) => (
-            <button
-              key={d}
-              type="button"
-              className={`solo-lobby__diff-btn${difficulty === d ? " solo-lobby__diff-btn--active" : ""}`}
-              onClick={() => setDifficulty(d)}
-            >
-              <span className="solo-lobby__diff-btn-title">{DIFFICULTY_INFO[d].label}</span>
-              <span className="solo-lobby__diff-btn-desc">{DIFFICULTY_INFO[d].desc}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <WeaponPicker selectedId={weaponTypeId} onSelect={setWeaponTypeId} disabled={starting} />
-
-      <BossPicker selectedId={selectedBoss} onSelect={setSelectedBoss} disabled={starting} />
-
-      <div className="solo-lobby__footer">
+      <footer className="solo-lobby__footer">
         {status ? <p className="form-error">{status}</p> : null}
         <button
           type="button"
@@ -87,9 +97,11 @@ export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }
           <span className="solo-lobby__start-label">
             {starting ? "Starting…" : `Fight ${selected?.name || "Boss"}`}
           </span>
-          <span className="solo-lobby__start-sub">{DIFFICULTY_INFO[difficulty].label} · {selected?.maxHP} HP boss</span>
+          <span className="solo-lobby__start-sub">
+            {DIFFICULTY_INFO[difficulty].label} · {selected?.maxHP} HP boss
+          </span>
         </button>
-      </div>
+      </footer>
     </section>
   );
 }

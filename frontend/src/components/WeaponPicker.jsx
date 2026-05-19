@@ -2,11 +2,11 @@ import { WEAPON_LIST } from "../game/weapons";
 
 export default function WeaponPicker({ selectedId, onSelect, disabled }) {
   return (
-    <div className="weapon-picker" aria-label="Choose weapon">
-      <div className="weapon-picker__head">
-        <h3 className="weapon-picker__title">Chọn vũ khí</h3>
+    <section className="weapon-picker solo-lobby__section" aria-label="Choose weapon">
+      <header className="weapon-picker__head">
+        <h3 className="solo-lobby__section-label">Chọn vũ khí</h3>
         <p className="weapon-picker__sub">Mỗi vũ khí có cơ chế gõ và sát thương riêng.</p>
-      </div>
+      </header>
       <div className="weapon-picker__grid">
         {WEAPON_LIST.map((w) => (
           <button
@@ -24,6 +24,6 @@ export default function WeaponPicker({ selectedId, onSelect, disabled }) {
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
