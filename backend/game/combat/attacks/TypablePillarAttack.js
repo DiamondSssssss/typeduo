@@ -1,5 +1,5 @@
 const { BaseAttack } = require("../BaseAttack");
-const { spawnTypablePillars } = require("../../typingChallenges");
+const { spawnTypablePillars, hasActiveMinions } = require("../../typingChallenges");
 
 class TypablePillarAttack extends BaseAttack {
   constructor(id = "ruin_pillars", opts = {}) {
@@ -13,6 +13,11 @@ class TypablePillarAttack extends BaseAttack {
     });
     this.pillarCount = opts.pillarCount ?? 2;
     this.warnMs = opts.warnMs ?? 6000;
+  }
+
+  canSelect(ctx, entry) {
+    if (hasActiveMinions(ctx.game)) return false;
+    return super.canSelect(ctx, entry);
   }
 
   onStart(ctx) {

@@ -85,6 +85,7 @@ const emitGameState = (io, room, bossConfig) => {
       ? { completed: g._chainCancel.completed, total: g._chainCancel.required, expiresAt: g._chainCancel.expiresAt }
       : null,
     typableMinionCount: (g._typableMinions || []).length,
+    typableMinions:     (g._typableMinions || []).map(({ id, x, y }) => ({ id, x, y })),
     character:        g.character,
     boss:             buildBossStateForClient({ ...g.boss, _bossHP: g.bossHP }, cfg, g),
     projectiles:      g.projectiles,

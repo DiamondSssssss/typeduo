@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BOSS_VISUALS, PROJ_VISUALS, ATTACK_LABELS } from "./bosses/bossConfigs";
-import { getWeapon, DEFAULT_WEAPON_ID, weaponColorToInt } from "./weapons";
+import { getWeapon, DEFAULT_WEAPON_ID, weaponColorToInt, RAGE_MAX } from "./weapons";
 import { resolveHazardPreset } from "./hazardVisuals";
 
 // ── Scene constants ───────────────────────────────────────────────────────────
@@ -84,6 +84,17 @@ export default class MainScene extends Phaser.Scene {
     // Weapon
     this.weaponHeld = false;
     this.weaponBobTween = null;
+    this.weaponRage = 0;
+    this.ultimateMode = false;
+    // Minion sprites (frontend-side chase tracking)
+    this._minionSprites = [];
+    // Pillar sprites (persistent column visuals)
+    this._pillarSprites = [];
+    // Stun wind-up telegraph
+    this.paralyzeWindupActive = false;
+    this.paralyzeWindupExpires = 0;
+    this.paralyzeWindupGfx = null;
+    this.paralyzeBeamGfx = null;
   }
 
   init(data) {
@@ -469,6 +480,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _showParalyzeWindup(durationMs = 2200) {
+    // Expanding shockwave ring at player position
     const ring = this.add.circle(this.charX, this.charY, 22, 0xc084fc, 0)
       .setStrokeStyle(4, 0xf472b6, 0.95).setDepth(7);
     this.tweens.add({
@@ -479,6 +491,12 @@ export default class MainScene extends Phaser.Scene {
     });
     this._showFloatingText("PARALYZE INCOMING!", "#f472b6", 26);
     this.cameras.main.flash(120, 180, 80, 220, false);
+
+    // Activate beam + reticle tracking for the wind-up duration
+    this.paralyzeWindupActive  = true;
+    this.paralyzeWindupExpires = Date.now() + durationMs;
+    if (this.paralyzeBeamGfx)    this.paralyzeBeamGfx.setAlpha(1);
+    if (this.paralyzeWindupGfx)  this.paralyzeWindupGfx.setAlpha(1);
   }
 
   _startParalyzeVisual() {
@@ -516,6 +534,14 @@ export default class MainScene extends Phaser.Scene {
     this.charRing?.setAlpha(1).setStrokeStyle(2.5, 0x4ef0d4, 0.9);
     this.paralyzeGfx?.destroy();
     this.paralyzeGfx = null;
+    this._clearStunTelegraph();
+  }
+
+  _clearStunTelegraph() {
+    this.paralyzeWindupActive = false;
+    this.paralyzeWindupExpires = 0;
+    if (this.paralyzeBeamGfx)   { this.paralyzeBeamGfx.clear().setAlpha(0); }
+    if (this.paralyzeWindupGfx) { this.paralyzeWindupGfx.clear().setAlpha(0); }
   }
 
   _setCharLabels(players) {
@@ -594,6 +620,19 @@ export default class MainScene extends Phaser.Scene {
     }).setOrigin(0, 1).setDepth(26);
     this._drawTeamHpBar(100, 100);
 
+    // Rage / Ultimate bar (below Team HP bar)
+    this.rageBarBack = this.add.graphics().setDepth(26);
+    this.rageBarFill = this.add.graphics().setDepth(26);
+    this.rageBarText = this.add.text(16, 92, "", {
+      fontFamily: FONT, fontSize: "11px", color: "#fbbf24", fontStyle: "bold",
+      backgroundColor: "rgba(10,17,36,0.85)", padding: { x: 6, y: 3 },
+    }).setOrigin(0, 1).setDepth(27);
+    this._drawRageBar(0, false);
+
+    // Stun telegraph graphics (laser from boss to player + reticle)
+    this.paralyzeBeamGfx = this.add.graphics().setDepth(23).setAlpha(0);
+    this.paralyzeWindupGfx = this.add.graphics().setDepth(24).setAlpha(0);
+
     // Attack telegraph layers (void zone, eruption, singularity, dark pulse)
     this.groundTelegraphGfx = this.add.graphics().setDepth(14);
     this.bossChargeGfx      = this.add.graphics().setDepth(14);
@@ -603,6 +642,36 @@ export default class MainScene extends Phaser.Scene {
     this.furyOverlay = this.add.rectangle(0, 0, W, H, 0xff1a1a, 0).setOrigin(0, 0).setDepth(1).setVisible(false);
     this.furyActive  = false;
     this.furyTween   = null;
+  }
+
+  _drawRageBar(rage = 0, isUltimate = false) {
+    const bw = 320, bh = 10, bx = 16, by = 82;
+    const weapon = getWeapon(this.weaponTypeId || DEFAULT_WEAPON_ID);
+    const weaponCol = weaponColorToInt(weapon.color);
+    const pct = Math.max(0, Math.min(1, (rage || 0) / RAGE_MAX));
+
+    this.rageBarBack.clear();
+    this.rageBarBack.fillStyle(0x0a1124, 0.92);
+    this.rageBarBack.fillRoundedRect(bx, by, bw, bh, 4);
+    this.rageBarBack.lineStyle(1.5, isUltimate ? 0xfbbf24 : weaponCol, isUltimate ? 1 : 0.55);
+    this.rageBarBack.strokeRoundedRect(bx, by, bw, bh, 4);
+
+    this.rageBarFill.clear();
+    if (pct > 0) {
+      const fillCol = isUltimate ? 0xfbbf24 : (pct >= 1 ? 0xf59e0b : weaponCol);
+      this.rageBarFill.fillStyle(fillCol, isUltimate ? 1 : 0.9);
+      this.rageBarFill.fillRoundedRect(bx + 1, by + 1, (bw - 2) * pct, bh - 2, 3);
+      // Shine highlight
+      this.rageBarFill.fillStyle(0xffffff, 0.2);
+      this.rageBarFill.fillRoundedRect(bx + 1, by + 1, (bw - 2) * pct, Math.floor((bh - 2) * 0.4), 3);
+    }
+
+    const label = isUltimate
+      ? `⚡ NỘ ${Math.round(pct * 100)}% — GÕ CÂU VÀNG!`
+      : `⚡ NỘ  ${Math.round(pct * 100)}%${pct >= 1 ? '  —  SẤN SÀNG!' : ''}`;
+    this.rageBarText.setText(label)
+      .setColor(isUltimate ? '#fbbf24' : pct >= 1 ? '#fde68a' : '#94a3b8')
+      .setPosition(bx, by - 2);
   }
 
   // ── Fury & milestone effects ──────────────────────────────────────────────
@@ -1556,6 +1625,7 @@ export default class MainScene extends Phaser.Scene {
         this.expectedWord = state.currentWord || "";
         this.localTypedProgress = state.typedProgress || 0;
         this._renderWord(this.expectedWord, this.localTypedProgress);
+        this._drawRageBar(this.weaponRage, this.ultimateMode);
         this._setCharLabels(state.players || []);
         const localP = (state.players || []).find(p => p.socketId === this.localSocketId);
         if (state.gameMode) this.gameMode = state.gameMode;
@@ -1594,6 +1664,7 @@ export default class MainScene extends Phaser.Scene {
         if (weaponRage != null) this.weaponRage = weaponRage;
         if (ultimateMode != null) this.ultimateMode = ultimateMode;
         this._renderWord(this.expectedWord, this.localTypedProgress);
+        this._drawRageBar(this.weaponRage, this.ultimateMode);
         if (ultimateMode || currentWordPhase === "ultimate") {
           this.typedTxt.setColor("#fef3c7");
           this.typedTxt.setStroke("#78350f", 2);
@@ -1656,54 +1727,169 @@ export default class MainScene extends Phaser.Scene {
       },
 
       typable_minions_spawn: ({ minions }) => {
-        (this._minionSprites || []).forEach((s) => { s.c?.destroy(); s.t?.destroy(); });
+        // Destroy any existing minion sprites first
+        (this._minionSprites || []).forEach((s) => { s.aura?.destroy(); s.body?.destroy(); s.inner?.destroy(); s.icon?.destroy(); s.shadow?.destroy(); });
         this._minionSprites = [];
         (minions || []).forEach((m) => {
-          const c = this.add.circle(m.x, m.y, 16, 0x84cc16, 0.9)
-            .setStrokeStyle(2, 0xd9f99d).setDepth(14);
-          const t = this.add.text(m.x, m.y - 24, "!", {
-            fontFamily: FONT, fontSize: "18px", color: "#ecfccb", fontStyle: "bold",
-          }).setOrigin(0.5).setDepth(15);
-          this.tweens.add({ targets: c, scale: 1.15, yoyo: true, repeat: -1, duration: 500 });
-          this._minionSprites.push({ c, t, id: m.id });
+          // Shadow orb (bottom layer)
+          const shadow = this.add.circle(m.x, m.y + 6, 14, 0x000000, 0.35).setDepth(13);
+          // Aura ring (outer glow)
+          const aura = this.add.circle(m.x, m.y, 30, 0xef4444, 0)
+            .setStrokeStyle(3, 0xff6b35, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(14);
+          // Body (main circle)
+          const body = this.add.circle(m.x, m.y, 18, 0xdc2626, 0.95)
+            .setStrokeStyle(2.5, 0xff3d00, 1).setDepth(15);
+          // Inner glow core
+          const inner = this.add.circle(m.x, m.y, 8, 0xff9966, 0.9)
+            .setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+          // Danger icon
+          const icon = this.add.text(m.x, m.y, '☠', {
+            fontFamily: FONT, fontSize: '16px', color: '#fef2f2', fontStyle: 'bold',
+          }).setOrigin(0.5, 0.5).setDepth(17);
+          // Pulse aura continuously
+          this.tweens.add({ targets: aura, scale: { from: 1, to: 1.55 }, alpha: { from: 0.7, to: 0 }, duration: 700, repeat: -1, ease: 'sine.out' });
+          // Pulse body
+          this.tweens.add({ targets: body, scale: { from: 1, to: 1.1 }, duration: 400, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+          // Orbit inner core
+          this.tweens.add({ targets: inner, angle: { from: 0, to: 360 }, duration: 1200, repeat: -1, ease: 'linear' });
+          this._minionSprites.push({ id: m.id, aura, body, inner, icon, shadow, tx: m.x, ty: m.y });
         });
-        this._showFloatingText("TYPE YOUR WORD!", "#a3e635", 22);
+        this.cameras.main.flash(160, 220, 40, 40, false);
+        this._showFloatingText('⚠ MINION INCOMING!', '#ff6b35', 24);
       },
+
       typable_minion_killed: ({ id, x, y }) => {
         const idx = this._minionSprites?.findIndex((s) => s.id === id);
         if (idx >= 0) {
           const s = this._minionSprites[idx];
-          s.c?.destroy();
-          s.t?.destroy();
+          s.aura?.destroy(); s.body?.destroy(); s.inner?.destroy(); s.icon?.destroy(); s.shadow?.destroy();
           this._minionSprites.splice(idx, 1);
         }
         if (x != null && y != null) {
-          const pop = this.add.circle(x, y, 10, 0xa3e635, 0.8).setDepth(16);
-          this.tweens.add({ targets: pop, scale: 2.5, alpha: 0, duration: 350, onComplete: () => pop.destroy() });
+          // Big explosion ring
+          const ring1 = this.add.circle(x, y, 18, 0xff3d00, 0).setStrokeStyle(4, 0xff6b35, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+          this.tweens.add({ targets: ring1, scale: 4.5, alpha: 0, duration: 520, ease: 'cubic.out', onComplete: () => ring1.destroy() });
+          const ring2 = this.add.circle(x, y, 8, 0xfbbf24, 0.6).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+          this.tweens.add({ targets: ring2, scale: 7, alpha: 0, duration: 700, ease: 'cubic.out', onComplete: () => ring2.destroy() });
+          // Sparks burst
+          for (let i = 0; i < 18; i++) {
+            const a = (i / 18) * Math.PI * 2;
+            const d = 40 + Math.random() * 60;
+            const spark = this.add.circle(x, y, 3 + Math.random() * 3, Math.random() < 0.5 ? 0xff6b35 : 0xfbbf24, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(19);
+            this.tweens.add({ targets: spark, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0, scale: 0.15, duration: 380 + Math.random() * 160, ease: 'cubic.out', onComplete: () => spark.destroy() });
+          }
+          this.cameras.main.shake(120, 0.009);
         }
       },
+
+      typable_minions_update: ({ minions }) => {
+        // Sync minion positions from backend chase AI
+        (minions || []).forEach((m) => {
+          const s = (this._minionSprites || []).find((sp) => sp.id === m.id);
+          if (!s) return;
+          s.tx = m.x; s.ty = m.y;
+        });
+      },
+
+      minion_hit: ({ id, x, y, damage }) => {
+        // Minion reached the player — flash screen and show damage
+        this.cameras.main.flash(250, 220, 40, 40, false);
+        this.cameras.main.shake(200, 0.012);
+        this._showFloatingText(`MINION -${damage}`, '#ef4444', 28);
+        // Remove the sprite locally too
+        const idx = this._minionSprites?.findIndex((s) => s.id === id);
+        if (idx >= 0) {
+          const s = this._minionSprites[idx];
+          s.aura?.destroy(); s.body?.destroy(); s.inner?.destroy(); s.icon?.destroy(); s.shadow?.destroy();
+          this._minionSprites.splice(idx, 1);
+        }
+      },
+
       typable_minions_cleared: () => {
-        (this._minionSprites || []).forEach((s) => { s.c?.destroy(); s.t?.destroy(); });
+        (this._minionSprites || []).forEach((s) => { s.aura?.destroy(); s.body?.destroy(); s.inner?.destroy(); s.icon?.destroy(); s.shadow?.destroy(); });
         this._minionSprites = [];
-        this._showFloatingText("MINIONS CLEARED", "#4ade80", 20);
+        this.cameras.main.flash(200, 80, 255, 120, false);
+        this._showFloatingText('MINIONS CLEARED', '#4ade80', 22);
       },
 
       typable_pillars_spawn: ({ pillars }) => {
-        (pillars || []).forEach((p) => this._showColumnWarning({ x: p.x, width: 70, color: 0xc084fc, durationMs: p.warnMs || 4000 }));
-        this._showFloatingText("TYPE TO BREAK PILLARS!", "#c084fc", 20);
+        // Clear any old pillar sprites
+        (this._pillarSprites || []).forEach((p) => { p.col?.destroy(); p.glow?.destroy(); p.core?.destroy(); p.warn?.destroy(); p.label?.destroy(); });
+        this._pillarSprites = [];
+        (pillars || []).forEach((pil) => {
+          const px = pil.x, py = 300;
+          const colH = 380;
+          // Warning column background (full height)
+          const col = this.add.graphics().setDepth(13);
+          col.fillStyle(0xc084fc, 0.12);
+          col.fillRect(px - 35, 60, 70, colH);
+          col.lineStyle(2, 0xc084fc, 0.65);
+          col.strokeRect(px - 35, 60, 70, colH);
+          // Inner glow column
+          const glow = this.add.graphics().setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
+          glow.fillStyle(0xa855f7, 0.25);
+          glow.fillRect(px - 18, 60, 36, colH);
+          // Pulsing energy core
+          const core = this.add.graphics().setDepth(15).setBlendMode(Phaser.BlendModes.ADD);
+          core.fillStyle(0xe879f9, 0.7);
+          core.fillRoundedRect(px - 7, 60, 14, colH, 4);
+          // Pulse the core
+          this.tweens.add({ targets: core, alpha: { from: 0.8, to: 0.25 }, duration: 480, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+          // Warning text label at top of pillar
+          const label = this.add.text(px, 52, '⚡ PILLAR', {
+            fontFamily: FONT, fontSize: '12px', color: '#f0abfc', fontStyle: 'bold',
+            backgroundColor: 'rgba(88,28,135,0.85)', padding: { x: 6, y: 3 },
+          }).setOrigin(0.5, 1).setDepth(16);
+          this.tweens.add({ targets: label, alpha: { from: 1, to: 0.35 }, duration: 500, yoyo: true, repeat: -1 });
+          // Diamond gem at center
+          const warn = this.add.graphics().setDepth(15);
+          warn.fillStyle(0xe879f9, 0.9);
+          warn.fillTriangle(px, py - 24, px - 14, py, px + 14, py);
+          warn.fillTriangle(px, py + 24, px - 14, py, px + 14, py);
+          this.tweens.add({ targets: warn, scale: { from: 1, to: 1.18 }, duration: 600, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+          this._pillarSprites.push({ id: pil.id, x: pil.x, col, glow, core, warn, label });
+          // Also show column warning overlay
+          this._showColumnWarning({ x: pil.x, width: 70, color: 0xc084fc, durationMs: pil.warnMs || 4000 });
+        });
+        this._showFloatingText('⚡ TYPE TO BREAK PILLARS!', '#c084fc', 22);
       },
+
       typable_pillars_cleared: () => {
-        this._showFloatingText("PILLARS CLEARED", "#4ade80", 20);
+        (this._pillarSprites || []).forEach((p) => { p.col?.destroy(); p.glow?.destroy(); p.core?.destroy(); p.warn?.destroy(); p.label?.destroy(); });
+        this._pillarSprites = [];
+        this.cameras.main.flash(200, 180, 80, 255, false);
+        this._showFloatingText('PILLARS CLEARED', '#4ade80', 22);
       },
-      typable_pillar_destroyed: ({ x }) => {
-        this._showFloatingText("PILLAR DOWN", "#4ade80", 18);
-        if (x != null) {
-          const ring = this.add.circle(x, 400, 30, 0xc084fc, 0)
-            .setStrokeStyle(3, 0xc084fc, 1).setDepth(16);
-          this.tweens.add({ targets: ring, scale: 2, alpha: 0, duration: 400, onComplete: () => ring.destroy() });
+
+      typable_pillar_destroyed: ({ id, x }) => {
+        // Remove matching pillar sprite
+        const idx = (this._pillarSprites || []).findIndex((p) => p.id === id || p.x === x);
+        if (idx >= 0) {
+          const s = this._pillarSprites[idx];
+          s.col?.destroy(); s.glow?.destroy(); s.core?.destroy(); s.warn?.destroy(); s.label?.destroy();
+          this._pillarSprites.splice(idx, 1);
         }
+        if (x != null) {
+          // Crystal shatter effect
+          const shatter = this.add.circle(x, 300, 22, 0xe879f9, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+          this.tweens.add({ targets: shatter, scale: 5, alpha: 0, duration: 450, ease: 'cubic.out', onComplete: () => shatter.destroy() });
+          for (let i = 0; i < 14; i++) {
+            const a = (i / 14) * Math.PI * 2;
+            const shard = this.add.circle(x, 300, 4, 0xc084fc, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+            this.tweens.add({ targets: shard, x: x + Math.cos(a) * (50 + Math.random() * 60), y: 300 + Math.sin(a) * (50 + Math.random() * 60), alpha: 0, scale: 0.15, duration: 400 + Math.random() * 150, ease: 'cubic.out', onComplete: () => shard.destroy() });
+          }
+        }
+        this._showFloatingText('PILLAR SHATTERED!', '#c084fc', 20);
       },
+
       typable_pillar_fire: ({ x }) => {
+        // Destroy matching pillar sprite when it fires
+        const idx = (this._pillarSprites || []).findIndex((p) => p.x === x);
+        if (idx >= 0) {
+          const s = this._pillarSprites[idx];
+          s.col?.destroy(); s.glow?.destroy(); s.core?.destroy(); s.warn?.destroy(); s.label?.destroy();
+          this._pillarSprites.splice(idx, 1);
+        }
         this._showColumnFire({ x, width: 70, color: 0xff4444, durationMs: 500 });
       },
 
@@ -1785,6 +1971,7 @@ export default class MainScene extends Phaser.Scene {
       weapon_ultimate_ready: ({ name, phrase, weaponRage }) => {
         this.ultimateMode = true;
         if (weaponRage != null) this.weaponRage = weaponRage;
+        this._drawRageBar(this.weaponRage, true);
         this._showFloatingText(`${name} — GÕ CÂU VÀNG!`, "#fbbf24", 30);
         this.cameras.main.flash(280, 255, 200, 80, false);
         this.expectedWord = phrase;
@@ -1822,8 +2009,9 @@ export default class MainScene extends Phaser.Scene {
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         if (weaponStreak != null) this.weaponStreak = weaponStreak;
         if (weaponRage != null) this.weaponRage = weaponRage;
+        if (ultimate) this.ultimateMode = false;
+        this._drawRageBar(this.weaponRage, this.ultimateMode);
         if (ultimate) {
-          this.ultimateMode = false;
           this._showFloatingText(`${ultimateName || "ULTIMATE"}! −${damage}`, "#fbbf24", 36);
           this.cameras.main.flash(300, 255, 200, 80, false);
           this.cameras.main.shake(280, 0.015);
@@ -2118,6 +2306,62 @@ export default class MainScene extends Phaser.Scene {
     if (this.bossWindingUp && this._groundTelegraphAttack) {
       this._drawGroundTelegraph(this.charTargetX, this.charTargetY, this._groundTelegraphAttack);
     }
+
+    // ── Minion smooth chase interpolation (60fps) ─────────────────────────────
+    const MINION_LERP = 0.18;
+    (this._minionSprites || []).forEach((s) => {
+      if (!s.tx && !s.ty) return;
+      const nx = Phaser.Math.Linear(s.aura?.x ?? s.tx, s.tx, MINION_LERP);
+      const ny = Phaser.Math.Linear(s.aura?.y ?? s.ty, s.ty, MINION_LERP);
+      [s.aura, s.body, s.inner, s.icon, s.shadow].forEach((obj) => {
+        if (!obj) return;
+        obj.x = nx;
+        obj.y = (obj === s.shadow) ? ny + 6 : ny;
+      });
+      s.aura.x  = nx; s.aura.y  = ny;
+    });
+
+    // ── Stun wind-up telegraph (beam from boss → player, shrinking reticle) ────
+    if (this.paralyzeWindupActive) {
+      const now = Date.now();
+      if (now >= this.paralyzeWindupExpires) {
+        this._clearStunTelegraph();
+      } else {
+        const progress = 1 - Math.max(0, (this.paralyzeWindupExpires - now) / Math.max(1, this.paralyzeWindupExpires - (this.paralyzeWindupExpires - 2200)));
+        const cx = this.charX, cy = this.charY;
+        const bx = this.bossX, by = this.bossY;
+        const alpha = 0.55 + 0.35 * Math.sin(now / 80);
+
+        // Beam from boss to player
+        this.paralyzeBeamGfx.clear();
+        this.paralyzeBeamGfx.lineStyle(3, 0xf472b6, alpha * 0.85);
+        this.paralyzeBeamGfx.lineBetween(bx, by, cx, cy);
+        this.paralyzeBeamGfx.lineStyle(1.2, 0xfdf4ff, alpha * 0.45);
+        this.paralyzeBeamGfx.lineBetween(bx, by, cx, cy);
+
+        // Shrinking target reticle on player — tightens as wind-up nears completion
+        const baseR = 60, minR = 20;
+        const r = baseR - (baseR - minR) * progress;
+        this.paralyzeWindupGfx.clear();
+        this.paralyzeWindupGfx.lineStyle(2.5, 0xf472b6, alpha);
+        this.paralyzeWindupGfx.strokeCircle(cx, cy, r);
+        // Crosshair ticks
+        const TICK = 12;
+        [[cx - r, cy, cx - r + TICK, cy], [cx + r - TICK, cy, cx + r, cy],
+         [cx, cy - r, cx, cy - r + TICK], [cx, cy + r - TICK, cx, cy + r]].forEach(([x1, y1, x2, y2]) => {
+          this.paralyzeWindupGfx.lineBetween(x1, y1, x2, y2);
+        });
+        // Corner brackets
+        const BK = 8;
+        [[cx - r * 0.7, cy - r * 0.7], [cx + r * 0.7, cy - r * 0.7],
+         [cx - r * 0.7, cy + r * 0.7], [cx + r * 0.7, cy + r * 0.7]].forEach(([lx, ly], i) => {
+          const sx = i % 2 === 0 ? 1 : -1;
+          const sy = i < 2 ? 1 : -1;
+          this.paralyzeWindupGfx.lineBetween(lx, ly, lx + sx * BK, ly);
+          this.paralyzeWindupGfx.lineBetween(lx, ly, lx, ly + sy * BK);
+        });
+      }
+    }
   }
 
   // ── Shutdown ───────────────────────────────────────────────────────────────
@@ -2141,6 +2385,17 @@ export default class MainScene extends Phaser.Scene {
     if (this.bossPulse) { this.bossPulse.stop(); this.bossPulse = null; }
     if (this.furyTween) { this.furyTween.stop(); this.furyTween = null; }
     this.furyOverlay?.setVisible(false);
+    // Clean up minion sprites
+    (this._minionSprites || []).forEach((s) => { s.aura?.destroy(); s.body?.destroy(); s.inner?.destroy(); s.icon?.destroy(); s.shadow?.destroy(); });
+    this._minionSprites = [];
+    // Clean up pillar sprites
+    (this._pillarSprites || []).forEach((p) => { p.col?.destroy(); p.glow?.destroy(); p.core?.destroy(); p.warn?.destroy(); p.label?.destroy(); });
+    this._pillarSprites = [];
+    // Clean up rage bar
+    this.rageBarBack?.clear();
+    this.rageBarFill?.clear();
+    // Clean up stun telegraph
+    this._clearStunTelegraph?.();
   }
 
   // keep Phaser happy — public alias used by scene.add & scene.start

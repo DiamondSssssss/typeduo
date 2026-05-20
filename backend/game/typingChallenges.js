@@ -262,12 +262,14 @@ const hasActivePillars = (g) =>
 
 /** Minions on field — each completed weapon word kills one (no separate minion words). */
 const spawnTypableMinions = (io, room, g, { count } = {}) => {
+  // Mutual exclusion: don't spawn minions if pillars are already on field
+  if (hasActivePillars(g)) return;
   const n = Math.min(count ?? rollSpawnCount(2), 2);
   g._typableMinions = [];
   const char = g.character;
   for (let i = 0; i < n; i++) {
     const angle = (i / Math.max(1, n)) * Math.PI * 2 + Math.random() * 0.4;
-    const dist = 100 + Math.random() * 70;
+    const dist = 180 + Math.random() * 120;
     g._typableMinions.push({
       id: `m_${Date.now()}_${i}`,
       x: Math.max(80, Math.min(1200, char.x + Math.cos(angle) * dist)),
@@ -307,6 +309,8 @@ const tryKillMinionOnWord = (io, room, g) => {
 
 /** Pillars on field — each completed weapon word destroys one (no separate pillar words). */
 const spawnTypablePillars = (io, room, g, { count, warnMs = 5500 } = {}) => {
+  // Mutual exclusion: don't spawn pillars if minions are already on field
+  if (hasActiveMinions(g)) return;
   const now = Date.now();
   const n = Math.min(count ?? rollSpawnCount(2), 2);
   g._typablePillars = [];
@@ -494,6 +498,48 @@ const tickTypingChallenges = (io, room, now) => {
     }
     io.to(room.code).emit("typable_pillar_fire", { id: p.id, x: p.x });
   });
+
+  // ── Minion chase AI ──────────────────────────────────────────────────────
+  const MINION_SPEED  = 80; // px per second
+  const MINION_DAMAGE = 12;
+  const MINION_HIT_R  = 40;
+  const deltaS = (g.lastTickAt ? Math.min((now - (g._lastMinionTick || now)) / 1000, 0.15) : 0.05);
+  g._lastMinionTick = now;
+  const char = g.character;
+  let minionMoved = false;
+  if (g._typableMinions && g._typableMinions.length > 0) {
+    const toRemove = [];
+    g._typableMinions.forEach((m) => {
+      if (m.killed) return;
+      const dx = char.x - m.x;
+      const dy = char.y - m.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < MINION_HIT_R) {
+        // Minion reached the player — deal damage and die
+        takeDamage(io, room, MINION_DAMAGE, m.x, m.y);
+        io.to(room.code).emit("minion_hit", { id: m.id, x: m.x, y: m.y, damage: MINION_DAMAGE });
+        m.killed = true;
+        toRemove.push(m.id);
+      } else {
+        // Move toward player
+        const step = MINION_SPEED * deltaS;
+        m.x += (dx / dist) * step;
+        m.y += (dy / dist) * step;
+        minionMoved = true;
+      }
+    });
+    if (toRemove.length) {
+      g._typableMinions = g._typableMinions.filter((m) => !m.killed);
+      if (!g._typableMinions.length) {
+        io.to(room.code).emit("typable_minions_cleared");
+      }
+    }
+    if (minionMoved) {
+      io.to(room.code).emit("typable_minions_update", {
+        minions: g._typableMinions.map(({ id, x, y }) => ({ id, x, y })),
+      });
+    }
+  }
 };
 
 /** Skip boss HP damage while breaking shield via challenge mode. */
