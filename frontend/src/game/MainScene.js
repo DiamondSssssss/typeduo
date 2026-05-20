@@ -1119,6 +1119,336 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  _spawnWeaponUltimateAttack(weaponTypeId, damage) {
+    const weapon = getWeapon(weaponTypeId);
+    const col = parseInt(String(weapon.color || "#ff9ec8").replace("#", ""), 16);
+    const fx = this.charX, fy = this.charY;
+    const bx = this.bossX, by = this.bossY;
+
+    if (weaponTypeId === "swift_blade") {
+      // ── Kiếm Tốc: Storm Cut ⚡ ──────────────────────
+      let delay = 0;
+      for (let i = 0; i < 9; i++) {
+        this.time.delayedCall(delay, () => {
+          const slash = this.add.graphics().setDepth(45);
+          slash.lineStyle(6, col, 0.95);
+
+          const angle = Math.random() * Math.PI * 2;
+          const length = 180;
+          const x1 = bx - Math.cos(angle) * length;
+          const y1 = by - Math.sin(angle) * length;
+          const x2 = bx + Math.cos(angle) * length;
+          const y2 = by + Math.sin(angle) * length;
+
+          slash.beginPath();
+          slash.moveTo(x1, y1);
+          slash.lineTo(x2, y2);
+          slash.strokePath();
+
+          this.cameras.main.shake(100, 0.008);
+          this.tweens.add({
+            targets: slash,
+            alpha: 0,
+            duration: 180,
+            onComplete: () => slash.destroy()
+          });
+
+          // Bắn ra tia điện nhỏ
+          for (let j = 0; j < 3; j++) {
+            const spark = this.add.circle(bx, by, 3, 0x22d3ee, 0.9).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+            const spAngle = angle + (Math.random() - 0.5) * 1.5;
+            const spSpeed = 100 + Math.random() * 200;
+            this.tweens.add({
+              targets: spark,
+              x: bx + Math.cos(spAngle) * spSpeed,
+              y: by + Math.sin(spAngle) * spSpeed,
+              alpha: 0,
+              scale: 0.1,
+              duration: 400,
+              onComplete: () => spark.destroy()
+            });
+          }
+        });
+        delay += 60;
+      }
+      this.time.delayedCall(600, () => {
+        this._spawnDamageBurst(damage, true, col);
+      });
+
+    } else if (weaponTypeId === "shortsword") {
+      // ── Kiếm Ngắn: Guardian Strike 🗡 ──────────────
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const startDist = 180;
+        const swordX = bx + Math.cos(angle) * startDist;
+        const swordY = by + Math.sin(angle) * startDist;
+
+        const swordGfx = this.add.graphics().setDepth(45).setPosition(swordX, swordY);
+        swordGfx.fillStyle(0xf8fafc, 0.95);
+        swordGfx.lineStyle(2, col, 1);
+
+        swordGfx.beginPath();
+        swordGfx.moveTo(-16, 0);
+        swordGfx.lineTo(-6, -4);
+        swordGfx.lineTo(24, 0);
+        swordGfx.lineTo(-6, 4);
+        swordGfx.closePath();
+        swordGfx.fillPath();
+        swordGfx.strokePath();
+
+        swordGfx.setRotation(angle + Math.PI);
+
+        this.tweens.add({
+          targets: swordGfx,
+          x: bx,
+          y: by,
+          scale: { from: 1.5, to: 0.8 },
+          delay: i * 80,
+          duration: 350,
+          ease: "back.in",
+          onComplete: () => {
+            swordGfx.destroy();
+            this.cameras.main.shake(120, 0.01);
+            const boom = this.add.circle(bx, by, 16, 0xf1f5f9, 0.7).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+            this.tweens.add({
+              targets: boom,
+              scale: 2.2,
+              alpha: 0,
+              duration: 250,
+              onComplete: () => boom.destroy()
+            });
+          }
+        });
+      }
+
+      this.time.delayedCall(480 + 350, () => {
+        const shockwave = this.add.circle(bx, by, 40, col, 0).setStrokeStyle(6, 0xf8fafc, 1).setDepth(44).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: shockwave,
+          scale: 4.5,
+          alpha: 0,
+          duration: 600,
+          ease: "cubic.out",
+          onComplete: () => {
+            shockwave.destroy();
+            this._spawnDamageBurst(damage, true, col);
+          }
+        });
+      });
+
+    } else if (weaponTypeId === "greatsword") {
+      // ── Đại Kiếm: Earth Splitter ⚔ ──────────────────
+      const lineGfx = this.add.graphics().setDepth(43);
+      lineGfx.lineStyle(16, col, 0.95);
+      lineGfx.beginPath();
+      lineGfx.moveTo(fx, fy);
+      lineGfx.lineTo(bx, by);
+      lineGfx.strokePath();
+
+      this.tweens.add({
+        targets: lineGfx,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => lineGfx.destroy()
+      });
+
+      const giantSlash = this.add.graphics().setDepth(45);
+      giantSlash.lineStyle(24, 0xffbb33, 1);
+      giantSlash.beginPath();
+      giantSlash.moveTo(bx - 120, by - 120);
+      giantSlash.lineTo(bx + 120, by + 120);
+      giantSlash.strokePath();
+
+      this.tweens.add({
+        targets: giantSlash,
+        scale: 1.3,
+        alpha: 0,
+        duration: 400,
+        onComplete: () => giantSlash.destroy()
+      });
+
+      this.cameras.main.flash(350, 249, 115, 22);
+      this.cameras.main.shake(500, 0.03);
+
+      for (let i = 0; i < 30; i++) {
+        const spAngle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;
+        const spSpeed = 150 + Math.random() * 300;
+        const lava = this.add.circle(bx, by, Math.random() * 6 + 4, 0xf97316, 0.9).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+
+        this.tweens.add({
+          targets: lava,
+          x: bx + Math.cos(spAngle) * spSpeed,
+          y: by + Math.sin(spAngle) * spSpeed - 100,
+          scale: 0.1,
+          alpha: 0,
+          duration: 800 + Math.random() * 400,
+          ease: "quad.out",
+          onComplete: () => lava.destroy()
+        });
+      }
+
+      this.time.delayedCall(300, () => {
+        this._spawnDamageBurst(damage, true, col);
+      });
+
+    } else if (weaponTypeId === "lifestaff") {
+      // ── Gậy Hồi: Bloom of Life 💚 ────────────────────
+      for (let i = 0; i < 20; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 150 + Math.random() * 150;
+        const startX = fx + Math.cos(angle) * dist;
+        const startY = fy + Math.sin(angle) * dist;
+
+        const seed = this.add.circle(startX, startY, 4, 0x86efac, 0.9).setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: seed,
+          x: fx,
+          y: fy,
+          alpha: 0.3,
+          duration: 500 + Math.random() * 300,
+          ease: "sine.in",
+          onComplete: () => seed.destroy()
+        });
+      }
+
+      this.time.delayedCall(400, () => {
+        this.cameras.main.flash(300, 74, 222, 128);
+        this.cameras.main.shake(200, 0.01);
+
+        const bloom = this.add.circle(fx, fy, 20, 0x4ade80, 0.25).setDepth(44).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: bloom,
+          scale: 8,
+          alpha: 0,
+          duration: 1000,
+          ease: "cubic.out",
+          onComplete: () => bloom.destroy()
+        });
+
+        const bossBloom = this.add.circle(bx, by, 20, 0x4ade80, 0.25).setDepth(44).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: bossBloom,
+          scale: 8,
+          alpha: 0,
+          duration: 1000,
+          ease: "cubic.out",
+          onComplete: () => bossBloom.destroy()
+        });
+
+        for (let i = 0; i < 25; i++) {
+          const star = this.add.circle(fx, fy, Math.random() * 5 + 3, 0xdcfce7, 1).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+          const ctrlX = (fx + bx) / 2 + (Math.random() - 0.5) * 300;
+          const ctrlY = (fy + by) / 2 + (Math.random() - 0.5) * 300;
+
+          this.tweens.add({
+            targets: star,
+            x: [ctrlX, bx],
+            y: [ctrlY, by],
+            alpha: { from: 1, to: 0 },
+            scale: 0.2,
+            duration: 800 + Math.random() * 400,
+            ease: "sine.inOut",
+            onComplete: () => star.destroy()
+          });
+        }
+
+        this.time.delayedCall(600, () => {
+          this._spawnDamageBurst(damage, true, col);
+        });
+      });
+
+    } else if (weaponTypeId === "fury_axe") {
+      // ── Rìu Cuồng: Consuming Rage 🔥 ──────────────────
+      for (let i = 0; i < 5; i++) {
+        this.time.delayedCall(i * 120, () => {
+          const fireCol = this.add.graphics().setDepth(44);
+          fireCol.fillStyle(0xef4444, 0.35);
+          fireCol.lineStyle(3, 0xf97316, 0.85);
+
+          const width = 80 + Math.random() * 60;
+          const height = 250 + Math.random() * 150;
+          const leftX = bx - width / 2;
+          const topY = by - height;
+
+          fireCol.fillRect(leftX, topY, width, height);
+          fireCol.strokeRect(leftX, topY, width, height);
+
+          this.cameras.main.shake(150, 0.015);
+
+          this.tweens.add({
+            targets: fireCol,
+            alpha: 0,
+            scaleY: 1.4,
+            y: topY - 40,
+            duration: 400,
+            onComplete: () => fireCol.destroy()
+          });
+
+          for (let j = 0; j < 6; j++) {
+            const spark = this.add.circle(bx + (Math.random() - 0.5) * width, by, Math.random() * 4 + 3, 0xfca5a5, 0.95).setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
+            this.tweens.add({
+              targets: spark,
+              x: spark.x + (Math.random() - 0.5) * 80,
+              y: by - height - Math.random() * 100,
+              scale: 0.1,
+              alpha: 0,
+              duration: 500 + Math.random() * 300,
+              onComplete: () => spark.destroy()
+            });
+          }
+        });
+      }
+
+      const giantAxe = this.add.graphics().setDepth(46).setPosition(bx, by - 100);
+      giantAxe.fillStyle(0xef4444, 0.9);
+      giantAxe.lineStyle(4, 0xfca5a5, 1);
+
+      giantAxe.beginPath();
+      giantAxe.moveTo(-20, -10);
+      giantAxe.lineTo(-40, -40);
+      giantAxe.lineTo(40, -40);
+      giantAxe.lineTo(20, -10);
+      giantAxe.lineTo(40, 20);
+      giantAxe.lineTo(-40, 20);
+      giantAxe.closePath();
+      giantAxe.fillPath();
+      giantAxe.strokePath();
+
+      this.tweens.add({
+        targets: giantAxe,
+        angle: 720,
+        y: by,
+        scale: { from: 2.2, to: 0.8 },
+        duration: 600,
+        ease: "bounce.out",
+        onComplete: () => {
+          giantAxe.destroy();
+          this.cameras.main.flash(300, 239, 68, 68);
+          this.cameras.main.shake(300, 0.025);
+
+          for (let i = 0; i < 20; i++) {
+            const a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 100;
+            const p = this.add.circle(bx, by, 5, 0xf97316, 0.9).setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
+            this.tweens.add({
+              targets: p,
+              x: bx + Math.cos(a) * d,
+              y: by + Math.sin(a) * d,
+              alpha: 0,
+              duration: 450,
+              onComplete: () => p.destroy()
+            });
+          }
+
+          this._spawnDamageBurst(damage, true, col);
+        }
+      });
+    } else {
+      // ── Mặc định nếu không khớp weaponTypeId ────────────────
+      this._spawnWeaponAttack(weaponTypeId, damage, true);
+    }
+  }
+
+
   _spawnRoarShockwave() {
     const bx = this.bossX, by = this.bossY;
     const ring = this.add.circle(bx, by, 60, 0xff3366, 0).setStrokeStyle(5, 0xff6b9d, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(12);
@@ -2034,7 +2364,12 @@ export default class MainScene extends Phaser.Scene {
           this.flashTxt.setText(`${by} typed "${word}"  ${dmgLabel}${stunBonus ? " ×2" : ""}${extra}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
           this.flashTxt.y = 260;
           this.tweens.add({ targets: this.flashTxt, y: 220, alpha: 0, duration: 850, ease: "cubic.out" });
-          this._spawnWeaponAttack(weaponTypeId || this.weaponTypeId, damage, Boolean(stunBonus));
+          if (ultimate) {
+            this._spawnWeaponUltimateAttack(weaponTypeId || this.weaponTypeId, damage);
+          } else {
+            this._spawnWeaponAttack(weaponTypeId || this.weaponTypeId, damage, Boolean(stunBonus));
+          }
+
           if (healed > 0) {
             const t = this.add.text(W / 2, 275, `+${healed} HP`, { fontFamily: FONT, fontSize: "21px", color: "#4ade80", fontStyle: "bold" }).setOrigin(0.5).setDepth(45);
             this.tweens.add({ targets: t, y: 235, alpha: 0, duration: 900, ease: "cubic.out", onComplete: () => t.destroy() });
