@@ -1,16 +1,42 @@
 import { useMemo, useState } from "react";
-import { BOSS_LIST, DIFFICULTY_LABELS } from "../game/bosses/bossConfigs";
-import { ATTACK_CATEGORIES, getAlmanacEntries } from "../data/bossAlmanac";
+import {
+  BOSS_LIST,
+  DIFFICULTY_LABELS,
+  DIFFICULTY_MAX_STARS,
+} from "../game/bosses/bossConfigs";
+import {
+  ATTACK_CATEGORIES,
+  TYPING_MECHANICS,
+  WEAPON_RAGE_GUIDE,
+  getAlmanacEntries,
+} from "../data/bossAlmanac";
 
-function Stars({ n }) {
-  const s = Math.max(1, Math.min(5, n || 1));
+function Stars({ n, max = DIFFICULTY_MAX_STARS }) {
+  const s = Math.max(1, Math.min(max, n || 1));
   return (
-    <span className="boss-diff" aria-label={`${s} of 5 stars`}>
+    <span className="boss-diff" aria-label={`${s} of ${max} stars`}>
       {"★".repeat(s)}
-      <span className="boss-diff__empty">{"☆".repeat(5 - s)}</span>
+      <span className="boss-diff__empty">{"☆".repeat(max - s)}</span>
     </span>
   );
 }
+
+function countAttacks(boss) {
+  return (boss.attacks?.length || 0) + (boss.phase2?.attacks?.length || 0);
+}
+
+function formatHp(boss) {
+  if (boss.twoForms) return `${boss.maxHP} HP (2 forms)`;
+  return `${boss.maxHP} HP`;
+}
+
+const FILTER_TIERS = [
+  { id: "all", label: "All" },
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => ({
+    id: String(d),
+    label: `${"★".repeat(d)} ${DIFFICULTY_LABELS[d]}`,
+  })),
+];
 
 function CategoryBadge({ category }) {
   const meta = ATTACK_CATEGORIES[category] || ATTACK_CATEGORIES.projectile;
@@ -82,6 +108,7 @@ export default function BossAlmanac({ onBack }) {
   }, [entries, filter]);
 
   const boss = entries.find((b) => b.id === selectedId) || entries[0];
+  const attackCount = countAttacks(boss);
 
   return (
     <section className="card card-wide almanac">
@@ -92,20 +119,13 @@ export default function BossAlmanac({ onBack }) {
         <div className="almanac__header-text">
           <h2 className="almanac__title">Boss Almanac</h2>
           <p className="almanac__sub">
-            Study every attack, telegraph, and dodge before you fight.
+            {entries.length} bosses · typing mechanics · weapon rage guide
           </p>
         </div>
       </header>
 
       <div className="almanac__filters" role="tablist" aria-label="Filter difficulty">
-        {[
-          { id: "all", label: "All bosses" },
-          { id: "1", label: "★ Beginner" },
-          { id: "2", label: "★★ Easy" },
-          { id: "3", label: "★★★ Med" },
-          { id: "4", label: "★★★★ Hard" },
-          { id: "5", label: "★★★★★" },
-        ].map((f) => (
+        {FILTER_TIERS.map((f) => (
           <button
             key={f.id}
             type="button"
@@ -147,7 +167,7 @@ export default function BossAlmanac({ onBack }) {
               <div className="almanac__detail-pills">
                 <Stars n={boss.difficulty} />
                 <span className="almanac-pill">{DIFFICULTY_LABELS[boss.difficulty]}</span>
-                <span className="almanac-pill">{boss.maxHP} HP</span>
+                <span className="almanac-pill">{formatHp(boss)}</span>
               </div>
             </div>
           </div>
@@ -155,7 +175,9 @@ export default function BossAlmanac({ onBack }) {
           <div className="almanac__tabs" role="tablist">
             {[
               { id: "overview", label: "Overview" },
-              { id: "attacks", label: `Attacks (${boss.attacks?.length || 0})` },
+              { id: "attacks", label: `Attacks (${attackCount})` },
+              { id: "mechanics", label: "Mechanics" },
+              { id: "rage", label: "Weapon Rage" },
               { id: "tips", label: "Tips" },
             ].map((t) => (
               <button
@@ -180,7 +202,7 @@ export default function BossAlmanac({ onBack }) {
                   <p>{boss.playstyle}</p>
                 </div>
                 <PhaseBlock title="Ultimate" data={boss.ultimate} />
-                <PhaseBlock title="Enrage (low HP)" data={boss.special} />
+                <PhaseBlock title="Special mechanic" data={boss.special} />
                 {boss.phase2 ? (
                   <section className="almanac-phase almanac-phase--special">
                     <h3 className="almanac-phase__title">Phase 2 — {boss.phase2.name}</h3>
@@ -198,7 +220,7 @@ export default function BossAlmanac({ onBack }) {
             {tab === "attacks" && (
               <div className="almanac-attacks">
                 <p className="almanac-attacks__intro">
-                  Each attack shows what it does, how you know it is coming (telegraph), and how to survive it.
+                  Attacks for {boss.name}. See the Mechanics tab for universal typing challenges.
                 </p>
                 <div className="almanac-legend">
                   {Object.entries(ATTACK_CATEGORIES).map(([key, meta]) => (
@@ -226,6 +248,55 @@ export default function BossAlmanac({ onBack }) {
                     </div>
                   </>
                 ) : null}
+              </div>
+            )}
+
+            {tab === "mechanics" && (
+              <div className="almanac-attacks">
+                <p className="almanac-attacks__intro">
+                  Universal typing mechanics (★6+ bosses use most of these).
+                </p>
+                <div className="almanac-legend">
+                  {Object.entries(ATTACK_CATEGORIES).map(([key, meta]) => (
+                    <span key={key} className="almanac-cat almanac-cat--small" style={{ "--cat-color": meta.color }}>
+                      {meta.icon} {meta.label}
+                    </span>
+                  ))}
+                </div>
+                <div className="almanac-attack-grid">
+                  {TYPING_MECHANICS.map((m) => (
+                    <AttackCard key={m.id} attack={m} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tab === "rage" && (
+              <div className="almanac-overview">
+                <p className="almanac-overview__text">{WEAPON_RAGE_GUIDE.overview}</p>
+                <div className="almanac-callout">
+                  <strong>Rules</strong>
+                  <ul className="almanac-tips" style={{ marginTop: "0.5rem" }}>
+                    {WEAPON_RAGE_GUIDE.rules.map((r, i) => (
+                      <li key={i} className="almanac-tip">{r}</li>
+                    ))}
+                  </ul>
+                </div>
+                <h4 className="almanac-phase__title">Class ultimates</h4>
+                <div className="almanac-attack-grid">
+                  {WEAPON_RAGE_GUIDE.weapons.map((w) => (
+                    <article key={w.id} className="almanac-attack">
+                      <header className="almanac-attack__head">
+                        <h4 className="almanac-attack__name">{w.name} — {w.ultimate}</h4>
+                      </header>
+                      <p className="almanac-attack__desc">
+                        <strong>Phrase:</strong>{" "}
+                        <code className="almanac-phrase">{w.phrase}</code>
+                      </p>
+                      <p className="almanac-attack__desc">{w.effect}</p>
+                    </article>
+                  ))}
+                </div>
               </div>
             )}
 
