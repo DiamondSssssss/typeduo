@@ -462,6 +462,7 @@ const processChallengeInput = (io, room, player, input) => {
 const tickTypingChallenges = (io, room, now) => {
   const g = room.game;
   if (!g) return;
+  const c = g._challenge;
 
   if (g._windupCancel?.expiresAt && now >= g._windupCancel.expiresAt) {
     fireOvercharge(io, room, g);

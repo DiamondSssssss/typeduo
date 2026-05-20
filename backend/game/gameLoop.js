@@ -175,7 +175,7 @@ const tick = (io, room) => {
     });
   }
   } catch (err) {
-    console.error(`[gameLoop] tick error room=${room?.code}:`, err.message);
+    console.error(`[gameLoop] tick error room=${room?.code}:`, err.stack || err.message);
   }
 };
 
