@@ -162,6 +162,8 @@ const tick = (io, room) => {
     room.players.forEach((p) => { p.wantsPlayAgain = false; });
     stopLoop(room.code);
     io.to(room.code).emit("game_over", {
+      roomCode:       room.code,
+      hostSocketId:   room.hostSocketId,
       winner:         g.bossHP <= 0 ? "players" : "boss",
       sharedHP:       g.sharedHP,
       bossHP:         g.bossHP,

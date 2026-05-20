@@ -203,6 +203,7 @@ function GameHUD({
   connectionNotice = "",
   playAgainVotes = null,
   playAgainPending = false,
+  isHost = false,
   onPlayAgain,
   onLeaveRoom,
 }) {
@@ -229,7 +230,7 @@ function GameHUD({
   const bossId = gamePayload?.bossId || "watcher";
   const gameMode = gamePayload?.gameMode || gameOver?.gameMode || "coop";
   const isSolo = gameMode === "solo";
-  const roomCode = gamePayload?.roomCode;
+  const roomCode = gamePayload?.roomCode || gameOver?.roomCode;
   const iVotedPlayAgain = playAgainPending;
   const waitingNames = (playAgainVotes?.voted || [])
     .filter((v) => v.connected && !v.wantsPlayAgain)
@@ -413,8 +414,19 @@ function GameHUD({
 
           {typeof onPlayAgain === "function" ? (
             <div className="game-over-actions">
-              <button type="button" className="btn btn-primary" onClick={onPlayAgain}>
-                {isSolo ? "Chơi lại" : iVotedPlayAgain ? "Đã sẵn sàng chơi lại" : "Chơi lại (cùng phòng)"}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={onPlayAgain}
+                disabled={playAgainPending && isSolo}
+              >
+                {isSolo
+                  ? (playAgainPending ? "Đang tải trận mới…" : "Chơi lại")
+                  : isHost
+                    ? "Chơi lại (về lobby)"
+                    : iVotedPlayAgain
+                      ? "Đã sẵn sàng — chờ đồng đội/host"
+                      : "Chơi lại (cùng phòng)"}
               </button>
               {typeof onLeaveRoom === "function" ? (
                 <button type="button" className="btn btn-ghost" onClick={onLeaveRoom}>
@@ -424,9 +436,15 @@ function GameHUD({
             </div>
           ) : null}
 
-          {!isSolo && iVotedPlayAgain && waitingNames.length > 0 ? (
+          {!isSolo && isHost ? (
             <p className="status-text game-over-waiting">
-              Đang chờ: <strong>{waitingNames.join(", ")}</strong>
+              Bạn là host — bấm <strong>Chơi lại</strong> để cả phòng về lobby (không cần chờ đồng đội).
+            </p>
+          ) : null}
+
+          {!isSolo && !isHost && iVotedPlayAgain && waitingNames.length > 0 ? (
+            <p className="status-text game-over-waiting">
+              Đang chờ: <strong>{waitingNames.join(", ")}</strong> (hoặc host bấm chơi lại)
             </p>
           ) : null}
 

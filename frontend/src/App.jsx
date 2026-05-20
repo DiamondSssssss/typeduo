@@ -88,6 +88,20 @@ function App() {
     });
   }, [currentUser, socketUrl]);
 
+  const goToRematchLobby = useCallback((room) => {
+    if (gameRef.current) {
+      gameRef.current.destroy(true);
+      gameRef.current = null;
+    }
+    clearActiveGame();
+    setPlayAgainVotes(null);
+    setPlayAgainPending(false);
+    setGamePayload(null);
+    setRoomState(room);
+    setAppView(room?.gameMode === "solo" ? "solo" : "coop");
+    setConnectionNotice("");
+  }, []);
+
   const tryResumeGame = useCallback(() => {
     if (!socket?.connected || !currentUser) return;
     const saved = readActiveGame();
@@ -164,9 +178,17 @@ function App() {
       clearActiveGame();
       setPlayAgainVotes(null);
       setPlayAgainPending(false);
-      setGamePayload((prev) => ({ ...(prev || {}), gameOver: payload }));
+      setGamePayload((prev) => ({
+        ...(prev || {}),
+        gameOver: payload,
+        roomCode: payload?.roomCode || prev?.roomCode,
+      }));
     };
     const onStartGame = (payload) => {
+      if (gameRef.current) {
+        gameRef.current.destroy(true);
+        gameRef.current = null;
+      }
       const username = currentUser?.username || currentUser?.email;
       if (payload?.roomCode && username) saveActiveGame(payload.roomCode, username);
       setPlayAgainVotes(null);
@@ -174,15 +196,7 @@ function App() {
       setGamePayload(payload);
       setConnectionNotice("");
     };
-    const onRematchLobby = (room) => {
-      clearActiveGame();
-      setPlayAgainVotes(null);
-      setPlayAgainPending(false);
-      setGamePayload(null);
-      setRoomState(room);
-      setAppView("coop");
-      setConnectionNotice("");
-    };
+    const onRematchLobby = (room) => goToRematchLobby(room);
     const onPlayAgainUpdate = (payload) => setPlayAgainVotes(payload);
 
     socket.on("connect", onConnect);
@@ -213,7 +227,7 @@ function App() {
       socket.off("play_again_update", onPlayAgainUpdate);
       socket.disconnect();
     };
-  }, [socket, currentUser, tryResumeGame]);
+  }, [socket, currentUser, tryResumeGame, goToRematchLobby]);
 
   useEffect(() => {
     if (!socket || !gamePayload || gameRef.current) return;
@@ -265,8 +279,17 @@ function App() {
   }, []);
 
   const handlePlayAgain = useCallback(() => {
-    const code = gamePayload?.roomCode || roomState?.code;
-    if (!socket?.connected || !code) return;
+    const code = gamePayload?.roomCode
+      || gamePayload?.gameOver?.roomCode
+      || roomState?.code;
+    if (!socket?.connected) {
+      setConnectionNotice("Chưa kết nối server — thử lại sau vài giây.");
+      return;
+    }
+    if (!code) {
+      setConnectionNotice("Không tìm thấy mã phòng — hãy rời phòng và tạo phòng mới.");
+      return;
+    }
     setPlayAgainPending(true);
     socket.emit("play_again", { code }, (res) => {
       if (!res?.ok) {
@@ -275,15 +298,19 @@ function App() {
         return;
       }
       if (res.rematchLobby && res.room) {
-        clearActiveGame();
+        goToRematchLobby(res.room);
+        return;
+      }
+      if (res.restarted) {
+        setPlayAgainPending(false);
         setPlayAgainVotes(null);
-        setGamePayload(null);
-        setRoomState(res.room);
-        setAppView("coop");
-        setConnectionNotice("");
+        return;
+      }
+      if (res.waitingFor?.length) {
+        setConnectionNotice(`Đang chờ: ${res.waitingFor.join(", ")}`);
       }
     });
-  }, [socket, gamePayload, roomState]);
+  }, [socket, gamePayload, roomState, goToRematchLobby]);
 
   const handleLeaveRoom = useCallback(() => {
     const code = roomState?.code || gamePayload?.roomCode;
@@ -351,6 +378,10 @@ function App() {
             connectionNotice={connectionNotice}
             playAgainVotes={playAgainVotes}
             playAgainPending={playAgainPending}
+            isHost={
+              roomState?.hostSocketId === socket?.id
+              || gamePayload?.gameOver?.hostSocketId === socket?.id
+            }
             onPlayAgain={handlePlayAgain}
             onLeaveRoom={handleLeaveRoom}
           />

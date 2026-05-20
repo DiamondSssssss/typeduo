@@ -268,19 +268,31 @@ const registerSocketHandlers = (io) => {
       }
 
       if (room.gameMode === "solo") {
-        prepareRematch(io, room);
-        startGameForRoom(io, room, cb);
+        stopLoop(room.code);
+        room.game = null;
+        room.players.forEach((p) => {
+          p.ready = false;
+          p.wordsTyped = 0;
+          p.damageDealt = 0;
+          p.wantsPlayAgain = false;
+        });
+        startGameForRoom(io, room, (res) => {
+          cb?.({ ...res, ok: true, restarted: true });
+        });
         return;
       }
 
+      const isHost = player.socketId === room.hostSocketId;
       player.wantsPlayAgain = true;
       const connected = room.players.filter((p) => p.socketId);
-      const allVoted = connected.length >= MAX_PLAYERS_PER_ROOM
+      const allConnectedVoted = connected.length > 0
         && connected.every((p) => p.wantsPlayAgain);
+      const bothPresentAndVoted = connected.length >= MAX_PLAYERS_PER_ROOM
+        && allConnectedVoted;
 
       emitPlayAgainUpdate(io, room);
 
-      if (allVoted) {
+      if (isHost || bothPresentAndVoted) {
         prepareRematch(io, room);
         cb?.({ ok: true, rematchLobby: true, room: toPublicRoomState(room) });
         return;
