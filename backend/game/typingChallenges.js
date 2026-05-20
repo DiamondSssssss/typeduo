@@ -245,99 +245,91 @@ const chipShieldFromChallenge = (g, amount) => {
   }
 };
 
-/** Typable minions — weapon word targets active minion until killed. */
-const spawnTypableMinions = (io, room, g, { count = 3, wordLen = [4, 6] }) => {
+const rollSpawnCount = (max = 2) => 1 + Math.floor(Math.random() * Math.min(max, 2));
+
+const hasActiveMinions = (g) => (g._typableMinions || []).some((m) => !m.killed);
+const hasActivePillars = (g) =>
+  (g._typablePillars || []).some((p) => !p.destroyed && !p.fired);
+
+/** Minions on field — each completed weapon word kills one (no separate minion words). */
+const spawnTypableMinions = (io, room, g, { count } = {}) => {
+  const n = Math.min(count ?? rollSpawnCount(2), 2);
   g._typableMinions = [];
   const char = g.character;
-  for (let i = 0; i < count; i++) {
-    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
-    const dist = 120 + Math.random() * 80;
+  for (let i = 0; i < n; i++) {
+    const angle = (i / Math.max(1, n)) * Math.PI * 2 + Math.random() * 0.4;
+    const dist = 100 + Math.random() * 70;
     g._typableMinions.push({
       id: `m_${Date.now()}_${i}`,
       x: Math.max(80, Math.min(1200, char.x + Math.cos(angle) * dist)),
       y: Math.max(120, Math.min(650, char.y + Math.sin(angle) * dist * 0.5)),
-      word: pickChallengeWord(wordLen[0], wordLen[1]),
-      hp: 1,
     });
   }
-  g._activeMinionId = g._typableMinions[0]?.id || null;
-  syncMinionWord(io, room, g);
   io.to(room.code).emit("typable_minions_spawn", {
-    minions: g._typableMinions.map(({ id, x, y, word }) => ({ id, x, y, word })),
+    minions: g._typableMinions.map(({ id, x, y }) => ({ id, x, y })),
+    count: n,
   });
 };
 
-const syncMinionWord = (io, room, g) => {
-  const m = g._typableMinions?.find((x) => x.id === g._activeMinionId);
-  if (!m) {
-    g._activeMinionId = null;
-    if (g._challenge?.kind === "minion") clearChallenge(io, room, g, "cleared");
-    else restoreWeaponWord(g);
-    return;
+/** Kill one minion when player completes their weapon word. Returns true if a minion was killed. */
+const tryKillMinionOnWord = (io, room, g) => {
+  const alive = (g._typableMinions || []).filter((m) => !m.killed);
+  if (!alive.length) return false;
+
+  let target = alive[0];
+  let bestDist = Infinity;
+  for (const m of alive) {
+    const dx = g.character.x - m.x;
+    const dy = g.character.y - m.y;
+    const d = dx * dx + dy * dy;
+    if (d < bestDist) {
+      bestDist = d;
+      target = m;
+    }
   }
-  saveWeaponWord(g);
-  g._challenge = { kind: "minion", minionId: m.id, word: m.word, progress: 0 };
-  g.currentWord = m.word;
-  g.typedProgress = 0;
-  g.currentWordPhase = "minion";
-  emitChallenge(io, room, {
-    active: true,
-    kind: "minion",
-    word: m.word,
-    progress: 0,
-    minionId: m.id,
-  });
-};
-
-const killActiveMinion = (io, room, g) => {
-  const id = g._activeMinionId;
-  if (!id) return false;
-  g._typableMinions = (g._typableMinions || []).filter((m) => m.id !== id);
-  io.to(room.code).emit("typable_minion_killed", { id });
-  g._activeMinionId = g._typableMinions[0]?.id || null;
-  if (g._activeMinionId) syncMinionWord(io, room, g);
-  else {
-    g._challenge = null;
-    restoreWeaponWord(g);
-    emitChallenge(io, room, { active: false, reason: "minions_cleared" });
+  target.killed = true;
+  g._typableMinions = g._typableMinions.filter((m) => !m.killed);
+  io.to(room.code).emit("typable_minion_killed", { id: target.id, x: target.x, y: target.y });
+  if (!g._typableMinions.length) {
+    io.to(room.code).emit("typable_minions_cleared");
   }
   return true;
 };
 
-/** Pillars that must be typed before they fire. */
-const spawnTypablePillars = (io, room, g, { count = 2, warnMs = 4500 }) => {
+/** Pillars on field — each completed weapon word destroys one (no separate pillar words). */
+const spawnTypablePillars = (io, room, g, { count, warnMs = 5500 } = {}) => {
   const now = Date.now();
+  const n = Math.min(count ?? rollSpawnCount(2), 2);
   g._typablePillars = [];
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < n; i++) {
     g._typablePillars.push({
       id: `p_${now}_${i}`,
-      x: 180 + Math.random() * 920,
-      word: pickChallengeWord(4, 7),
-      progress: 0,
+      x: 160 + Math.random() * 920,
       warnUntil: now + warnMs,
       fired: false,
+      destroyed: false,
     });
   }
-  const active = g._typablePillars[0];
-  if (active) {
-    setChallengeWord(io, room, g, "pillar", active.word, { pillarId: active.id });
-  }
   io.to(room.code).emit("typable_pillars_spawn", {
-    pillars: g._typablePillars.map(({ id, x, word, warnUntil }) => ({
-      id, x, word, warnMs: warnUntil - now,
+    pillars: g._typablePillars.map(({ id, x, warnUntil }) => ({
+      id,
+      x,
+      warnMs: warnUntil - now,
     })),
+    count: n,
   });
 };
 
-const destroyPillar = (io, room, g, pillarId) => {
-  const p = g._typablePillars?.find((x) => x.id === pillarId);
+/** Destroy one pillar when player completes their weapon word. */
+const tryDestroyPillarOnWord = (io, room, g) => {
+  const p = (g._typablePillars || []).find((x) => !x.destroyed && !x.fired);
   if (!p) return false;
   p.destroyed = true;
-  io.to(room.code).emit("typable_pillar_destroyed", { id: pillarId, x: p.x });
+  io.to(room.code).emit("typable_pillar_destroyed", { id: p.id, x: p.x });
   g._typablePillars = g._typablePillars.filter((x) => !x.destroyed);
-  const next = g._typablePillars[0];
-  if (next) setChallengeWord(io, room, g, "pillar", next.word, { pillarId: next.id });
-  else clearChallenge(io, room, g, "pillars_cleared");
+  if (!g._typablePillars.length) {
+    io.to(room.code).emit("typable_pillars_cleared");
+  }
   return true;
 };
 
@@ -462,12 +454,6 @@ const processChallengeInput = (io, room, player, input) => {
       clearChallenge(io, room, g, "shield_broken");
       io.to(room.code).emit("shield_word_broken");
       break;
-    case "minion":
-      killActiveMinion(io, room, g);
-      break;
-    case "pillar":
-      destroyPillar(io, room, g, c.pillarId);
-      break;
     case "player_stun":
       clearPlayerStun(io, room, g);
       break;
@@ -534,8 +520,11 @@ module.exports = {
   fireMapBlast,
   startShieldWord,
   spawnTypableMinions,
-  killActiveMinion,
+  tryKillMinionOnWord,
+  hasActiveMinions,
   spawnTypablePillars,
+  tryDestroyPillarOnWord,
+  hasActivePillars,
   startPlayerStun,
   applyTypoBossEffect,
   trackTypoBomb,

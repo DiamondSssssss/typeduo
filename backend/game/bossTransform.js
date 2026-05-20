@@ -42,6 +42,7 @@ const tryBossTransform = (io, room, baseConfig) => {
   g._savedWeaponWord = null;
   g._typableMinions = [];
   g._typablePillars = [];
+  g._activeMinionId = null;
   g._playerStun = null;
   g._shieldWordMode = false;
   g.moveSpeedMult = 1;

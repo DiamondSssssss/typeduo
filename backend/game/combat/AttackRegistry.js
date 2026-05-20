@@ -39,10 +39,10 @@ registerAttack(new ProjectileVolleyAttack("phantom_volley", { projType: "dark_pu
 registerAttack(new ProjectileVolleyAttack("frost_bolt", { projType: "ice_shard", shotCount: 4 }));
 
 registerAttack(new OverchargeAttack("overcharge_blast", { blastDamage: 40, weight: 12 }));
-registerAttack(new TypableMinionAttack("summon_typable_minions", { minionCount: 4, weight: 14 }));
+registerAttack(new TypableMinionAttack("summon_typable_minions", { minionCount: 2, weight: 14 }));
 registerAttack(new ShieldWordAttack("shield_word", { shieldAmount: 60, weight: 13 }));
 registerAttack(new ParalyzeTyperAttack("paralyze_typer", { weight: 11 }));
-registerAttack(new TypablePillarAttack("ruin_pillars", { pillarCount: 2, weight: 13 }));
+registerAttack(new TypablePillarAttack("ruin_pillars", { pillarCount: 2, warnMs: 6000, weight: 13 }));
 registerAttack(new LaserBeamAttack("laser_beam", { weight: 15 }));
 registerAttack(new MirrorWordAttack("mirror_word", { weight: 12 }));
 registerAttack(new ChainCancelAttack("chain_cancel", { weight: 14, chainLength: 3 }));

@@ -6,6 +6,12 @@ const {
   computeWordDamage,
 } = require("./words");
 const { applyBossWordDamage } = require("./bossDamage");
+const {
+  hasActiveMinions,
+  hasActivePillars,
+  tryKillMinionOnWord,
+  tryDestroyPillarOnWord,
+} = require("./typingChallenges");
 
 /** Assign a new word for the held weapon (or default pool if none held). */
 const refreshWeaponWord = (g) => {
@@ -92,12 +98,25 @@ const completeWord = (room, player, io = null) => {
   const prevHP = g.bossHP;
   const prevShield = g.bossShield || 0;
 
-  const shieldWordOnly = Boolean(g._shieldWordMode && (g.bossShield || 0) > 0);
-  if (!shieldWordOnly) {
-    applyBossWordDamage(g, damage);
+  let minionKilled = false;
+  let pillarDestroyed = false;
+  let bossDamage = 0;
+
+  // Minions/pillars: use your normal weapon word to clear them (no separate challenge words).
+  if (io && hasActiveMinions(g)) {
+    minionKilled = tryKillMinionOnWord(io, room, g);
+  } else if (io && hasActivePillars(g)) {
+    pillarDestroyed = tryDestroyPillarOnWord(io, room, g);
+  } else {
+    const shieldWordOnly = Boolean(g._shieldWordMode && (g.bossShield || 0) > 0);
+    if (!shieldWordOnly) {
+      applyBossWordDamage(g, damage);
+      bossDamage = damage;
+    }
   }
+
   player.wordsTyped++;
-  player.damageDealt += damage;
+  player.damageDealt += bossDamage;
   g.totalWordsTyped++;
 
   let healed = 0;
@@ -122,7 +141,9 @@ const completeWord = (room, player, io = null) => {
     by: player.username,
     word: completedWord,
     weaponTypeId: weapon.id,
-    damage,
+    damage: bossDamage,
+    minionKilled,
+    pillarDestroyed,
     baseDamage: Math.round(computeWordDamage(completedWord) * (weapon.damageMult || 1)),
     appliedMult: Math.round(stunMult * streakMult * 10) / 10,
     stunBonus: stunMult > 1,

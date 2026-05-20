@@ -1584,19 +1584,20 @@ export default class MainScene extends Phaser.Scene {
       },
 
       typable_minions_spawn: ({ minions }) => {
-        this._clearMinionSprites?.();
+        (this._minionSprites || []).forEach((s) => { s.c?.destroy(); s.t?.destroy(); });
         this._minionSprites = [];
         (minions || []).forEach((m) => {
-          const c = this.add.circle(m.x, m.y, 14, 0x84cc16, 0.85)
+          const c = this.add.circle(m.x, m.y, 16, 0x84cc16, 0.9)
             .setStrokeStyle(2, 0xd9f99d).setDepth(14);
-          const t = this.add.text(m.x, m.y - 22, m.word, {
-            fontFamily: FONT, fontSize: "12px", color: "#ecfccb",
+          const t = this.add.text(m.x, m.y - 24, "!", {
+            fontFamily: FONT, fontSize: "18px", color: "#ecfccb", fontStyle: "bold",
           }).setOrigin(0.5).setDepth(15);
+          this.tweens.add({ targets: c, scale: 1.15, yoyo: true, repeat: -1, duration: 500 });
           this._minionSprites.push({ c, t, id: m.id });
         });
-        this._showFloatingText("KILL MINIONS!", "#a3e635", 22);
+        this._showFloatingText("TYPE YOUR WORD!", "#a3e635", 22);
       },
-      typable_minion_killed: ({ id }) => {
+      typable_minion_killed: ({ id, x, y }) => {
         const idx = this._minionSprites?.findIndex((s) => s.id === id);
         if (idx >= 0) {
           const s = this._minionSprites[idx];
@@ -1604,11 +1605,23 @@ export default class MainScene extends Phaser.Scene {
           s.t?.destroy();
           this._minionSprites.splice(idx, 1);
         }
+        if (x != null && y != null) {
+          const pop = this.add.circle(x, y, 10, 0xa3e635, 0.8).setDepth(16);
+          this.tweens.add({ targets: pop, scale: 2.5, alpha: 0, duration: 350, onComplete: () => pop.destroy() });
+        }
+      },
+      typable_minions_cleared: () => {
+        (this._minionSprites || []).forEach((s) => { s.c?.destroy(); s.t?.destroy(); });
+        this._minionSprites = [];
+        this._showFloatingText("MINIONS CLEARED", "#4ade80", 20);
       },
 
       typable_pillars_spawn: ({ pillars }) => {
         (pillars || []).forEach((p) => this._showColumnWarning({ x: p.x, width: 70, color: 0xc084fc, durationMs: p.warnMs || 4000 }));
-        this._showFloatingText("BREAK PILLARS!", "#c084fc", 20);
+        this._showFloatingText("TYPE TO BREAK PILLARS!", "#c084fc", 20);
+      },
+      typable_pillars_cleared: () => {
+        this._showFloatingText("PILLARS CLEARED", "#4ade80", 20);
       },
       typable_pillar_destroyed: ({ x }) => {
         this._showFloatingText("PILLAR DOWN", "#4ade80", 18);
@@ -1725,7 +1738,7 @@ export default class MainScene extends Phaser.Scene {
         if (message) this._showFloatingText(message, "#22d3ee", 22);
       },
 
-      word_completed: ({ by, word, damage, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName, weaponRage }) => {
+      word_completed: ({ by, word, damage, minionKilled, pillarDestroyed, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName, weaponRage }) => {
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         if (weaponStreak != null) this.weaponStreak = weaponStreak;
         if (weaponRage != null) this.weaponRage = weaponRage;
@@ -1735,9 +1748,13 @@ export default class MainScene extends Phaser.Scene {
           this.cameras.main.flash(300, 255, 200, 80, false);
           this.cameras.main.shake(280, 0.015);
         }
+        if (minionKilled) this._showFloatingText("MINION DOWN!", "#a3e635", 20);
+        if (pillarDestroyed) this._showFloatingText("PILLAR DOWN!", "#c084fc", 20);
         this._applyWeaponTypingStyle();
         if (by && word) {
-          this.flashTxt.setText(`${by} typed "${word}"  −${damage}${stunBonus ? " ×2" : ""}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
+          const extra = minionKilled ? " → minion" : pillarDestroyed ? " → pillar" : "";
+          const dmgLabel = damage > 0 ? `−${damage}` : minionKilled || pillarDestroyed ? "✓" : "−0";
+          this.flashTxt.setText(`${by} typed "${word}"  ${dmgLabel}${stunBonus ? " ×2" : ""}${extra}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
           this.flashTxt.y = 260;
           this.tweens.add({ targets: this.flashTxt, y: 220, alpha: 0, duration: 850, ease: "cubic.out" });
           this._spawnWeaponAttack(weaponTypeId || this.weaponTypeId, damage, Boolean(stunBonus));

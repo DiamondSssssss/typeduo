@@ -12,7 +12,7 @@ class TypablePillarAttack extends BaseAttack {
       ...opts,
     });
     this.pillarCount = opts.pillarCount ?? 2;
-    this.warnMs = opts.warnMs ?? 5000;
+    this.warnMs = opts.warnMs ?? 6000;
   }
 
   onStart(ctx) {
@@ -24,10 +24,7 @@ class TypablePillarAttack extends BaseAttack {
     if (elapsed < this.windUpMs) return "windup";
     if (!ctx.combat.data.spawned) {
       ctx.combat.data.spawned = true;
-      spawnTypablePillars(ctx.io, ctx.room, ctx.game, {
-        count: this.pillarCount,
-        warnMs: this.warnMs,
-      });
+      spawnTypablePillars(ctx.io, ctx.room, ctx.game, { warnMs: this.warnMs });
     }
     return "done";
   }

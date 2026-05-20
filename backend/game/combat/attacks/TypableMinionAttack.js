@@ -11,7 +11,7 @@ class TypableMinionAttack extends BaseAttack {
       weight: opts.weight ?? 16,
       ...opts,
     });
-    this.minionCount = opts.minionCount ?? 4;
+    this.minionCount = opts.minionCount ?? 2;
   }
 
   onStart(ctx) {
@@ -24,7 +24,7 @@ class TypableMinionAttack extends BaseAttack {
     if (elapsed < this.windUpMs) return "windup";
     if (!ctx.combat.data.spawned) {
       ctx.combat.data.spawned = true;
-      spawnTypableMinions(ctx.io, ctx.room, ctx.game, { count: this.minionCount });
+      spawnTypableMinions(ctx.io, ctx.room, ctx.game);
     }
     if (elapsed < this.windUpMs + this.durationMs) return "active";
     return "done";
