@@ -12,6 +12,7 @@ const { moveBoss, tickBossAttacks, steerHomingProjectiles, maybeFireSpecial } = 
 const { emitGameState, toPublicRoomState } = require("./gameState");
 const { DEFAULT_WEAPON_ID } = require("./weapons");
 const { refreshWeaponWord, tickWordExpiry } = require("./weaponCombat");
+const { tickTypingChallenges } = require("./typingChallenges");
 const { resolveBossConfig, tryBossTransform } = require("./bossTransform");
 const { getBoss } = require("./bosses");
 
@@ -80,6 +81,7 @@ const tick = (io, room) => {
   g.lastTickAt = now;
 
   advanceBossLifecycle(io, room, bossConfig, now);
+  tickTypingChallenges(io, room, now);
 
   const phase = getPhase(g.bossHP, g.bossMaxHP);
   maybeInitBossShield(g, bossConfig, phase);

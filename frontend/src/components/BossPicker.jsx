@@ -42,7 +42,7 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
 
   const filters = [
     { id: "all", label: "All" },
-    ...[1, 2, 3, 4, 5, 6].map((d) => ({
+    ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => ({
       id: String(d),
       label: `${"★".repeat(d)} ${DIFFICULTY_LABELS[d]}`,
     })),

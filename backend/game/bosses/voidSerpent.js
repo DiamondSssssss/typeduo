@@ -23,6 +23,8 @@ module.exports = {
       { id: "shadow_runes",   weight: 16 },
       { id: "void_orb",       weight: 14, minRange: 80 },
       { id: "phantom_volley", weight: 10, minRange: 100 },
+      { id: "overcharge_blast", weight: 10 },
+      { id: "summon_typable_minions", weight: 8 },
     ],
     ultimate: { id: "serpent_ultimate", triggerHpPct: 0.5, name: "Abyss Maw" },
   },

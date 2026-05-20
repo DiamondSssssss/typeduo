@@ -75,8 +75,13 @@ const tickWordExpiry = (io, room, now) => {
  * Complete the current word — damage, heal, streak, next word.
  * @returns {object} payload for word_completed event
  */
-const completeWord = (room, player) => {
+const completeWord = (room, player, io = null) => {
   const g = room.game;
+
+  if (isUltimateMode(g) && io) {
+    return executeUltimate(io, room, player, g);
+  }
+
   const weapon = getWeapon(g.weapon?.typeId);
   const completedWord = g.currentWord;
   const stunMult =
@@ -86,7 +91,11 @@ const completeWord = (room, player) => {
 
   const prevHP = g.bossHP;
   const prevShield = g.bossShield || 0;
-  applyBossWordDamage(g, damage);
+
+  const shieldWordOnly = Boolean(g._shieldWordMode && (g.bossShield || 0) > 0);
+  if (!shieldWordOnly) {
+    applyBossWordDamage(g, damage);
+  }
   player.wordsTyped++;
   player.damageDealt += damage;
   g.totalWordsTyped++;
@@ -99,6 +108,11 @@ const completeWord = (room, player) => {
 
   if (weapon.streakDamage) {
     g.weaponStreak = (g.weaponStreak || 0) + 1;
+  }
+
+  if (io) {
+    addRage(g, weapon.id);
+    tryOfferUltimate(io, room, g);
   }
 
   refreshWeaponWord(g);
@@ -120,11 +134,20 @@ const completeWord = (room, player) => {
     healed,
     wordsTyped: player.wordsTyped,
     prevHP,
+    weaponRage: g.weaponRage || 0,
+    rageMax: RAGE_MAX,
   };
 };
 
+const { loseRageOnTypo, isUltimateMode, executeUltimate, addRage, tryOfferUltimate, RAGE_MAX } = require("./weaponRage");
+
 const handleTypo = (g) => {
   resetWeaponStreak(g);
+  loseRageOnTypo(g);
+  if (g._ultimateMode) {
+    g._ultimateMode = false;
+    g._savedWeaponWord = null;
+  }
 };
 
 module.exports = {

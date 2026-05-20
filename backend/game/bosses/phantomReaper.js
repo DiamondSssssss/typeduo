@@ -21,6 +21,7 @@ module.exports = {
       { id: "boss_teleport",  weight: 14 },
       { id: "shadow_runes",   weight: 18 },
       { id: "phantom_volley", weight: 12, minRange: 90 },
+      { id: "ruin_pillars",   weight: 8 },
     ],
     ultimate: { id: "reaper_ultimate", triggerHpPct: 0.5, name: "Harvest Moon" },
   },

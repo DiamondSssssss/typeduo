@@ -1484,6 +1484,8 @@ export default class MainScene extends Phaser.Scene {
         this._updateBossStateText();
         this.weaponTypeId = state.weaponTypeId || this.weaponTypeId;
         this.weaponStreak = state.weaponStreak || 0;
+        this.weaponRage = state.weaponRage ?? this.weaponRage ?? 0;
+        this.ultimateMode = state.ultimateMode ?? false;
         this.wordExpiresAt = state.wordExpiresAt || 0;
         this.streakText?.setVisible(this.weaponStreak >= 2 && getWeapon(this.weaponTypeId).streakDamage);
         if (this.streakText?.visible) this.streakText.setText(`CHUỖI ×${this.weaponStreak}`);
@@ -1540,6 +1542,166 @@ export default class MainScene extends Phaser.Scene {
 
       typo:           ({ socketId }) => { if (socketId === this.localSocketId) this._shakeWord(); },
 
+      typo_feed: ({ heal, enraged }) => {
+        if (heal > 0) {
+          this._showFloatingText(enraged ? `LEECH +${heal}` : `FEED +${heal}`, enraged ? "#ef4444" : "#84cc16", 24);
+          this.tweens.add({ targets: this.bossHpFill, alpha: { from: 0.3, to: 1 }, duration: 200 });
+        }
+      },
+
+      typing_challenge: ({ active, kind, word, progress }) => {
+        this.challengeKind = active ? kind : null;
+        if (active && word) {
+          this.expectedWord = word;
+          this.localTypedProgress = progress || 0;
+          this._renderWord(word, this.localTypedProgress);
+          const colors = {
+            windup_cancel: "#fbbf24",
+            shield_break: "#38bdf8",
+            minion: "#a3e635",
+            pillar: "#c084fc",
+            player_stun: "#f472b6",
+          };
+          const col = colors[kind] || "#fbbf24";
+          this.typedTxt.setColor("#fff7ed");
+          this.typedTxt.setStroke("#1e1b4b", 2);
+          this.typedTxt.setShadow(0, 0, col, 16, false, true);
+          this._showAttackWarning(kind === "windup_cancel" ? "CANCEL!" : kind?.toUpperCase() || "TYPE");
+        }
+      },
+
+      overcharge_start: () => {
+        this.cameras.main.flash(200, 255, 80, 80, false);
+        this._showFloatingText("OVERCHARGE — TYPE!", "#fbbf24", 26);
+      },
+      overcharge_cancelled: () => {
+        this._showFloatingText("CANCELLED!", "#4ade80", 30);
+        this.cameras.main.flash(150, 80, 255, 120, false);
+      },
+      overcharge_hit: ({ damage }) => {
+        this._showFloatingText(`HIT -${damage}`, "#ef4444", 34);
+        this.cameras.main.shake(400, 0.02);
+      },
+
+      typable_minions_spawn: ({ minions }) => {
+        this._clearMinionSprites?.();
+        this._minionSprites = [];
+        (minions || []).forEach((m) => {
+          const c = this.add.circle(m.x, m.y, 14, 0x84cc16, 0.85)
+            .setStrokeStyle(2, 0xd9f99d).setDepth(14);
+          const t = this.add.text(m.x, m.y - 22, m.word, {
+            fontFamily: FONT, fontSize: "12px", color: "#ecfccb",
+          }).setOrigin(0.5).setDepth(15);
+          this._minionSprites.push({ c, t, id: m.id });
+        });
+        this._showFloatingText("KILL MINIONS!", "#a3e635", 22);
+      },
+      typable_minion_killed: ({ id }) => {
+        const idx = this._minionSprites?.findIndex((s) => s.id === id);
+        if (idx >= 0) {
+          const s = this._minionSprites[idx];
+          s.c?.destroy();
+          s.t?.destroy();
+          this._minionSprites.splice(idx, 1);
+        }
+      },
+
+      typable_pillars_spawn: ({ pillars }) => {
+        (pillars || []).forEach((p) => this._showColumnWarning({ x: p.x, width: 70, color: 0xc084fc, durationMs: p.warnMs || 4000 }));
+        this._showFloatingText("BREAK PILLARS!", "#c084fc", 20);
+      },
+      typable_pillar_destroyed: ({ x }) => {
+        this._showFloatingText("PILLAR DOWN", "#4ade80", 18);
+        if (x != null) {
+          const ring = this.add.circle(x, 400, 30, 0xc084fc, 0)
+            .setStrokeStyle(3, 0xc084fc, 1).setDepth(16);
+          this.tweens.add({ targets: ring, scale: 2, alpha: 0, duration: 400, onComplete: () => ring.destroy() });
+        }
+      },
+      typable_pillar_fire: ({ x }) => {
+        this._showColumnFire({ x, width: 70, color: 0xff4444, durationMs: 500 });
+      },
+
+      shield_word_start: () => this._showFloatingText("BREAK SHIELD!", "#38bdf8", 24),
+      shield_word_broken: () => {
+        this._showFloatingText("SHIELD DOWN!", "#4ade80", 28);
+        this.cameras.main.flash(200, 56, 189, 248, false);
+      },
+
+      player_stun_start: () => {
+        this._showFloatingText("PARALYZED — TYPE!", "#f472b6", 26);
+        this.cameras.main.flash(180, 180, 80, 200, false);
+      },
+      player_stun_cleared: () => this._showFloatingText("FREE!", "#4ade80", 24),
+
+      laser_beam_start: ({ x, width, warnMs, color }) => {
+        this._showColumnWarning({ x, width: width || 72, color: color || 0xff2244, durationMs: warnMs || 1100 });
+        this._laserX = x;
+        this._laserW = width;
+      },
+      laser_beam_fire: ({ x, width, color }) => {
+        this._laserGfx?.destroy();
+        this._laserGfx = this.add.rectangle(x, 300, width || 72, 520, color || 0xff2244, 0.35)
+          .setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
+      },
+      laser_beam_end: () => {
+        this._laserGfx?.destroy();
+        this._laserGfx = null;
+      },
+
+      mirror_word_start: ({ source, reversed }) => {
+        this._showFloatingText(`MIRROR: ${source} →`, "#c084fc", 20);
+        this.expectedWord = reversed;
+        this.localTypedProgress = 0;
+        this._renderWord(reversed, 0);
+      },
+      mirror_word_cleared: () => this._showFloatingText("MIRROR CLEAR", "#4ade80", 22),
+
+      chain_cancel_start: () => this._showFloatingText("CHAIN CANCEL!", "#fbbf24", 24),
+      chain_cancel_step: ({ word, chainIndex }) => {
+        this._showFloatingText(`CHAIN ${chainIndex + 1}: ${word}`, "#fbbf24", 18);
+      },
+
+      safe_zone_start: ({ x, y, radius, word }) => {
+        this._safeZoneGfx?.destroy();
+        this._safeZoneGfx = this.add.circle(x, y, radius, 0x22d3ee, 0.2)
+          .setStrokeStyle(3, 0x4ef0d4, 0.9).setDepth(7);
+        this._showFloatingText(`SAFE ZONE — ${word}`, "#4ef0d4", 20);
+      },
+      safe_zone_shield: ({ x, y, radius }) => {
+        this._safeZoneGfx?.destroy();
+        this._safeZoneGfx = this.add.circle(x, y, radius, 0x4ef0d4, 0.35)
+          .setStrokeStyle(4, 0xffffff, 1).setDepth(7);
+        this._showFloatingText("SHIELD UP!", "#4ade80", 26);
+      },
+      map_blast: ({ damage, safe }) => {
+        if (!safe) {
+          this.cameras.main.shake(500, 0.025);
+          this.cameras.main.flash(400, 255, 60, 60, false);
+          this._showFloatingText(`MAP BLAST -${damage}`, "#ef4444", 32);
+        } else {
+          this._showFloatingText("SAFE!", "#4ade80", 28);
+        }
+        this._safeZoneGfx?.destroy();
+        this._safeZoneGfx = null;
+      },
+
+      typo_bomb: ({ damage }) => {
+        this.cameras.main.shake(350, 0.018);
+        this._showFloatingText(`TYPO BOMB -${damage}`, "#84cc16", 30);
+      },
+
+      weapon_ultimate_ready: ({ name, phrase }) => {
+        this.ultimateMode = true;
+        this._showFloatingText(`${name} READY!`, "#fbbf24", 28);
+        this.expectedWord = phrase;
+        this.localTypedProgress = 0;
+        this._renderWord(phrase, 0);
+        this.typedTxt.setColor("#fef3c7");
+        this.typedTxt.setStroke("#78350f", 2);
+        this.typedTxt.setShadow(0, 0, "#fbbf24", 20, false, true);
+      },
+
       typo_backlash: ({ socketId, damage }) => {
         if (socketId === this.localSocketId) {
           this._shakeWord();
@@ -1563,9 +1725,16 @@ export default class MainScene extends Phaser.Scene {
         if (message) this._showFloatingText(message, "#22d3ee", 22);
       },
 
-      word_completed: ({ by, word, damage, stunBonus, healed, weaponTypeId, weaponStreak }) => {
+      word_completed: ({ by, word, damage, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName, weaponRage }) => {
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         if (weaponStreak != null) this.weaponStreak = weaponStreak;
+        if (weaponRage != null) this.weaponRage = weaponRage;
+        if (ultimate) {
+          this.ultimateMode = false;
+          this._showFloatingText(`${ultimateName || "ULTIMATE"}! −${damage}`, "#fbbf24", 36);
+          this.cameras.main.flash(300, 255, 200, 80, false);
+          this.cameras.main.shake(280, 0.015);
+        }
         this._applyWeaponTypingStyle();
         if (by && word) {
           this.flashTxt.setText(`${by} typed "${word}"  −${damage}${stunBonus ? " ×2" : ""}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);

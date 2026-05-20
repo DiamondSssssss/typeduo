@@ -13,6 +13,15 @@ const { GroundHazardAttack }   = require("./attacks/GroundHazardAttack");
 const { UltimateComboAttack }  = require("./attacks/UltimateComboAttack");
 const { PatternBridgeAttack }  = require("./attacks/PatternBridgeAttack");
 const { ProjectileVolleyAttack } = require("./attacks/ProjectileVolleyAttack");
+const { OverchargeAttack }       = require("./attacks/OverchargeAttack");
+const { TypableMinionAttack }    = require("./attacks/TypableMinionAttack");
+const { ShieldWordAttack }       = require("./attacks/ShieldWordAttack");
+const { ParalyzeTyperAttack }    = require("./attacks/ParalyzeTyperAttack");
+const { TypablePillarAttack }    = require("./attacks/TypablePillarAttack");
+const { LaserBeamAttack }        = require("./attacks/LaserBeamAttack");
+const { MirrorWordAttack }       = require("./attacks/MirrorWordAttack");
+const { ChainCancelAttack }      = require("./attacks/ChainCancelAttack");
+const { SafeZoneAttack }         = require("./attacks/SafeZoneAttack");
 
 const _attacks = new Map();
 
@@ -28,6 +37,16 @@ registerAttack(new GroundHazardAttack("shadow_runes", { color: 0x7c3aed, hazardT
 registerAttack(new GroundHazardAttack("ember_pools", { color: 0xff6600, hazardType: "fire", tickDamage: 6 }));
 registerAttack(new ProjectileVolleyAttack("phantom_volley", { projType: "dark_pulse" }));
 registerAttack(new ProjectileVolleyAttack("frost_bolt", { projType: "ice_shard", shotCount: 4 }));
+
+registerAttack(new OverchargeAttack("overcharge_blast", { blastDamage: 40, weight: 12 }));
+registerAttack(new TypableMinionAttack("summon_typable_minions", { minionCount: 4, weight: 14 }));
+registerAttack(new ShieldWordAttack("shield_word", { shieldAmount: 60, weight: 13 }));
+registerAttack(new ParalyzeTyperAttack("paralyze_typer", { weight: 11 }));
+registerAttack(new TypablePillarAttack("ruin_pillars", { pillarCount: 2, weight: 13 }));
+registerAttack(new LaserBeamAttack("laser_beam", { weight: 15 }));
+registerAttack(new MirrorWordAttack("mirror_word", { weight: 12 }));
+registerAttack(new ChainCancelAttack("chain_cancel", { weight: 14, chainLength: 3 }));
+registerAttack(new SafeZoneAttack("safe_zone", { weight: 13, mapDamage: 50 }));
 
 // ── Ultimates (one per boss theme; triggered by AttackManager at HP%) ─────────
 registerAttack(new UltimateComboAttack("reaper_ultimate", {
@@ -50,6 +69,18 @@ registerAttack(new UltimateComboAttack("entity_ultimate", {
 }));
 registerAttack(new UltimateComboAttack("leech_ultimate", {
   name: "Hemorrhage Pulse", windUpMs: 2600, color: 0x84cc16, blastDamage: 26,
+}));
+registerAttack(new UltimateComboAttack("warden_ultimate", {
+  name: "Abyss Collapse", windUpMs: 3000, color: 0x0ea5e9, blastDamage: 32, minionCount: 8,
+}));
+registerAttack(new UltimateComboAttack("cataclysm_ultimate", {
+  name: "Worldbreaker", windUpMs: 3200, color: 0xf97316, blastRadius: 200, blastDamage: 38, minionCount: 10,
+}));
+registerAttack(new UltimateComboAttack("oblivion_ultimate", {
+  name: "Oblivion Fall", windUpMs: 3400, color: 0x6366f1, blastRadius: 210, blastDamage: 40, minionCount: 12,
+}));
+registerAttack(new UltimateComboAttack("omega_ultimate", {
+  name: "Null Genesis", windUpMs: 3600, color: 0xffffff, blastRadius: 220, blastDamage: 45, minionCount: 14,
 }));
 
 // ── Pattern bridges (legacy projectile patterns, lower weight) ────────────────

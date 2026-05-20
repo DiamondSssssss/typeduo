@@ -191,6 +191,58 @@ export const BOSS_VISUALS = {
     auraColors: [0x22d3ee, 0x5eead4, 0xffffff], windUpColor: 0x22d3ee,
   },
 
+  abyss_warden: {
+    id: "abyss_warden", label: "ABYSS WARDEN", shape: "crystal",
+    size: { body: 60, border: 78, aura: 94 },
+    phases: [
+      { body: 0x0c1929, outer: 0x164e63, border: 0x0ea5e9, eye: 0xbae6fd, core: 0x38bdf8 },
+      { body: 0x082f49, outer: 0x0e7490, border: 0x22d3ee, eye: 0xffffff, core: 0x0ea5e9 },
+      { body: 0x041018, outer: 0x0c4a6e, border: 0xffffff, eye: 0x67e8f9, core: 0xffffff },
+    ],
+    roar: { body: 0x164e63, outer: 0x0ea5e9, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0x0ea5e9, 0x22d3ee, 0xffffff], windUpColor: 0x38bdf8,
+  },
+
+  oblivion_herald: {
+    id: "oblivion_herald", label: "OBLIVION HERALD", shape: "diamond",
+    size: { body: 64, border: 82, aura: 98 },
+    phases: [
+      { body: 0x1e1b4b, outer: 0x4338ca, border: 0x818cf8, eye: 0xe0e7ff, core: 0x6366f1 },
+      { body: 0x15123a, outer: 0x3730a3, border: 0xa5b4fc, eye: 0xffffff, core: 0x818cf8 },
+      { body: 0x0a0820, outer: 0x1e1b4b, border: 0xffffff, eye: 0xc7d2fe, core: 0xffffff },
+    ],
+    roar: { body: 0x4338ca, outer: 0x6366f1, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0x6366f1, 0x818cf8, 0xffffff], windUpColor: 0xa5b4fc,
+  },
+
+  omega_null: {
+    id: "omega_null", label: "OMEGA NULL", shape: "hex",
+    size: { body: 70, border: 88, aura: 106 },
+    phases: [
+      { body: 0x0f172a, outer: 0x334155, border: 0xf8fafc, eye: 0xe2e8f0, core: 0x94a3b8 },
+      { body: 0x020617, outer: 0x1e293b, border: 0xffffff, eye: 0xffffff, core: 0xf1f5f9 },
+      { body: 0x000000, outer: 0x0f172a, border: 0xef4444, eye: 0xffffff, core: 0xffffff },
+    ],
+    roar: { body: 0x334155, outer: 0xf8fafc, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0xf8fafc, 0x94a3b8, 0xef4444], windUpColor: 0xffffff,
+  },
+
+  cataclysm_engine: {
+    id: "cataclysm_engine", label: "CATACLYSM ENGINE", shape: "hex",
+    size: { body: 66, border: 84, aura: 100 },
+    phases: [
+      { body: 0x431407, outer: 0x9a3412, border: 0xf97316, eye: 0xfed7aa, core: 0xfb923c },
+      { body: 0x331005, outer: 0xc2410c, border: 0xff6b00, eye: 0xfff7ed, core: 0xf97316 },
+      { body: 0x1a0800, outer: 0x7c2d12, border: 0xffffff, eye: 0xffffff, core: 0xff6600 },
+    ],
+    roar: { body: 0x9a3412, outer: 0xea580c, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0xf97316, 0xff6b00, 0xffffff], windUpColor: 0xfbbf24,
+  },
+
   feedback_leech: {
     id: "feedback_leech", label: "FEEDBACK LEECH", shape: "spider",
     size: { body: 54, border: 72, aura: 88 },
@@ -353,6 +405,19 @@ export const ATTACK_LABELS = {
   entity_ultimate: "🕳 Null Collapse",
   leech_ultimate:  "🩸 Hemorrhage Pulse",
   frost_bolt:      "❄ Frost Bolt",
+  overcharge_blast: "⚡ Overcharge",
+  summon_typable_minions: "👾 Minions",
+  shield_word:     "🛡 Shield Word",
+  paralyze_typer:  "⛓ Paralyze",
+  ruin_pillars:    "🏛 Ruin Pillars",
+  laser_beam:      "🔴 Laser Beam",
+  warden_ultimate: "🌊 Abyss Collapse",
+  cataclysm_ultimate: "💥 Worldbreaker",
+  mirror_word:      "🪞 Mirror Word",
+  chain_cancel:     "⛓ Chain Cancel",
+  safe_zone:        "🟢 Safe Zone",
+  oblivion_ultimate:"🌑 Oblivion Fall",
+  omega_ultimate:   "☠ Null Genesis",
 };
 
 /** Star tier names (1–10). Tiers 7–10 are reserved for future bosses. */
@@ -370,7 +435,7 @@ export const DIFFICULTY_LABELS = {
 };
 
 export const DIFFICULTY_MAX_STARS = 10;
-export const COMING_SOON_DIFFICULTIES = [7, 8, 9, 10];
+export const COMING_SOON_DIFFICULTIES = [];
 
 /** Lobby-facing boss list (mirrors backend /api/bosses). */
 export const BOSS_LIST = [
@@ -389,5 +454,9 @@ export const BOSS_LIST = [
   { id: "sovereign",      name: "The Sovereign",    tagline: "Kneel or perish.",                              difficulty: 5, maxHP: 900,  color: "#eab308" },
   { id: "void_serpent",   name: "Void Serpent",     tagline: "Coils of nothingness devour the unwary.",       difficulty: 5, maxHP: 950,  color: "#6366f1" },
   { id: "the_glitch",     name: "The Glitch",       tagline: "Reality tears — death awakens The Entity.",    difficulty: 6, maxHP: 1160, color: "#e879f9", twoForms: true },
-  { id: "feedback_leech", name: "Feedback Leech",   tagline: "Every typo feeds it. Type clean or bleed.",     difficulty: 6, maxHP: 900,  color: "#84cc16" },
+  { id: "feedback_leech", name: "Feedback Leech",   tagline: "Typos heal it — below 25% HP they hurt you too.", difficulty: 6, maxHP: 900,  color: "#84cc16" },
+  { id: "abyss_warden",   name: "Abyss Warden",     tagline: "Break its wards or the abyss breaks you.",      difficulty: 7, maxHP: 1050, color: "#0ea5e9" },
+  { id: "cataclysm_engine", name: "Cataclysm Engine", tagline: "A war machine that punishes hesitation.",     difficulty: 8, maxHP: 1200, color: "#f97316" },
+  { id: "oblivion_herald",  name: "Oblivion Herald",  tagline: "It mirrors your words and sends them back.", difficulty: 9, maxHP: 1350, color: "#6366f1" },
+  { id: "omega_null",       name: "Omega Null",       tagline: "The final exam. Every mechanic at once.",    difficulty: 10, maxHP: 1550, color: "#f8fafc" },
 ];

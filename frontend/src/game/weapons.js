@@ -8,10 +8,12 @@ export const WEAPON_TYPES = {
     color: "#22d3ee",
     glowBlur: 18,
     sparkCount: 7,
-    damageMult: 1.0,
+    damageMult: 1.08,
     wordTimer: true,
-    description: "Từ ngắn có đếm giờ — gõ chậm là mất từ.",
-    tag: "Timer",
+    description: "Từ ngắn có đếm giờ — thời gian dài hơn, sát thương nhẹ tăng.",
+    tag: "Timer+",
+    ultimateName: "Storm Cut",
+    ultimatePhrase: "blade of the storm cuts deep",
   },
   shortsword: {
     id: "shortsword",
@@ -24,6 +26,8 @@ export const WEAPON_TYPES = {
     damageMult: 0.68,
     description: "Từ dễ, nhịp bình thường — sát thương thấp.",
     tag: "Balanced",
+    ultimateName: "Guardian Strike",
+    ultimatePhrase: "honor guards the fallen line",
   },
   greatsword: {
     id: "greatsword",
@@ -36,6 +40,8 @@ export const WEAPON_TYPES = {
     damageMult: 1.55,
     description: "Từ dài, khó — sát thương rất cao.",
     tag: "Heavy",
+    ultimateName: "Earth Splitter",
+    ultimatePhrase: "the earth splits before my steel",
   },
   lifestaff: {
     id: "lifestaff",
@@ -49,6 +55,8 @@ export const WEAPON_TYPES = {
     healOnWord: 7,
     description: "Mỗi từ gõ xong hồi máu đội.",
     tag: "Heal",
+    ultimateName: "Bloom of Life",
+    ultimatePhrase: "life blooms where shadows fall",
   },
   fury_axe: {
     id: "fury_axe",
@@ -62,8 +70,12 @@ export const WEAPON_TYPES = {
     streakDamage: true,
     description: "Chuỗi gõ liên tục tăng sát thương.",
     tag: "Streak DMG",
+    ultimateName: "Consuming Rage",
+    ultimatePhrase: "rage consumes all who stand near",
   },
 };
+
+export const RAGE_MAX = 100;
 
 export const DEFAULT_WEAPON_ID = "shortsword";
 export const WEAPON_LIST = Object.values(WEAPON_TYPES);

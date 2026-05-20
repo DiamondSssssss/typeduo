@@ -16,6 +16,11 @@ const { emitGameState, toPublicRoomState, playerStateForClient, createInitialGam
 const { startGameLoop, stopLoop } = require("../game/gameLoop");
 const { resolveBossConfig } = require("../game/bossTransform");
 const { takeDamage } = require("../game/helpers");
+const {
+  processChallengeInput,
+  applyTypoBossEffect,
+  resetTypoStreak,
+} = require("../game/typingChallenges");
 
 const rooms = new Map();
 /** How long a disconnected player can resume the same in-progress game. */
@@ -279,6 +284,7 @@ const registerSocketHandlers = (io) => {
       const player = room.players.find((p) => p.socketId === socket.id);
       if (!player || (player.role !== "runner" && player.role !== "solo")) { cb?.({ ok: false }); return; }
       if (room.game?.bossState === "countdown") { cb?.({ ok: false }); return; }
+      if (room.game?._playerStun?.active) { cb?.({ ok: false, reason: "stunned" }); return; }
 
       const mult = room.game.moveSpeedMult || 1;
       const cx = Math.max(30, Math.min(1250, Number(x) || 0));
@@ -312,19 +318,31 @@ const registerSocketHandlers = (io) => {
         return;
       }
 
+      if (g._challenge) {
+        const ch = processChallengeInput(io, room, player, input);
+        if (ch.handled) {
+          emitGameState(io, room, resolveBossConfig(room));
+          cb?.({ ok: true, challenge: true });
+          return;
+        }
+      }
+
       const expected = g.currentWord[g.typedProgress];
       if (input === expected) {
         g.typedProgress += 1;
+        resetTypoStreak(g);
         bumpWordTimer(g);
       } else {
         g.typedProgress = input === g.currentWord[0] ? 1 : 0;
         handleTypo(g);
         io.to(code).emit("typo", { socketId: player.socketId, char: input, expected });
-        const backlash = resolveBossConfig(room)?.typoBacklash;
-        if (backlash?.damage) {
-          takeDamage(io, room, backlash.damage, g.character.x, g.character.y);
+        const bossCfg = resolveBossConfig(room);
+        if (bossCfg.typoFeed || bossCfg.typoEnrage || bossCfg.typoBomb) {
+          applyTypoBossEffect(io, room, bossCfg, g);
+        } else if (bossCfg.typoBacklash?.damage) {
+          takeDamage(io, room, bossCfg.typoBacklash.damage, g.character.x, g.character.y);
           io.to(code).emit("typo_backlash", {
-            damage: backlash.damage,
+            damage: bossCfg.typoBacklash.damage,
             socketId: player.socketId,
           });
         }
@@ -332,7 +350,7 @@ const registerSocketHandlers = (io) => {
 
       if (g.typedProgress >= g.currentWord.length) {
         const bossConfig = resolveBossConfig(room);
-        const result = completeWord(room, player);
+        const result = completeWord(room, player, io);
 
         io.to(code).emit("word_completed", result);
 

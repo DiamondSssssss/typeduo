@@ -114,7 +114,7 @@ const phaseLabel = (phase) => {
 
 import { ATTACK_LABELS } from "../game/bosses/bossConfigs";
 
-import { getWeapon } from "../game/weapons";
+import { getWeapon, RAGE_MAX } from "../game/weapons";
 
 function WordTimerBar({ expiresAt }) {
   const [pct, setPct] = useState(1);
@@ -141,7 +141,7 @@ function WordTimerBar({ expiresAt }) {
   );
 }
 
-function WeaponHudPanel({ weaponTypeId, weaponHeld, weaponStreak, wordExpiresAt }) {
+function WeaponHudPanel({ weaponTypeId, weaponHeld, weaponStreak, wordExpiresAt, weaponRage = 0, ultimateMode = false }) {
   const weapon = getWeapon(weaponTypeId);
   if (!weaponHeld) {
     return (
@@ -169,6 +169,19 @@ function WeaponHudPanel({ weaponTypeId, weaponHeld, weaponStreak, wordExpiresAt 
           ))}
         </div>
       ) : null}
+      <div className="weapon-rage-row">
+        <span className="weapon-hud__tag">Nộ</span>
+        <div className="weapon-rage-track">
+          <div
+            className="weapon-rage-fill"
+            style={{ width: `${Math.min(100, (weaponRage / RAGE_MAX) * 100)}%` }}
+          />
+        </div>
+        <span className="weapon-hud__tag">{Math.round(weaponRage)}%</span>
+        {ultimateMode ? (
+          <span className="weapon-hud__tag weapon-hud__tag--ult">ULTIMATE!</span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -297,6 +310,8 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
         weaponHeld={weaponHeld}
         weaponStreak={weaponStreak}
         wordExpiresAt={wordExpiresAt}
+        weaponRage={gamePayload?.weaponRage ?? 0}
+        ultimateMode={gamePayload?.ultimateMode}
       />
 
       <div className="players-row">

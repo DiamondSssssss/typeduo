@@ -12,8 +12,12 @@ const phantomReaper = require("./phantomReaper");
 const cinderMaw     = require("./cinderMaw");
 const ironMatron    = require("./ironMatron");
 const voidSerpent   = require("./voidSerpent");
-const theGlitch     = require("./theGlitch");
-const feedbackLeech = require("./feedbackLeech");
+const theGlitch       = require("./theGlitch");
+const feedbackLeech   = require("./feedbackLeech");
+const abyssWarden     = require("./abyssWarden");
+const cataclysmEngine = require("./cataclysmEngine");
+const oblivionHerald  = require("./oblivionHerald");
+const omegaNull       = require("./omegaNull");
 const { DIFFICULTY_LABELS } = require("../difficultyTiers");
 
 const BOSSES = {
@@ -33,6 +37,10 @@ const BOSSES = {
   [voidSerpent.id]:   voidSerpent,
   [theGlitch.id]:     theGlitch,
   [feedbackLeech.id]: feedbackLeech,
+  [abyssWarden.id]: abyssWarden,
+  [cataclysmEngine.id]: cataclysmEngine,
+  [oblivionHerald.id]:  oblivionHerald,
+  [omegaNull.id]:       omegaNull,
 };
 
 const getBoss = (id) => BOSSES[id] || watcher;

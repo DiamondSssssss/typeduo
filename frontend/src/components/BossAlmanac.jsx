@@ -181,6 +181,17 @@ export default function BossAlmanac({ onBack }) {
                 </div>
                 <PhaseBlock title="Ultimate" data={boss.ultimate} />
                 <PhaseBlock title="Enrage (low HP)" data={boss.special} />
+                {boss.phase2 ? (
+                  <section className="almanac-phase almanac-phase--special">
+                    <h3 className="almanac-phase__title">Phase 2 — {boss.phase2.name}</h3>
+                    <p className="almanac-overview__text">{boss.phase2.overview}</p>
+                    <div className="almanac-callout">
+                      <strong>Playstyle</strong>
+                      <p>{boss.phase2.playstyle}</p>
+                    </div>
+                    <PhaseBlock title={`Ultimate (${boss.phase2.name})`} data={boss.phase2.ultimate} />
+                  </section>
+                ) : null}
               </div>
             )}
 
@@ -203,6 +214,18 @@ export default function BossAlmanac({ onBack }) {
                     <p className="almanac-empty">No attack data yet for this boss.</p>
                   )}
                 </div>
+                {boss.phase2?.attacks?.length ? (
+                  <>
+                    <h4 className="almanac-phase__title" style={{ marginTop: "1.25rem" }}>
+                      Phase 2 — {boss.phase2.name}
+                    </h4>
+                    <div className="almanac-attack-grid">
+                      {boss.phase2.attacks.map((a) => (
+                        <AttackCard key={`p2-${a.id}`} attack={a} />
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </div>
             )}
 

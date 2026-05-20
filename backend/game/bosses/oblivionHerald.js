@@ -1,0 +1,31 @@
+/** Oblivion Herald — 9★. Mirror, chain cancel, safe zone, full toolkit. */
+module.exports = {
+  id: "oblivion_herald",
+  name: "Oblivion Herald",
+  tagline: "It learns your words and sends them back wrong.",
+  difficulty: 9,
+  maxHP: 1350,
+  moveSpeed: [95, 128, 172],
+  yBase: 100,
+  yRange: 52,
+  projSpeed: [205, 268, 340],
+  attackQueues: [["dark_pulse"]],
+  attackDurations: {},
+  windUps: {},
+  fireIntervals: {},
+  combatProfile: {
+    attacks: [
+      { id: "mirror_word",            weight: 16 },
+      { id: "chain_cancel",           weight: 15 },
+      { id: "safe_zone",              weight: 14 },
+      { id: "overcharge_blast",       weight: 12 },
+      { id: "shield_word",            weight: 12 },
+      { id: "laser_beam",             weight: 11 },
+      { id: "summon_typable_minions", weight: 10 },
+      { id: "ruin_pillars",           weight: 10 },
+      { id: "paralyze_typer",         weight: 9 },
+      { id: "void_orb",               weight: 8, minRange: 80 },
+    ],
+    ultimate: { id: "oblivion_ultimate", triggerHpPct: 0.4, name: "Oblivion Fall" },
+  },
+};

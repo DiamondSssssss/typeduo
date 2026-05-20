@@ -38,6 +38,13 @@ const tryBossTransform = (io, room, baseConfig) => {
   g._delayedSpawns = [];
   g._voidZoneDetonates = [];
   g._magnetActive = false;
+  g._challenge = null;
+  g._savedWeaponWord = null;
+  g._typableMinions = [];
+  g._typablePillars = [];
+  g._playerStun = null;
+  g._shieldWordMode = false;
+  g.moveSpeedMult = 1;
   g._combat = { state: "idle", currentId: null, startedAt: 0, cooldowns: {}, data: {} };
 
   const b = g.boss;
