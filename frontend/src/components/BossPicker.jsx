@@ -1,22 +1,40 @@
 ﻿import { useMemo, useState } from "react";
-import { BOSS_LIST, DIFFICULTY_LABELS } from "../game/bosses/bossConfigs";
+import {
+  BOSS_LIST,
+  DIFFICULTY_LABELS,
+  DIFFICULTY_MAX_STARS,
+  COMING_SOON_DIFFICULTIES,
+} from "../game/bosses/bossConfigs";
 
-function DifficultyStars({ n }) {
-  const stars = Math.max(1, Math.min(5, n || 1));
+function DifficultyStars({ n, max = DIFFICULTY_MAX_STARS }) {
+  const stars = Math.max(1, Math.min(max, n || 1));
   return (
-    <span className="boss-diff" aria-label={`Difficulty ${stars} of 5`}>
+    <span className="boss-diff" aria-label={`Difficulty ${stars} of ${max}`}>
       {"★".repeat(stars)}
-      <span className="boss-diff__empty">{"☆".repeat(5 - stars)}</span>
+      <span className="boss-diff__empty">{"☆".repeat(max - stars)}</span>
     </span>
   );
 }
+
+const COMING_SOON_PLACEHOLDERS = COMING_SOON_DIFFICULTIES.map((d) => ({
+  id: `coming_soon_${d}`,
+  name: DIFFICULTY_LABELS[d],
+  tagline: "New challengers are being forged…",
+  difficulty: d,
+  maxHP: "—",
+  color: "#475569",
+  comingSoon: true,
+}));
 
 export default function BossPicker({ selectedId, onSelect, disabled = false }) {
   const [filter, setFilter] = useState("all");
 
   const filtered = useMemo(() => {
-    if (filter === "all") return BOSS_LIST;
     const d = Number(filter);
+    if (COMING_SOON_DIFFICULTIES.includes(d)) {
+      return COMING_SOON_PLACEHOLDERS.filter((b) => b.difficulty === d);
+    }
+    if (filter === "all") return BOSS_LIST;
     return BOSS_LIST.filter((b) => b.difficulty === d);
   }, [filter]);
 
@@ -24,12 +42,22 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
 
   const filters = [
     { id: "all", label: "All" },
-    { id: "1", label: "★" },
-    { id: "2", label: "★★" },
-    { id: "3", label: "★★★" },
-    { id: "4", label: "★★★★" },
-    { id: "5", label: "★★★★★" },
+    ...[1, 2, 3, 4, 5, 6].map((d) => ({
+      id: String(d),
+      label: `${"★".repeat(d)} ${DIFFICULTY_LABELS[d]}`,
+    })),
+    ...COMING_SOON_DIFFICULTIES.map((d) => ({
+      id: String(d),
+      label: `${"★".repeat(d)} Soon`,
+      comingSoon: true,
+    })),
   ];
+
+  const formatHp = (boss) => {
+    if (boss.comingSoon) return "—";
+    if (boss.twoForms) return `${boss.maxHP} HP (2 forms)`;
+    return `${boss.maxHP} HP`;
+  };
 
   return (
     <div className="boss-picker">
@@ -42,7 +70,7 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
               type="button"
               role="tab"
               aria-selected={filter === f.id}
-              className={`boss-picker__filter${filter === f.id ? " boss-picker__filter--active" : ""}`}
+              className={`boss-picker__filter${filter === f.id ? " boss-picker__filter--active" : ""}${f.comingSoon ? " boss-picker__filter--soon" : ""}`}
               onClick={() => setFilter(f.id)}
               disabled={disabled}
             >
@@ -61,13 +89,34 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
           <div className="boss-picker__preview-meta">
             <DifficultyStars n={selected.difficulty} />
             <span className="boss-picker__preview-pill">{DIFFICULTY_LABELS[selected.difficulty]}</span>
-            <span className="boss-picker__preview-pill boss-picker__preview-pill--hp">{selected.maxHP} HP</span>
+            <span className="boss-picker__preview-pill boss-picker__preview-pill--hp">{formatHp(selected)}</span>
           </div>
         </div>
       </div>
 
       <div className="boss-picker__grid">
         {filtered.map((boss) => {
+          if (boss.comingSoon) {
+            return (
+              <div
+                key={boss.id}
+                className="boss-picker__card boss-picker__card--soon"
+                style={{ "--boss-color": boss.color }}
+                aria-disabled="true"
+              >
+                <span className="boss-picker__card-accent" aria-hidden="true" />
+                <span className="boss-picker__card-top">
+                  <span className="boss-picker__card-name">{boss.name}</span>
+                  <DifficultyStars n={boss.difficulty} />
+                </span>
+                <span className="boss-picker__card-tag">{boss.tagline}</span>
+                <span className="boss-picker__card-foot">
+                  <span>Coming Soon</span>
+                  <span>{DIFFICULTY_LABELS[boss.difficulty]}</span>
+                </span>
+              </div>
+            );
+          }
           const isSelected = boss.id === selectedId;
           return (
             <button
@@ -88,7 +137,7 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
               <span className="boss-picker__card-tag">{boss.tagline}</span>
               <span className="boss-picker__card-foot">
                 <span>{DIFFICULTY_LABELS[boss.difficulty]}</span>
-                <span>{boss.maxHP} HP</span>
+                <span>{formatHp(boss)}</span>
               </span>
               {isSelected ? <span className="boss-picker__card-check" aria-hidden="true">✓</span> : null}
             </button>

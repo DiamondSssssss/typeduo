@@ -164,6 +164,46 @@ export const BOSS_VISUALS = {
     stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
     auraColors: [0x6366f1, 0x818cf8, 0xffffff], windUpColor: 0x818cf8,
   },
+
+  the_glitch: {
+    id: "the_glitch", label: "THE GLITCH", shape: "diamond",
+    size: { body: 56, border: 74, aura: 90 },
+    phases: [
+      { body: 0x2e1065, outer: 0x6b21a8, border: 0xe879f9, eye: 0xfae8ff, core: 0xd946ef },
+      { body: 0x1e0a3c, outer: 0x581c87, border: 0xff3d9f, eye: 0xffffff, core: 0xf472b6 },
+      { body: 0x0f0518, outer: 0x3b0764, border: 0xffffff, eye: 0x22d3ee, core: 0xff85c2 },
+    ],
+    roar: { body: 0x6b21a8, outer: 0xc026d3, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0xe879f9, 0xff3d9f, 0x22d3ee], windUpColor: 0xe879f9,
+  },
+
+  the_entity: {
+    id: "the_entity", label: "THE ENTITY", shape: "hex",
+    size: { body: 62, border: 80, aura: 96 },
+    phases: [
+      { body: 0x042f2e, outer: 0x0f766e, border: 0x22d3ee, eye: 0xccfbf1, core: 0x2dd4bf },
+      { body: 0x022c22, outer: 0x115e59, border: 0x5eead4, eye: 0xffffff, core: 0x22d3ee },
+      { body: 0x011a18, outer: 0x134e4a, border: 0xffffff, eye: 0x67e8f9, core: 0xffffff },
+    ],
+    roar: { body: 0x0f766e, outer: 0x14b8a6, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0x22d3ee, 0x5eead4, 0xffffff], windUpColor: 0x22d3ee,
+  },
+
+  feedback_leech: {
+    id: "feedback_leech", label: "FEEDBACK LEECH", shape: "spider",
+    size: { body: 54, border: 72, aura: 88 },
+    phases: [
+      { body: 0x1a2e05, outer: 0x365314, border: 0x84cc16, eye: 0xd9f99d, core: 0x65a30d },
+      { body: 0x14240a, outer: 0x3f6212, border: 0xa3e635, eye: 0xfef9c3, core: 0x84cc16 },
+      { body: 0x0a1405, outer: 0x1a2e05, border: 0xdc2626, eye: 0xffffff, core: 0xef4444 },
+    ],
+    roar: { body: 0x365314, outer: 0x65a30d, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0x84cc16, 0xa3e635, 0xef4444], windUpColor: 0x84cc16,
+  },
+
   sovereign: {
     id: "sovereign", label: "THE SOVEREIGN", shape: "hex",
     size: { body: 68, border: 86, aura: 102 },
@@ -309,16 +349,28 @@ export const ATTACK_LABELS = {
   serpent_ultimate:"🐍 Abyss Maw",
   cinder_ultimate: "👑 Inferno Crown",
   matron_ultimate: "⚖ Iron Judgment",
+  glitch_ultimate: "💥 System Crash",
+  entity_ultimate: "🕳 Null Collapse",
+  leech_ultimate:  "🩸 Hemorrhage Pulse",
+  frost_bolt:      "❄ Frost Bolt",
 };
 
-/** 5-star difficulty labels (mirrors backend bosses/). */
+/** Star tier names (1–10). Tiers 7–10 are reserved for future bosses. */
 export const DIFFICULTY_LABELS = {
-  1: "Beginner",
-  2: "Easy",
-  3: "Medium",
-  4: "Hard",
-  5: "Nightmare",
+  1:  "Beginner",
+  2:  "Easy",
+  3:  "Medium",
+  4:  "Hard",
+  5:  "Nightmare",
+  6:  "Mythic",
+  7:  "Abyssal",
+  8:  "Cataclysm",
+  9:  "Oblivion",
+  10: "Omega",
 };
+
+export const DIFFICULTY_MAX_STARS = 10;
+export const COMING_SOON_DIFFICULTIES = [7, 8, 9, 10];
 
 /** Lobby-facing boss list (mirrors backend /api/bosses). */
 export const BOSS_LIST = [
@@ -336,4 +388,6 @@ export const BOSS_LIST = [
   { id: "cinder_maw",     name: "Cinder Maw",       tagline: "The arena becomes an oven.",                    difficulty: 4, maxHP: 720,  color: "#f97316" },
   { id: "sovereign",      name: "The Sovereign",    tagline: "Kneel or perish.",                              difficulty: 5, maxHP: 900,  color: "#eab308" },
   { id: "void_serpent",   name: "Void Serpent",     tagline: "Coils of nothingness devour the unwary.",       difficulty: 5, maxHP: 950,  color: "#6366f1" },
+  { id: "the_glitch",     name: "The Glitch",       tagline: "Reality tears — death awakens The Entity.",    difficulty: 6, maxHP: 1160, color: "#e879f9", twoForms: true },
+  { id: "feedback_leech", name: "Feedback Leech",   tagline: "Every typo feeds it. Type clean or bleed.",     difficulty: 6, maxHP: 900,  color: "#84cc16" },
 ];

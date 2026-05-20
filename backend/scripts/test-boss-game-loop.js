@@ -37,7 +37,7 @@ const runNext = () => {
   g.bossHP = Math.floor(g.bossMaxHP * 0.55);
   g.lastTickAt = Date.now() - 50;
 
-  startGameLoop(io, room, boss);
+  startGameLoop(io, room);
 
   setTimeout(() => {
     stopLoop(code);

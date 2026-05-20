@@ -12,6 +12,9 @@ const phantomReaper = require("./phantomReaper");
 const cinderMaw     = require("./cinderMaw");
 const ironMatron    = require("./ironMatron");
 const voidSerpent   = require("./voidSerpent");
+const theGlitch     = require("./theGlitch");
+const feedbackLeech = require("./feedbackLeech");
+const { DIFFICULTY_LABELS } = require("../difficultyTiers");
 
 const BOSSES = {
   [watcher.id]:      watcher,
@@ -28,12 +31,19 @@ const BOSSES = {
   [cinderMaw.id]:     cinderMaw,
   [ironMatron.id]:    ironMatron,
   [voidSerpent.id]:   voidSerpent,
+  [theGlitch.id]:     theGlitch,
+  [feedbackLeech.id]: feedbackLeech,
 };
 
 const getBoss = (id) => BOSSES[id] || watcher;
 
-const BOSS_LIST = Object.values(BOSSES).map(({ id, name, tagline, difficulty, maxHP }) => ({
-  id, name, tagline, difficulty, maxHP,
+const BOSS_LIST = Object.values(BOSSES).map(({ id, name, tagline, difficulty, maxHP, color }) => ({
+  id,
+  name,
+  tagline,
+  difficulty,
+  maxHP,
+  ...(color != null ? { color: `#${Number(color).toString(16).padStart(6, "0")}` } : {}),
 }));
 
-module.exports = { BOSSES, getBoss, BOSS_LIST };
+module.exports = { BOSSES, getBoss, BOSS_LIST, DIFFICULTY_LABELS };

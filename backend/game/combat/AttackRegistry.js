@@ -42,6 +42,15 @@ registerAttack(new UltimateComboAttack("cinder_ultimate", {
 registerAttack(new UltimateComboAttack("matron_ultimate", {
   name: "Iron Judgment", windUpMs: 2200, color: 0xb45309, blastDamage: 20, minionCount: 4,
 }));
+registerAttack(new UltimateComboAttack("glitch_ultimate", {
+  name: "System Crash", windUpMs: 2800, color: 0xe879f9, blastDamage: 28, minionCount: 6,
+}));
+registerAttack(new UltimateComboAttack("entity_ultimate", {
+  name: "Null Collapse", windUpMs: 3200, color: 0x22d3ee, blastRadius: 200, blastDamage: 34, minionCount: 10,
+}));
+registerAttack(new UltimateComboAttack("leech_ultimate", {
+  name: "Hemorrhage Pulse", windUpMs: 2600, color: 0x84cc16, blastDamage: 26,
+}));
 
 // ── Pattern bridges (legacy projectile patterns, lower weight) ────────────────
 const bridge = (id, opts = {}) => registerAttack(new PatternBridgeAttack(id, { patternId: id, weight: 8, ...opts }));

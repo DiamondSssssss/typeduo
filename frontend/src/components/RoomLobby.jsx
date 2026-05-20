@@ -1,14 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
-import { BOSS_LIST } from "../game/bosses/bossConfigs";
+import { BOSS_LIST, DIFFICULTY_MAX_STARS } from "../game/bosses/bossConfigs";
 import BossPicker from "./BossPicker";
 import WeaponPicker from "./WeaponPicker";
 import { DEFAULT_WEAPON_ID, getWeapon } from "../game/weapons";
 
 function DifficultyStars({ n }) {
+  const stars = Math.max(1, Math.min(DIFFICULTY_MAX_STARS, n || 1));
   return (
     <span className="boss-diff">
-      {"★".repeat(n)}
-      {"☆".repeat(3 - n)}
+      {"★".repeat(stars)}
+      <span className="boss-diff__empty">{"☆".repeat(DIFFICULTY_MAX_STARS - stars)}</span>
     </span>
   );
 }

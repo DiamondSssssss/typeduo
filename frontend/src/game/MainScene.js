@@ -649,8 +649,16 @@ export default class MainScene extends Phaser.Scene {
       blur += Math.min(this.weaponStreak || 0, 12) * 1.1;
     }
 
-    this.typedTxt.setColor(col);
-    this.typedTxt.setShadow(0, 0, col, blur, true, true);
+    if (weapon.id === "fury_axe") {
+      blur = Math.min(blur, 20);
+      this.typedTxt.setColor("#fff1f2");
+      this.typedTxt.setStroke("#7f1d1d", 2);
+      this.typedTxt.setShadow(0, 0, col, blur, false, true);
+    } else {
+      this.typedTxt.setStroke("#000000", 0);
+      this.typedTxt.setColor(col);
+      this.typedTxt.setShadow(0, 0, col, blur, true, false);
+    }
 
     if (this.wordPanelGfx && this._wordPanelBounds) {
       const { pw, ph, px, py } = this._wordPanelBounds;
@@ -688,10 +696,17 @@ export default class MainScene extends Phaser.Scene {
         onComplete: () => p.destroy(),
       });
     }
-    const flash = this.add.circle(x, y, 7, 0xffffff, 0.65)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setDepth(29);
-    this.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 180, onComplete: () => flash.destroy() });
+    if (weapon.id !== "fury_axe") {
+      const flash = this.add.circle(x, y, 7, 0xffffff, 0.65)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(29);
+      this.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 180, onComplete: () => flash.destroy() });
+    } else {
+      const flash = this.add.circle(x, y, 6, 0xfff1f2, 0.5)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(29);
+      this.tweens.add({ targets: flash, scale: 1.6, alpha: 0, duration: 160, onComplete: () => flash.destroy() });
+    }
   }
 
   _renderWord(word, progress) {
@@ -1440,6 +1455,9 @@ export default class MainScene extends Phaser.Scene {
           this.bossWindUpAttack = state.boss.windUpAttack;
           this.bossWindUpRemaining = state.boss.windUpRemaining || 0;
         }
+        if (state.bossDisplayName && this.bossLabel) {
+          this.bossLabel.setText(String(state.bossDisplayName).toUpperCase());
+        }
         const prevHP = this.bossHP;
         this.bossHP = state.bossHP; this.bossMaxHP = state.bossMaxHP ?? this.bossMaxHP;
         this._drawBossHpBar(this.bossHP, this.bossMaxHP);
@@ -1521,6 +1539,29 @@ export default class MainScene extends Phaser.Scene {
       },
 
       typo:           ({ socketId }) => { if (socketId === this.localSocketId) this._shakeWord(); },
+
+      typo_backlash: ({ socketId, damage }) => {
+        if (socketId === this.localSocketId) {
+          this._shakeWord();
+          this.cameras.main.flash(120, 180, 40, 40, false);
+          this._showFloatingText(`TYPO -${damage}`, "#ef4444", 28);
+        }
+      },
+
+      boss_transform: ({ displayName, visualKey, bossHP, bossMaxHP, message }) => {
+        const vis = BOSS_VISUALS[visualKey] || this.bossVisual;
+        this.bossVisual = vis;
+        const label = (displayName || vis.label).toUpperCase();
+        if (this.bossLabel) this.bossLabel.setText(label);
+        this.bossHP = bossHP ?? this.bossHP;
+        this.bossMaxHP = bossMaxHP ?? this.bossMaxHP;
+        this.bossPhaseIdx = 0;
+        this._drawBossShape(false, true);
+        this._drawBossHpBar(this.bossHP, this.bossMaxHP);
+        this.cameras.main.flash(500, 34, 211, 238, false);
+        this.cameras.main.shake(320, 0.012);
+        if (message) this._showFloatingText(message, "#22d3ee", 22);
+      },
 
       word_completed: ({ by, word, damage, stunBonus, healed, weaponTypeId, weaponStreak }) => {
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;

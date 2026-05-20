@@ -1,0 +1,30 @@
+/** Feedback Leech — 6★ mythic. Typos hurt the team while it attacks. */
+module.exports = {
+  id: "feedback_leech",
+  name: "Feedback Leech",
+  tagline: "Every mistake feeds it. Type clean or bleed.",
+  difficulty: 6,
+  maxHP: 900,
+  moveSpeed: [82, 110, 148],
+  yBase: 110,
+  yRange: 45,
+  projSpeed: [180, 230, 295],
+  typoBacklash: { damage: 11 },
+  attackQueues: [["sick_rain"]],
+  attackDurations: {},
+  windUps: {},
+  fireIntervals: {},
+  shieldMax: 35,
+  shieldPhase: 1,
+  combatProfile: {
+    attacks: [
+      { id: "sick_rain",      weight: 18 },
+      { id: "spore_burst",    weight: 16 },
+      { id: "shadow_runes",   weight: 16 },
+      { id: "boss_dash",      weight: 18, minRange: 120 },
+      { id: "melee_swipe",    weight: 14, maxRange: 210 },
+      { id: "phantom_volley", weight: 12, minRange: 90 },
+    ],
+    ultimate: { id: "leech_ultimate", triggerHpPct: 0.5, name: "Hemorrhage Pulse" },
+  },
+};

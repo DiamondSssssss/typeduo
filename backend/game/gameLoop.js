@@ -12,6 +12,8 @@ const { moveBoss, tickBossAttacks, steerHomingProjectiles, maybeFireSpecial } = 
 const { emitGameState, toPublicRoomState } = require("./gameState");
 const { DEFAULT_WEAPON_ID } = require("./weapons");
 const { refreshWeaponWord, tickWordExpiry } = require("./weaponCombat");
+const { resolveBossConfig, tryBossTransform } = require("./bossTransform");
+const { getBoss } = require("./bosses");
 
 const loops = new Map();
 
@@ -67,9 +69,10 @@ const advanceBossLifecycle = (io, room, bossConfig, now) => {
   }
 };
 
-const tick = (io, room, bossConfig) => {
+const tick = (io, room) => {
   if (!room || room.status !== "in_game" || !room.game) { stopLoop(room.code); return; }
   try {
+  const bossConfig = resolveBossConfig(room);
   const g   = room.game;
   const now = Date.now();
   const deltaMs      = now - g.lastTickAt;
@@ -134,6 +137,11 @@ const tick = (io, room, bossConfig) => {
 
   emitGameState(io, room, bossConfig);
 
+  if (g.bossHP <= 0 && tryBossTransform(io, room, getBoss(room.selectedBoss))) {
+    emitGameState(io, room, resolveBossConfig(room));
+    return;
+  }
+
   if (g.sharedHP <= 0 || g.bossHP <= 0) {
     room.status = "finished";
     stopLoop(room.code);
@@ -155,9 +163,9 @@ const tick = (io, room, bossConfig) => {
   }
 };
 
-const startGameLoop = (io, room, bossConfig) => {
+const startGameLoop = (io, room) => {
   stopLoop(room.code);
-  loops.set(room.code, setInterval(() => tick(io, room, bossConfig), GAME_TICK_MS));
+  loops.set(room.code, setInterval(() => tick(io, room), GAME_TICK_MS));
 };
 
 module.exports = { startGameLoop, stopLoop };

@@ -14,6 +14,8 @@ const {
 } = require("../game/weaponCombat");
 const { emitGameState, toPublicRoomState, playerStateForClient, createInitialGameState } = require("../game/gameState");
 const { startGameLoop, stopLoop } = require("../game/gameLoop");
+const { resolveBossConfig } = require("../game/bossTransform");
+const { takeDamage } = require("../game/helpers");
 
 const rooms = new Map();
 /** How long a disconnected player can resume the same in-progress game. */
@@ -103,8 +105,8 @@ const startGameForRoom = (io, room, cb) => {
   const g = room.game;
   const startPayload = buildStartPayload(room, g);
   io.to(room.code).emit("startGame", startPayload);
-  emitGameState(io, room, bossConfig);
-  startGameLoop(io, room, bossConfig);
+  emitGameState(io, room, resolveBossConfig(room));
+  startGameLoop(io, room);
   cb?.({ ok: true });
 };
 
@@ -248,10 +250,10 @@ const registerSocketHandlers = (io) => {
 
       socket.join(code);
       const bossConfig = getBoss(room.selectedBoss);
-      startGameLoop(io, room, bossConfig);
+      startGameLoop(io, room);
       const payload = buildStartPayload(room, room.game);
       socket.emit("startGame", payload);
-      emitGameState(io, room, bossConfig);
+      emitGameState(io, room, resolveBossConfig(room));
       io.to(code).emit("player_reconnected", { username: player.username, socketId: socket.id });
       cb?.({ ok: true, roomCode: code, resumed: true });
     });
@@ -318,10 +320,18 @@ const registerSocketHandlers = (io) => {
         g.typedProgress = input === g.currentWord[0] ? 1 : 0;
         handleTypo(g);
         io.to(code).emit("typo", { socketId: player.socketId, char: input, expected });
+        const backlash = resolveBossConfig(room)?.typoBacklash;
+        if (backlash?.damage) {
+          takeDamage(io, room, backlash.damage, g.character.x, g.character.y);
+          io.to(code).emit("typo_backlash", {
+            damage: backlash.damage,
+            socketId: player.socketId,
+          });
+        }
       }
 
       if (g.typedProgress >= g.currentWord.length) {
-        const bossConfig = getBoss(room.selectedBoss);
+        const bossConfig = resolveBossConfig(room);
         const result = completeWord(room, player);
 
         io.to(code).emit("word_completed", result);
@@ -349,7 +359,7 @@ const registerSocketHandlers = (io) => {
         wordExpiresAt: g.wordExpiresAt || 0,
         weaponTypeId: g.weapon?.typeId,
       });
-      emitGameState(io, room, getBoss(room.selectedBoss));
+      emitGameState(io, room, resolveBossConfig(room));
       cb?.({ ok: true });
     });
 

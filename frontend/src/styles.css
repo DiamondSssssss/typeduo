@@ -1915,6 +1915,19 @@ button {
   color: var(--accent-cyan);
 }
 
+.boss-picker__filter--soon {
+  opacity: 0.7;
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.boss-picker__card--soon {
+  pointer-events: none;
+  opacity: 0.55;
+  cursor: default;
+  border-style: dashed;
+}
+
 .boss-picker__preview {
   position: relative;
   display: flex;
