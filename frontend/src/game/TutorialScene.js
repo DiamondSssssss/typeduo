@@ -10,9 +10,18 @@ const STEPS = [
   { title: "Step 1 — Move", instruction: "Use ARROW KEYS or WASD to dodge the orbs. Survive 8 seconds!", goal: "survive", duration: 8000 },
   { title: "Step 2 — Type", instruction: "Type the words below. Each correct letter glows cyan — just like co-op!", goal: "type", words: ["run", "dodge", "type"] },
   { title: "Step 3 — Weapon", instruction: "Walk over the glowing weapon, then type to deal real damage.", goal: "weapon" },
-  { title: "Step 4 — Dodge + Type", instruction: "Orbs spawn while you type. Keep moving!", goal: "combo", duration: 12000 },
-  { title: "Step 5 — Hazard Zone", instruction: "Leave the purple zone before it explodes!", goal: "hazard" },
-  { title: "Step 6 — Ready!", instruction: "Defeat the training golem. You're ready for battle!", goal: "boss", bossHP: 80 },
+  {
+    title: "Step 4 — Nộ & Chiêu cuối",
+    instruction: "Gõ từ để tích thanh NỘ (⚡). Đủ 100% → câu vàng xuất hiện — gõ hết để dùng chiêu cuối!",
+    goal: "rage",
+    rageWords: ["strike", "power", "focus", "fury"],
+    ultimatePhrase: "final strike now",
+    ultimateName: "Demo Ultimate",
+    ragePerWord: 25,
+  },
+  { title: "Step 5 — Dodge + Type", instruction: "Orbs spawn while you type. Keep moving!", goal: "combo", duration: 12000 },
+  { title: "Step 6 — Hazard Zone", instruction: "Leave the purple zone before it explodes!", goal: "hazard" },
+  { title: "Step 7 — Ready!", instruction: "Defeat the training golem. You're ready for battle!", goal: "boss", bossHP: 80 },
 ];
 
 export default class TutorialScene extends Phaser.Scene {
@@ -104,6 +113,14 @@ export default class TutorialScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: "14px", color: "#ff9ec8", fontStyle: "bold",
       backgroundColor: "rgba(13,18,32,0.75)", padding: { x: 10, y: 4 },
     }).setOrigin(0.5).setDepth(35).setVisible(false);
+
+    this.rageHudGfx = this.add.graphics().setDepth(36);
+    this.rageHudTxt = this.add.text(16, 118, "", {
+      fontFamily: FONT, fontSize: "12px", color: "#fde68a", fontStyle: "bold",
+      backgroundColor: "rgba(13,18,32,0.8)", padding: { x: 8, y: 4 },
+    }).setDepth(36).setVisible(false);
+    this.tutorialRage = 0;
+    this.tutorialUltimate = false;
     this.flashTxt = this.add.text(W / 2, 280, "", {
       fontFamily: FONT, fontSize: "22px", color: "#86efac", fontStyle: "bold",
     }).setOrigin(0.5).setDepth(40).setAlpha(0);
@@ -170,6 +187,23 @@ export default class TutorialScene extends Phaser.Scene {
       }
       x += dotW + gap;
     }
+  }
+
+  _drawTutorialRageBar() {
+    const pct = Math.min(1, this.tutorialRage / 100);
+    const bx = 16; const by = 140; const bw = 220; const bh = 12;
+    this.rageHudGfx.clear();
+    this.rageHudGfx.fillStyle(0x0f172a, 0.92);
+    this.rageHudGfx.fillRoundedRect(bx, by, bw, bh, 5);
+    this.rageHudGfx.lineStyle(1, 0xfbbf24, pct >= 1 ? 0.9 : 0.35);
+    this.rageHudGfx.strokeRoundedRect(bx, by, bw, bh, 5);
+    if (pct > 0) {
+      this.rageHudGfx.fillStyle(pct >= 1 ? 0xfbbf24 : 0xf59e0b, 0.95);
+      this.rageHudGfx.fillRoundedRect(bx + 2, by + 2, (bw - 4) * pct, bh - 4, 4);
+    }
+    this.rageHudTxt
+      .setVisible(true)
+      .setText(this.tutorialUltimate ? "⚡ GÕ CÂU VÀNG — CHIÊU CUỐI!" : `⚡ NỘ ${Math.round(this.tutorialRage)}%`);
   }
 
   _renderWord(word, progress) {
@@ -315,6 +349,11 @@ export default class TutorialScene extends Phaser.Scene {
     this.typedProgress = 0;
     this._renderWord("", 0);
     this.weaponHeld = false;
+    this.tutorialRage = 0;
+    this.tutorialUltimate = false;
+    this.rageHudGfx?.clear();
+    this.rageHudTxt?.setVisible(false);
+    this.typedTxt?.setColor("#4ef0d4").setStroke("#1e1b4b", 0).setShadow(0, 0, "#4ef0d4", 14, false, true);
     this.weapon.setVisible(false);
     this.weaponGlow.setVisible(false);
     this.dummyBoss.setVisible(false);
@@ -337,6 +376,24 @@ export default class TutorialScene extends Phaser.Scene {
       this._renderWord(this.word, 0);
       this.dummyBoss.setVisible(true);
       this.bossEye.setVisible(true);
+    } else if (step.goal === "rage") {
+      this.weaponHeld = true;
+      this.weapon.setVisible(true);
+      this.weaponGlow.setVisible(true);
+      this.tutorialRage = 0;
+      this.tutorialUltimate = false;
+      this._rageWords = [...(step.rageWords || ["strike", "power", "focus", "fury"])];
+      this._rageGain = step.ragePerWord ?? 25;
+      this._ultPhrase = step.ultimatePhrase || "final strike now";
+      this._ultName = step.ultimateName || "Ultimate";
+      this.word = this._rageWords[0];
+      this._renderWord(this.word, 0);
+      this._drawTutorialRageBar();
+      this.dummyBoss.setVisible(true);
+      this.bossEye.setVisible(true);
+      this.bossHpTxt.setVisible(true).setText("Training Golem · 80 HP");
+      this.bossHP = 80;
+      this._showFlash("Tích Nộ bằng cách gõ từ!", "#fbbf24");
     } else if (step.goal === "combo") {
       this.word = "focus";
       this._renderWord(this.word, 0);
@@ -425,9 +482,9 @@ export default class TutorialScene extends Phaser.Scene {
   _handleKey(e) {
     const key = String(e.key || "").toLowerCase();
     const step = STEPS[this.stepIdx];
-    if (!["type", "weapon", "combo", "boss"].includes(step.goal)) return;
+    if (!["type", "weapon", "rage", "combo", "boss"].includes(step.goal)) return;
     if (key.length !== 1 || !/[a-z]/.test(key)) return;
-    if (step.goal === "weapon" && !this.weaponHeld) return;
+    if ((step.goal === "weapon" || step.goal === "rage") && !this.weaponHeld) return;
 
     const letterX = this.wordCont.x + this.typedTxt.x + this.typedTxt.width - 8;
     const letterY = this.wordCont.y;
@@ -450,6 +507,41 @@ export default class TutorialScene extends Phaser.Scene {
           } else {
             this._showFlash("Word mastery!", "#4ef0d4");
             this.time.delayedCall(600, () => { this._stepTransition(); this._next(); });
+          }
+        } else if (step.goal === "rage") {
+          if (this.tutorialUltimate) {
+            this._damageBoss(28);
+            this._showFlash(`${this._ultName}!`, "#fbbf24");
+            this.tutorialUltimate = false;
+            this.tutorialRage = 0;
+            this.typedTxt.setColor("#4ef0d4").setStroke("#1e1b4b", 0).setShadow(0, 0, "#4ef0d4", 14, false, true);
+            this.cameras.main.flash(350, 255, 200, 80, false);
+            this.time.delayedCall(900, () => { this._stepTransition(); this._next(); });
+          } else {
+            this.tutorialRage = Math.min(100, this.tutorialRage + (this._rageGain || 25));
+            this._damageBoss(8);
+            this._drawTutorialRageBar();
+            if (this.tutorialRage >= 100) {
+              this.tutorialUltimate = true;
+              this.word = this._ultPhrase;
+              this.typedProgress = 0;
+              this._renderWord(this.word, 0);
+              this.typedTxt.setColor("#fef3c7");
+              this.typedTxt.setStroke("#78350f", 2);
+              this.typedTxt.setShadow(0, 0, "#fbbf24", 20, false, true);
+              this._showFlash("NỘ ĐẦY — GÕ CÂU VÀNG!", "#fbbf24");
+              this.cameras.main.flash(220, 255, 200, 80, false);
+            } else if (this._rageWords.length > 1) {
+              this._rageWords.shift();
+              this.word = this._rageWords[0];
+              this.typedProgress = 0;
+              this._renderWord(this.word, 0);
+              this._showFlash(`Nộ ${this.tutorialRage}%`, "#fde68a");
+            } else {
+              this.word = this._rageWords[0] || "strike";
+              this.typedProgress = 0;
+              this._renderWord(this.word, 0);
+            }
           }
         } else if (step.goal === "boss") {
           this._damageBoss(20);

@@ -72,6 +72,37 @@ const resetRoomToWaiting = (io, room) => {
   io.to(room.code).emit("room_update", toPublicRoomState(room));
 };
 
+/** After a match ends — back to lobby in the same room (keep code, boss, weapons). */
+const prepareRematch = (io, room) => {
+  stopLoop(room.code);
+  room.game = null;
+  room.status = "waiting";
+  for (const p of room.players) {
+    p.ready = false;
+    p.wordsTyped = 0;
+    p.damageDealt = 0;
+    p.wantsPlayAgain = false;
+    p.disconnectedAt = null;
+  }
+  const publicRoom = toPublicRoomState(room);
+  io.to(room.code).emit("rematch_lobby", publicRoom);
+  io.to(room.code).emit("room_update", publicRoom);
+};
+
+const emitPlayAgainUpdate = (io, room) => {
+  const connected = room.players.filter((p) => p.socketId);
+  io.to(room.code).emit("play_again_update", {
+    roomCode: room.code,
+    voted: room.players.map((p) => ({
+      username: p.username,
+      wantsPlayAgain: Boolean(p.wantsPlayAgain),
+      connected: Boolean(p.socketId),
+    })),
+    allVoted: connected.length >= MAX_PLAYERS_PER_ROOM
+      && connected.every((p) => p.wantsPlayAgain),
+  });
+};
+
 const handleDisconnect = (io, socket) => {
   for (const [code, room] of rooms.entries()) {
     const idx = room.players.findIndex((p) => p.socketId === socket.id);
@@ -101,11 +132,15 @@ const handleDisconnect = (io, socket) => {
 const startGameForRoom = (io, room, cb) => {
   const bossConfig = getBoss(room.selectedBoss);
   const carrier = room.players.find((p) => p.role === "typer" || p.role === "solo");
+  const teamWeaponId = carrier?.weaponTypeId || DEFAULT_WEAPON_ID;
+  if (room.gameMode !== "solo") {
+    room.players.forEach((p) => { p.weaponTypeId = teamWeaponId; });
+  }
   room.status = "in_game";
   room.game   = createInitialGameState(bossConfig, {
     gameMode:     room.gameMode || "coop",
     difficulty:   room.difficulty || "normal",
-    weaponTypeId: carrier?.weaponTypeId || DEFAULT_WEAPON_ID,
+    weaponTypeId: teamWeaponId,
   });
   const g = room.game;
   const startPayload = buildStartPayload(room, g);
@@ -186,7 +221,11 @@ const registerSocketHandlers = (io) => {
       }
       const weapon = getWeapon(weaponTypeId);
       player.weaponTypeId = weapon.id;
-      if (room.game?.weapon && !room.game.weapon.held) {
+      // Co-op loadout is shared — both players keep the same weapon when they swap roles.
+      if (room.gameMode !== "solo") {
+        room.players.forEach((p) => { p.weaponTypeId = weapon.id; });
+      }
+      if (room.game?.weapon) {
         room.game.weapon.typeId = weapon.id;
       }
       io.to(roomCode).emit("room_update", toPublicRoomState(room));
@@ -215,6 +254,42 @@ const registerSocketHandlers = (io) => {
       player.ready = !player.ready;
       io.to(roomCode).emit("room_update", toPublicRoomState(room));
       cb?.({ ok: true, ready: player.ready });
+    });
+
+    socket.on("play_again", ({ code }, cb) => {
+      const roomCode = (code || "").toUpperCase().trim();
+      const room = rooms.get(roomCode);
+      if (!room) { cb?.({ ok: false, message: "Room not found." }); return; }
+      const player = room.players.find((p) => p.socketId === socket.id);
+      if (!player) { cb?.({ ok: false, message: "Not in room." }); return; }
+      if (room.status !== "finished" && room.status !== "in_game") {
+        cb?.({ ok: false, message: "No finished game to replay." });
+        return;
+      }
+
+      if (room.gameMode === "solo") {
+        prepareRematch(io, room);
+        startGameForRoom(io, room, cb);
+        return;
+      }
+
+      player.wantsPlayAgain = true;
+      const connected = room.players.filter((p) => p.socketId);
+      const allVoted = connected.length >= MAX_PLAYERS_PER_ROOM
+        && connected.every((p) => p.wantsPlayAgain);
+
+      emitPlayAgainUpdate(io, room);
+
+      if (allVoted) {
+        prepareRematch(io, room);
+        cb?.({ ok: true, rematchLobby: true, room: toPublicRoomState(room) });
+        return;
+      }
+
+      const waitingFor = connected
+        .filter((p) => !p.wantsPlayAgain)
+        .map((p) => p.username);
+      cb?.({ ok: true, waitingFor });
     });
 
     socket.on("start_game", ({ code }, cb) => {
@@ -376,6 +451,9 @@ const registerSocketHandlers = (io) => {
         weaponStreak: g.weaponStreak || 0,
         wordExpiresAt: g.wordExpiresAt || 0,
         weaponTypeId: g.weapon?.typeId,
+        weaponRage: g.weaponRage || 0,
+        ultimateMode: Boolean(g._ultimateMode),
+        currentWordPhase: g.currentWordPhase,
       });
       emitGameState(io, room, resolveBossConfig(room));
       cb?.({ ok: true });

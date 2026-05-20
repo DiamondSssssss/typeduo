@@ -83,7 +83,7 @@ const takeDamage = (io, room, damage, x, y, opts = {}) => {
     w.pickedUpAt = 0;
     w.pickupLockedUntil = now + WEAPON_PICKUP_LOCK_AFTER_DROP_MS;
     weaponDropped = true;
-    io.to(room.code).emit("weapon_dropped", { x: w.x, y: w.y });
+    io.to(room.code).emit("weapon_dropped", { x: w.x, y: w.y, weaponTypeId: w.typeId });
   }
 
   io.to(room.code).emit("player_hit", {

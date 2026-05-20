@@ -911,6 +911,29 @@ button {
   color: var(--accent-red);
 }
 
+.game-over-room-code {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.game-over-room-code strong {
+  color: #fde68a;
+  letter-spacing: 0.12em;
+}
+
+.game-over-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.game-over-waiting {
+  margin: 0;
+}
+
 /* Game canvas */
 .game-root {
   width: min(1280px, 100%);
@@ -1921,26 +1944,101 @@ button {
   color: var(--text-muted);
 }
 
+.weapon-hud--rage-full {
+  border-color: rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 18px rgba(251, 191, 36, 0.2);
+}
+
 .weapon-rage-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(251, 191, 36, 0.15);
+}
+
+.weapon-rage-row--full {
+  border-color: rgba(251, 191, 36, 0.65);
+  background: rgba(69, 26, 3, 0.35);
+  animation: rage-row-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes rage-row-pulse {
+  from { box-shadow: 0 0 8px rgba(251, 191, 36, 0.2); }
+  to { box-shadow: 0 0 16px rgba(251, 191, 36, 0.45); }
+}
+
+.weapon-rage-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fbbf24;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .weapon-rage-track {
   flex: 1;
-  height: 6px;
-  background: rgba(15, 23, 42, 0.8);
-  border-radius: 4px;
+  min-width: 120px;
+  height: 10px;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 5px;
   overflow: hidden;
+  border: 1px solid rgba(251, 191, 36, 0.25);
 }
 
 .weapon-rage-fill {
   height: 100%;
-  background: linear-gradient(90deg, #f59e0b, #ef4444);
-  border-radius: 4px;
-  transition: width 0.2s ease;
+  background: linear-gradient(90deg, #f59e0b, #ef4444, #fbbf24);
+  border-radius: 5px;
+  transition: width 0.25s ease;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+}
+
+.weapon-rage-pct {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fde68a;
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+.weapon-rage-hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.weapon-ult-hint {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: #fde68a;
+  line-height: 1.35;
+}
+
+.weapon-ult-hint strong {
+  color: #fbbf24;
+}
+
+.callout--rage {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(69, 26, 3, 0.35);
+  color: #fde68a;
+}
+
+.callout--ultimate {
+  border-color: rgba(251, 191, 36, 0.75);
+  background: linear-gradient(135deg, rgba(69, 26, 3, 0.55), rgba(120, 53, 15, 0.35));
+  color: #fef3c7;
+  animation: ult-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.callout--ultimate em {
+  font-style: normal;
+  color: #fbbf24;
+  font-weight: 600;
 }
 
 .weapon-hud__tag--ult {

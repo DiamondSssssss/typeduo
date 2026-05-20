@@ -18,13 +18,8 @@ class ChainCancelAttack extends BaseAttack {
   onStart(ctx) {
     ctx.lockBossMovement(true);
     ctx.setBossInvulnerable(ctx.now + this.windUpMs);
-    const words = [];
-    const { pickChallengeWord } = require("../../typingChallenges");
-    for (let i = 0; i < this.chainLength; i++) {
-      words.push(pickChallengeWord(3, 5));
-    }
     startChainCancel(ctx.io, ctx.room, ctx.game, {
-      words,
+      chainLength: this.chainLength,
       windUpMs: this.windUpMs,
       blastDamage: this.blastDamage,
       attackId: this.id,
@@ -34,7 +29,7 @@ class ChainCancelAttack extends BaseAttack {
   }
 
   onTick(ctx, elapsed) {
-    if (!ctx.game._challenge || ctx.game._challenge.kind !== "chain_cancel") return "done";
+    if (!ctx.game._chainCancel) return "done";
     if (elapsed < this.windUpMs) return "windup";
     return "done";
   }

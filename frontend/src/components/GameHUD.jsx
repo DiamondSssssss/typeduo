@@ -143,6 +143,8 @@ function WordTimerBar({ expiresAt }) {
 
 function WeaponHudPanel({ weaponTypeId, weaponHeld, weaponStreak, wordExpiresAt, weaponRage = 0, ultimateMode = false }) {
   const weapon = getWeapon(weaponTypeId);
+  const ragePct = Math.min(100, Math.round((weaponRage / RAGE_MAX) * 100));
+  const rageFull = ragePct >= 100 || ultimateMode;
   if (!weaponHeld) {
     return (
       <div className="weapon-hud">
@@ -151,7 +153,7 @@ function WeaponHudPanel({ weaponTypeId, weaponHeld, weaponStreak, wordExpiresAt,
     );
   }
   return (
-    <div className="weapon-hud" style={{ "--weapon-color": weapon.color }}>
+    <div className={`weapon-hud${rageFull ? " weapon-hud--rage-full" : ""}`} style={{ "--weapon-color": weapon.color }}>
       <div className="weapon-hud__row">
         <span className="weapon-hud__icon">{weapon.icon}</span>
         <span className="weapon-hud__name">{weapon.nameVi}</span>
@@ -169,24 +171,41 @@ function WeaponHudPanel({ weaponTypeId, weaponHeld, weaponStreak, wordExpiresAt,
           ))}
         </div>
       ) : null}
-      <div className="weapon-rage-row">
-        <span className="weapon-hud__tag">Nộ</span>
+      <div className={`weapon-rage-row${rageFull ? " weapon-rage-row--full" : ""}`}>
+        <span className="weapon-rage-label">⚡ NỘ</span>
         <div className="weapon-rage-track">
           <div
             className="weapon-rage-fill"
-            style={{ width: `${Math.min(100, (weaponRage / RAGE_MAX) * 100)}%` }}
+            style={{ width: `${ragePct}%` }}
           />
         </div>
-        <span className="weapon-hud__tag">{Math.round(weaponRage)}%</span>
-        {ultimateMode ? (
-          <span className="weapon-hud__tag weapon-hud__tag--ult">ULTIMATE!</span>
-        ) : null}
+        <span className="weapon-rage-pct">{ragePct}%</span>
+        {rageFull ? (
+          <span className="weapon-hud__tag weapon-hud__tag--ult">
+            {ultimateMode ? "GÕ CÂU VÀNG!" : "SẴN SÀNG!"}
+          </span>
+        ) : (
+          <span className="weapon-rage-hint">Gõ từ → tích Nộ</span>
+        )}
       </div>
+      {ultimateMode && weapon.ultimateName ? (
+        <p className="weapon-ult-hint">
+          Chiêu cuối <strong>{weapon.ultimateName}</strong> — gõ hết câu vàng trên màn hình game
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", onLeaveRoom }) {
+function GameHUD({
+  gamePayload,
+  socketConnected = true,
+  connectionNotice = "",
+  playAgainVotes = null,
+  playAgainPending = false,
+  onPlayAgain,
+  onLeaveRoom,
+}) {
   const players = gamePayload?.players || [];
   const sharedHP = gamePayload?.sharedHP ?? 100;
   const sharedMaxHP = gamePayload?.sharedMaxHP ?? 100;
@@ -208,13 +227,21 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
   const windUpAttack = gamePayload?.boss?.windUpAttack;
   const windUpRemaining = gamePayload?.boss?.windUpRemaining || 0;
   const bossId = gamePayload?.bossId || "watcher";
-  const gameMode = gamePayload?.gameMode || "coop";
+  const gameMode = gamePayload?.gameMode || gameOver?.gameMode || "coop";
   const isSolo = gameMode === "solo";
+  const roomCode = gamePayload?.roomCode;
+  const iVotedPlayAgain = playAgainPending;
+  const waitingNames = (playAgainVotes?.voted || [])
+    .filter((v) => v.connected && !v.wantsPlayAgain)
+    .map((v) => v.username);
   const columnState = gamePayload?.boss?.columnState;
   const bossShield = gamePayload?.bossShield ?? 0;
   const bossShieldMax = gamePayload?.bossShieldMax ?? 0;
   const poisoned = gamePayload?.poisoned;
   const slowed = gamePayload?.slowed;
+  const weaponRage = gamePayload?.weaponRage ?? 0;
+  const ultimateMode = gamePayload?.ultimateMode ?? false;
+  const ultWeapon = getWeapon(weaponTypeId);
 
   const orderedPlayers = [...players].sort((a, b) => {
     if (a.role === "solo") return -1;
@@ -305,13 +332,26 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
         <HPBar label="Boss HP" hp={bossHP} maxHP={bossMaxHP} variant="boss" />
       </div>
 
+      {weaponHeld && !gameOver && ultimateMode ? (
+        <div className="callout callout--ultimate">
+          <strong>CHIÊU CUỐI SẴN SÀNG!</strong> Gõ câu vàng <em>{ultWeapon.ultimatePhrase}</em> để dùng{" "}
+          <strong>{ultWeapon.ultimateName}</strong>
+        </div>
+      ) : null}
+
+      {weaponHeld && !gameOver && !ultimateMode && weaponRage >= 75 ? (
+        <div className="callout callout--rage">
+          Nộ {Math.round(weaponRage)}% — gõ thêm vài từ nữa để kích hoạt chiêu cuối
+        </div>
+      ) : null}
+
       <WeaponHudPanel
         weaponTypeId={weaponTypeId}
         weaponHeld={weaponHeld}
         weaponStreak={weaponStreak}
         wordExpiresAt={wordExpiresAt}
-        weaponRage={gamePayload?.weaponRage ?? 0}
-        ultimateMode={gamePayload?.ultimateMode}
+        weaponRage={weaponRage}
+        ultimateMode={ultimateMode}
       />
 
       <div className="players-row">
@@ -365,12 +405,33 @@ function GameHUD({ gamePayload, socketConnected = true, connectionNotice = "", o
             </div>
           ) : null}
 
-          {typeof onLeaveRoom === "function" ? (
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <button type="button" className="btn btn-primary" onClick={onLeaveRoom}>
-                Return to Lobby
+          {roomCode ? (
+            <p className="game-over-room-code">
+              Phòng <strong>{roomCode}</strong> — chơi lại giữ nguyên mã phòng
+            </p>
+          ) : null}
+
+          {typeof onPlayAgain === "function" ? (
+            <div className="game-over-actions">
+              <button type="button" className="btn btn-primary" onClick={onPlayAgain}>
+                {isSolo ? "Chơi lại" : iVotedPlayAgain ? "Đã sẵn sàng chơi lại" : "Chơi lại (cùng phòng)"}
               </button>
+              {typeof onLeaveRoom === "function" ? (
+                <button type="button" className="btn btn-ghost" onClick={onLeaveRoom}>
+                  Rời phòng
+                </button>
+              ) : null}
             </div>
+          ) : null}
+
+          {!isSolo && iVotedPlayAgain && waitingNames.length > 0 ? (
+            <p className="status-text game-over-waiting">
+              Đang chờ: <strong>{waitingNames.join(", ")}</strong>
+            </p>
+          ) : null}
+
+          {!isSolo && playAgainVotes?.allVoted ? (
+            <p className="status-text">Cả hai đã bấm chơi lại — quay về lobby…</p>
           ) : null}
         </div>
       ) : null}

@@ -10,6 +10,7 @@ import GameHUD from "./components/GameHUD";
 import { phaserConfig } from "./game/phaserConfig";
 import MainScene from "./game/MainScene";
 import TutorialScene from "./game/TutorialScene";
+import { RAGE_MAX } from "./game/weapons";
 
 const STORED_USER_KEY = "typeduo_user";
 const ACTIVE_GAME_KEY = "typeduo_active_game";
@@ -52,6 +53,8 @@ function App() {
   const [appView, setAppView] = useState("home");
   const [roomState, setRoomState] = useState(null);
   const [gamePayload, setGamePayload] = useState(null);
+  const [playAgainVotes, setPlayAgainVotes] = useState(null);
+  const [playAgainPending, setPlayAgainPending] = useState(false);
   const [connectionNotice, setConnectionNotice] = useState("");
   const gameRef = useRef(null);
   const tutorialRef = useRef(null);
@@ -125,24 +128,74 @@ function App() {
       setConnectionNotice("");
       setGamePayload((prev) => ({ ...(prev || {}), ...payload }));
     };
+    const onTypingProgress = (payload) => {
+      setGamePayload((prev) => ({
+        ...(prev || {}),
+        currentWord: payload.currentWord ?? prev?.currentWord,
+        typedProgress: payload.typedProgress ?? prev?.typedProgress,
+        weaponStreak: payload.weaponStreak ?? prev?.weaponStreak,
+        wordExpiresAt: payload.wordExpiresAt ?? prev?.wordExpiresAt,
+        weaponTypeId: payload.weaponTypeId ?? prev?.weaponTypeId,
+        weaponRage: payload.weaponRage ?? prev?.weaponRage,
+        ultimateMode: payload.ultimateMode ?? prev?.ultimateMode,
+        currentWordPhase: payload.currentWordPhase ?? prev?.currentWordPhase,
+      }));
+    };
+    const onUltimateReady = (payload) => {
+      setGamePayload((prev) => ({
+        ...(prev || {}),
+        weaponRage: payload.weaponRage ?? RAGE_MAX,
+        ultimateMode: true,
+        currentWord: payload.currentWord ?? payload.phrase ?? prev?.currentWord,
+        typedProgress: payload.typedProgress ?? 0,
+        currentWordPhase: "ultimate",
+        weaponTypeId: payload.weaponTypeId ?? prev?.weaponTypeId,
+      }));
+    };
+    const onWordCompleted = (payload) => {
+      setGamePayload((prev) => ({
+        ...(prev || {}),
+        weaponRage: payload.weaponRage ?? prev?.weaponRage,
+        ultimateMode: payload.ultimate ? false : prev?.ultimateMode,
+        bossHP: payload.bossHP ?? prev?.bossHP,
+      }));
+    };
     const onGameOver = (payload) => {
       clearActiveGame();
+      setPlayAgainVotes(null);
+      setPlayAgainPending(false);
       setGamePayload((prev) => ({ ...(prev || {}), gameOver: payload }));
     };
     const onStartGame = (payload) => {
       const username = currentUser?.username || currentUser?.email;
       if (payload?.roomCode && username) saveActiveGame(payload.roomCode, username);
+      setPlayAgainVotes(null);
+      setPlayAgainPending(false);
       setGamePayload(payload);
-      setAppView("game");
       setConnectionNotice("");
     };
+    const onRematchLobby = (room) => {
+      clearActiveGame();
+      setPlayAgainVotes(null);
+      setPlayAgainPending(false);
+      setGamePayload(null);
+      setRoomState(room);
+      setAppView("coop");
+      setConnectionNotice("");
+    };
+    const onPlayAgainUpdate = (payload) => setPlayAgainVotes(payload);
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("room_update", onRoomUpdate);
     socket.on("game_state", onGameState);
+    socket.on("typing_progress", onTypingProgress);
+    socket.on("weapon_ultimate_ready", onUltimateReady);
+    socket.on("word_completed", onWordCompleted);
     socket.on("game_over", onGameOver);
     socket.on("startGame", onStartGame);
+    socket.on("rematch_lobby", onRematchLobby);
+    socket.on("play_again_update", onPlayAgainUpdate);
 
     if (socket.connected) onConnect();
 
@@ -151,8 +204,13 @@ function App() {
       socket.off("disconnect", onDisconnect);
       socket.off("room_update", onRoomUpdate);
       socket.off("game_state", onGameState);
+      socket.off("typing_progress", onTypingProgress);
+      socket.off("weapon_ultimate_ready", onUltimateReady);
+      socket.off("word_completed", onWordCompleted);
       socket.off("game_over", onGameOver);
       socket.off("startGame", onStartGame);
+      socket.off("rematch_lobby", onRematchLobby);
+      socket.off("play_again_update", onPlayAgainUpdate);
       socket.disconnect();
     };
   }, [socket, currentUser, tryResumeGame]);
@@ -206,6 +264,27 @@ function App() {
     if (tutorialRef.current) { tutorialRef.current.destroy(true); tutorialRef.current = null; }
   }, []);
 
+  const handlePlayAgain = useCallback(() => {
+    const code = gamePayload?.roomCode || roomState?.code;
+    if (!socket?.connected || !code) return;
+    setPlayAgainPending(true);
+    socket.emit("play_again", { code }, (res) => {
+      if (!res?.ok) {
+        setPlayAgainPending(false);
+        setConnectionNotice(res?.message || "Không thể chơi lại.");
+        return;
+      }
+      if (res.rematchLobby && res.room) {
+        clearActiveGame();
+        setPlayAgainVotes(null);
+        setGamePayload(null);
+        setRoomState(res.room);
+        setAppView("coop");
+        setConnectionNotice("");
+      }
+    });
+  }, [socket, gamePayload, roomState]);
+
   const handleLeaveRoom = useCallback(() => {
     const code = roomState?.code || gamePayload?.roomCode;
     const finish = () => {
@@ -220,10 +299,15 @@ function App() {
   }, [socket, roomState, gamePayload]);
 
   useEffect(() => {
-    const handler = () => handleLeaveRoom();
-    window.addEventListener("typeduo_leave_room", handler);
-    return () => window.removeEventListener("typeduo_leave_room", handler);
-  }, [handleLeaveRoom]);
+    const onLeave = () => handleLeaveRoom();
+    const onPlayAgain = () => handlePlayAgain();
+    window.addEventListener("typeduo_leave_room", onLeave);
+    window.addEventListener("typeduo_play_again", onPlayAgain);
+    return () => {
+      window.removeEventListener("typeduo_leave_room", onLeave);
+      window.removeEventListener("typeduo_play_again", onPlayAgain);
+    };
+  }, [handleLeaveRoom, handlePlayAgain]);
 
   if (!currentUser) {
     return (
@@ -265,6 +349,9 @@ function App() {
             gamePayload={gamePayload}
             socketConnected={socketConnected}
             connectionNotice={connectionNotice}
+            playAgainVotes={playAgainVotes}
+            playAgainPending={playAgainPending}
+            onPlayAgain={handlePlayAgain}
             onLeaveRoom={handleLeaveRoom}
           />
         </div>
@@ -272,7 +359,7 @@ function App() {
         <div className="game-layout">
           <div id="tutorial-root" className="game-root" />
           <p className="tutorial-hint card card-wide">
-            Same cyan letter glow &amp; particles as co-op. Complete 6 steps or skip via the top-right button.
+            Same cyan letter glow &amp; particles as co-op. Complete 7 steps (includes Nộ / ultimate) or skip via the top-right button.
           </p>
         </div>
       ) : appView === "almanac" ? (

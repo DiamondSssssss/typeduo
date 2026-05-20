@@ -49,8 +49,16 @@ const advanceBossLifecycle = (io, room, bossConfig, now) => {
       g.bossState   = "stunned";
       g.stateEndsAt = now + STUN_DURATION_MS;
       room.players.forEach((p) => { p.facing = { x: 0, y: 0 }; });
+      // Co-op: keep the team's active weapon when roles swap (don't revert to runner's default).
+      if (g.weapon?.typeId) {
+        room.players.forEach((p) => { p.weaponTypeId = g.weapon.typeId; });
+      }
       io.to(room.code).emit("roles_swapped", {
-        players: room.players.map(({ socketId, username, role }) => ({ socketId, username, role })),
+        players: room.players.map(({ socketId, username, role, weaponTypeId }) => ({
+          socketId, username, role, weaponTypeId,
+        })),
+        weaponTypeId: g.weapon?.typeId,
+        weaponHeld: Boolean(g.weapon?.held),
       });
       io.to(room.code).emit("room_update", toPublicRoomState(room));
     }
@@ -109,7 +117,12 @@ const tick = (io, room) => {
     const wdy = char.y - g.weapon.y;
     if (wdx * wdx + wdy * wdy < WEAPON_PICKUP_RADIUS * WEAPON_PICKUP_RADIUS) {
       const carrier = room.players.find((p) => p.role === "typer" || p.role === "solo");
-      g.weapon.typeId = carrier?.weaponTypeId || g.weapon.typeId || DEFAULT_WEAPON_ID;
+      // Preserve weapon on the ground (e.g. after drop); typer default only for first spawn.
+      const teamType = g.weapon.typeId || carrier?.weaponTypeId || DEFAULT_WEAPON_ID;
+      g.weapon.typeId = teamType;
+      if (room.gameMode === "coop" || room.players.length > 1) {
+        room.players.forEach((p) => { p.weaponTypeId = teamType; });
+      }
       g.weapon.held = true;
       g.weapon.pickedUpAt = now;
       g.weapon.pickupLockedUntil = 0;
@@ -146,6 +159,7 @@ const tick = (io, room) => {
 
   if (g.sharedHP <= 0 || g.bossHP <= 0) {
     room.status = "finished";
+    room.players.forEach((p) => { p.wantsPlayAgain = false; });
     stopLoop(room.code);
     io.to(room.code).emit("game_over", {
       winner:         g.bossHP <= 0 ? "players" : "boss",

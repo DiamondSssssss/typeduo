@@ -39,6 +39,8 @@ const tryBossTransform = (io, room, baseConfig) => {
   g._voidZoneDetonates = [];
   g._magnetActive = false;
   g._challenge = null;
+  g._windupCancel = null;
+  g._chainCancel = null;
   g._savedWeaponWord = null;
   g._typableMinions = [];
   g._typablePillars = [];

@@ -63,19 +63,24 @@ const clearChallenge = (io, room, g, reason) => {
   emitChallenge(io, room, { active: false, reason });
 };
 
-/** Start typable wind-up cancel (type word before expiresAt or boss fires). */
-const startWindupCancel = (io, room, g, { attackId, windUpMs, blastDamage, word }) => {
-  const w = word || pickChallengeWord(5, 8);
-  setChallengeWord(io, room, g, "windup_cancel", w, {
+/** Overcharge — complete one weapon word before timer ends to cancel (no extra words). */
+const startWindupCancel = (io, room, g, { attackId, windUpMs, blastDamage }) => {
+  g._windupCancel = {
     attackId,
     expiresAt: Date.now() + windUpMs,
     blastDamage: blastDamage || 35,
-  });
+  };
   io.to(room.code).emit("overcharge_start", {
-    word: w,
     durationMs: windUpMs,
     attackId,
   });
+};
+
+const hasActiveWindupCancel = (g) => Boolean(g._windupCancel);
+
+const tryCancelWindupOnWord = (io, room, g) => {
+  if (!g._windupCancel) return false;
+  return resolveWindupCancel(io, room, g);
 };
 
 const reverseStr = (s) => String(s || "").split("").reverse().join("");
@@ -90,39 +95,38 @@ const startMirrorWord = (io, room, g) => {
   io.to(room.code).emit("mirror_word_start", { source, reversed });
 };
 
-/** Chain cancel — 2–3 short words in one wind-up window. */
-const startChainCancel = (io, room, g, { words, windUpMs, blastDamage, attackId }) => {
-  const chain = words || [
-    pickChallengeWord(3, 5),
-    pickChallengeWord(3, 5),
-    pickChallengeWord(3, 5),
-  ];
-  saveWeaponWord(g);
-  g._challenge = {
-    kind: "chain_cancel",
-    words: chain,
-    wordIndex: 0,
-    word: chain[0],
-    progress: 0,
+/** Chain cancel — complete N weapon words before timer ends (no extra words). */
+const startChainCancel = (io, room, g, { chainLength, windUpMs, blastDamage, attackId }) => {
+  const required = Math.min(Math.max(chainLength ?? 3, 2), 3);
+  g._chainCancel = {
     attackId,
     expiresAt: Date.now() + windUpMs,
     blastDamage: blastDamage || 42,
+    required,
+    completed: 0,
   };
-  g.currentWord = chain[0];
-  g.typedProgress = 0;
-  emitChallenge(io, room, {
-    active: true,
-    kind: "chain_cancel",
-    word: chain[0],
-    progress: 0,
-    chainIndex: 0,
-    chainTotal: chain.length,
-  });
   io.to(room.code).emit("chain_cancel_start", {
-    words: chain,
     durationMs: windUpMs,
     attackId,
+    chainTotal: required,
   });
+};
+
+const hasActiveChainCancel = (g) => Boolean(g._chainCancel);
+
+const tryAdvanceChainOnWord = (io, room, g) => {
+  const cc = g._chainCancel;
+  if (!cc) return { advanced: false };
+  cc.completed += 1;
+  io.to(room.code).emit("chain_cancel_progress", {
+    completed: cc.completed,
+    total: cc.required,
+  });
+  if (cc.completed >= cc.required) {
+    resolveWindupCancel(io, room, g);
+    return { advanced: true, completed: true };
+  }
+  return { advanced: true, completed: false };
 };
 
 /** Safe zone — stand in blue zone and type word; success shields zone for map blast. */
@@ -194,10 +198,14 @@ const resetTypoStreak = (g) => {
   g.consecutiveTypos = 0;
 };
 
-/** Cancel active combat attack (overcharge interrupted). */
+/** Cancel active combat attack (overcharge / chain interrupted). */
 const resolveWindupCancel = (io, room, g) => {
-  const c = g._challenge;
-  if (!c || (c.kind !== "windup_cancel" && c.kind !== "chain_cancel")) return false;
+  const wc = g._windupCancel;
+  const cc = g._chainCancel;
+  if (!wc && !cc) return false;
+  const attackId = wc?.attackId || cc?.attackId;
+  g._windupCancel = null;
+  g._chainCancel = null;
   const combat = g._combat;
   if (combat) {
     combat.state = "idle";
@@ -210,17 +218,18 @@ const resolveWindupCancel = (io, room, g) => {
   g.bossInvulnUntil = 0;
   g.boss.combatLockMove = false;
   g.boss.nextMoveAt = Date.now();
-  clearChallenge(io, room, g, "cancelled");
-  io.to(room.code).emit("overcharge_cancelled", { attackId: c.attackId });
+  io.to(room.code).emit("overcharge_cancelled", { attackId });
   io.to(room.code).emit("boss_windup_cancel");
   return true;
 };
 
 const fireOvercharge = (io, room, g) => {
-  const c = g._challenge;
-  if (!c || (c.kind !== "windup_cancel" && c.kind !== "chain_cancel")) return;
-  const dmg = c.blastDamage || 35;
-  clearChallenge(io, room, g, "fired");
+  const wc = g._windupCancel;
+  const cc = g._chainCancel;
+  if (!wc && !cc) return;
+  const dmg = wc?.blastDamage || cc?.blastDamage || 35;
+  g._windupCancel = null;
+  g._chainCancel = null;
   takeDamage(io, room, dmg, g.character.x, g.character.y);
   io.to(room.code).emit("overcharge_hit", { damage: dmg });
   io.to(room.code).emit("boss_windup_cancel");
@@ -333,19 +342,25 @@ const tryDestroyPillarOnWord = (io, room, g) => {
   return true;
 };
 
-/** Player must type escape word to move again. */
-const startPlayerStun = (io, room, g, { durationMs = 3500, word }) => {
-  const w = word || pickChallengeWord(4, 6);
-  g._playerStun = { active: true, word: w, progress: 0, until: Date.now() + durationMs };
+/** Paralyze — runner frozen; typer breaks free by completing their weapon word. */
+const startPlayerStun = (io, room, g, { durationMs = 9000 }) => {
+  const until = Date.now() + durationMs;
+  g._playerStun = { active: true, until };
   g.moveSpeedMult = 0;
-  setChallengeWord(io, room, g, "player_stun", w, { until: g._playerStun.until });
-  io.to(room.code).emit("player_stun_start", { word: w, durationMs });
+  io.to(room.code).emit("player_stun_start", { durationMs, until });
+};
+
+const isPlayerStunned = (g) => Boolean(g._playerStun?.active);
+
+const tryClearParalyzeOnWord = (io, room, g) => {
+  if (!isPlayerStunned(g)) return false;
+  clearPlayerStun(io, room, g);
+  return true;
 };
 
 const clearPlayerStun = (io, room, g) => {
   g._playerStun = null;
   g.moveSpeedMult = 1;
-  clearChallenge(io, room, g, "stun_cleared");
   io.to(room.code).emit("player_stun_cleared");
 };
 
@@ -414,30 +429,6 @@ const processChallengeInput = (io, room, player, input) => {
 
   // Challenge word completed
   switch (c.kind) {
-    case "chain_cancel": {
-      if (c.wordIndex < c.words.length - 1) {
-        c.wordIndex += 1;
-        c.word = c.words[c.wordIndex];
-        c.progress = 0;
-        g.currentWord = c.word;
-        g.typedProgress = 0;
-        emitChallenge(io, room, {
-          active: true,
-          kind: "chain_cancel",
-          word: c.word,
-          progress: 0,
-          chainIndex: c.wordIndex,
-          chainTotal: c.words.length,
-        });
-        io.to(room.code).emit("chain_cancel_step", {
-          chainIndex: c.wordIndex,
-          word: c.word,
-        });
-        break;
-      }
-      resolveWindupCancel(io, room, g);
-      break;
-    }
     case "mirror_word":
       clearChallenge(io, room, g, "mirror_done");
       io.to(room.code).emit("mirror_word_cleared");
@@ -445,17 +436,11 @@ const processChallengeInput = (io, room, player, input) => {
     case "safe_zone":
       resolveSafeZoneSuccess(io, room, g);
       break;
-    case "windup_cancel":
-      resolveWindupCancel(io, room, g);
-      break;
     case "shield_break":
       g.bossShield = 0;
       g._shieldWordMode = false;
       clearChallenge(io, room, g, "shield_broken");
       io.to(room.code).emit("shield_word_broken");
-      break;
-    case "player_stun":
-      clearPlayerStun(io, room, g);
       break;
     default:
       clearChallenge(io, room, g, "done");
@@ -478,8 +463,10 @@ const tickTypingChallenges = (io, room, now) => {
   const g = room.game;
   if (!g) return;
 
-  const c = g._challenge;
-  if ((c?.kind === "windup_cancel" || c?.kind === "chain_cancel") && c.expiresAt && now >= c.expiresAt) {
+  if (g._windupCancel?.expiresAt && now >= g._windupCancel.expiresAt) {
+    fireOvercharge(io, room, g);
+  }
+  if (g._chainCancel?.expiresAt && now >= g._chainCancel.expiresAt) {
     fireOvercharge(io, room, g);
   }
 
@@ -512,7 +499,11 @@ const tickTypingChallenges = (io, room, now) => {
 module.exports = {
   pickChallengeWord,
   startWindupCancel,
+  hasActiveWindupCancel,
+  tryCancelWindupOnWord,
   startChainCancel,
+  hasActiveChainCancel,
+  tryAdvanceChainOnWord,
   startMirrorWord,
   startSafeZoneEvent,
   resolveWindupCancel,
@@ -526,6 +517,9 @@ module.exports = {
   tryDestroyPillarOnWord,
   hasActivePillars,
   startPlayerStun,
+  isPlayerStunned,
+  tryClearParalyzeOnWord,
+  clearPlayerStun,
   applyTypoBossEffect,
   trackTypoBomb,
   resetTypoStreak,

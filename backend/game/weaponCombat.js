@@ -7,6 +7,12 @@ const {
 } = require("./words");
 const { applyBossWordDamage } = require("./bossDamage");
 const {
+  isPlayerStunned,
+  tryClearParalyzeOnWord,
+  hasActiveChainCancel,
+  tryAdvanceChainOnWord,
+  hasActiveWindupCancel,
+  tryCancelWindupOnWord,
   hasActiveMinions,
   hasActivePillars,
   tryKillMinionOnWord,
@@ -100,10 +106,22 @@ const completeWord = (room, player, io = null) => {
 
   let minionKilled = false;
   let pillarDestroyed = false;
+  let paralyzeCleared = false;
+  let windupCancelled = false;
+  let chainProgress = null;
   let bossDamage = 0;
 
-  // Minions/pillars: use your normal weapon word to clear them (no separate challenge words).
-  if (io && hasActiveMinions(g)) {
+  // Mechanics use your weapon word only — no hijacked challenge text.
+  if (io && isPlayerStunned(g)) {
+    paralyzeCleared = tryClearParalyzeOnWord(io, room, g);
+  } else if (io && hasActiveChainCancel(g)) {
+    const cc = g._chainCancel;
+    const chain = tryAdvanceChainOnWord(io, room, g);
+    chainProgress = { completed: cc.completed, total: cc.required };
+    windupCancelled = chain.completed === true;
+  } else if (io && hasActiveWindupCancel(g)) {
+    windupCancelled = tryCancelWindupOnWord(io, room, g);
+  } else if (io && hasActiveMinions(g)) {
     minionKilled = tryKillMinionOnWord(io, room, g);
   } else if (io && hasActivePillars(g)) {
     pillarDestroyed = tryDestroyPillarOnWord(io, room, g);
@@ -134,7 +152,10 @@ const completeWord = (room, player, io = null) => {
     tryOfferUltimate(io, room, g);
   }
 
-  refreshWeaponWord(g);
+  // Do not roll a new weapon word while ultimate phrase is active.
+  if (!g._ultimateMode) {
+    refreshWeaponWord(g);
+  }
 
   return {
     socketId: player.socketId,
@@ -144,6 +165,9 @@ const completeWord = (room, player, io = null) => {
     damage: bossDamage,
     minionKilled,
     pillarDestroyed,
+    paralyzeCleared,
+    windupCancelled,
+    chainProgress,
     baseDamage: Math.round(computeWordDamage(completedWord) * (weapon.damageMult || 1)),
     appliedMult: Math.round(stunMult * streakMult * 10) / 10,
     stunBonus: stunMult > 1,
@@ -165,10 +189,6 @@ const { loseRageOnTypo, isUltimateMode, executeUltimate, addRage, tryOfferUltima
 const handleTypo = (g) => {
   resetWeaponStreak(g);
   loseRageOnTypo(g);
-  if (g._ultimateMode) {
-    g._ultimateMode = false;
-    g._savedWeaponWord = null;
-  }
 };
 
 module.exports = {

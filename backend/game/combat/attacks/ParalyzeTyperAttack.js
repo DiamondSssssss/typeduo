@@ -6,13 +6,13 @@ class ParalyzeTyperAttack extends BaseAttack {
     super(id, {
       category: "special",
       cooldownMs: opts.cooldownMs ?? 13000,
-      windUpMs: opts.windUpMs ?? 600,
-      durationMs: opts.durationMs ?? 600,
+      windUpMs: opts.windUpMs ?? 2200,
+      durationMs: opts.durationMs ?? 2200,
       weight: opts.weight ?? 12,
       maxRange: opts.maxRange ?? 9999,
       ...opts,
     });
-    this.stunMs = opts.stunMs ?? 4000;
+    this.stunMs = opts.stunMs ?? 9000;
   }
 
   onStart(ctx) {

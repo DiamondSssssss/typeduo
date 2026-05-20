@@ -62,15 +62,39 @@ const addRage = (g, weaponId) => {
   return g.weaponRage;
 };
 
+const restoreSavedWeaponWord = (g) => {
+  const s = g._savedWeaponWord;
+  g._savedWeaponWord = null;
+  if (!s) {
+    const { refreshWeaponWord } = require("./weaponCombat");
+    refreshWeaponWord(g);
+    return;
+  }
+  g.currentWord = s.currentWord;
+  g.typedProgress = s.typedProgress;
+  g.currentWordPhase = s.currentWordPhase;
+  g.wordExpiresAt = s.wordExpiresAt;
+};
+
+const cancelUltimateMode = (g) => {
+  if (!g._ultimateMode) return;
+  g._ultimateMode = false;
+  restoreSavedWeaponWord(g);
+};
+
 const loseRageOnTypo = (g) => {
   initRage(g);
   g.weaponRage = Math.max(0, (g.weaponRage || 0) - RAGE_LOST_ON_TYPO);
+  if (g._ultimateMode) cancelUltimateMode(g);
 };
+
+const DEFERRED_CHALLENGE_KINDS = new Set(["shield_break", "mirror_word", "safe_zone"]);
 
 const enterUltimateMode = (io, room, g) => {
   const weapon = getWeapon(g.weapon?.typeId);
   const ult = WEAPON_ULTIMATES[weapon.id];
-  if (!ult || g._ultimateMode || g._challenge) return false;
+  if (!ult || g._ultimateMode) return false;
+  if (g._challenge && DEFERRED_CHALLENGE_KINDS.has(g._challenge.kind)) return false;
 
   if (!g._savedWeaponWord) {
     g._savedWeaponWord = {
@@ -91,13 +115,16 @@ const enterUltimateMode = (io, room, g) => {
     name: ult.name,
     weaponTypeId: weapon.id,
     weaponRage: g.weaponRage,
+    currentWord: ult.phrase,
+    currentWordPhase: "ultimate",
+    typedProgress: 0,
   });
   return true;
 };
 
 const tryOfferUltimate = (io, room, g) => {
   initRage(g);
-  if (g.weaponRage >= RAGE_MAX && !g._ultimateMode && !g._challenge) {
+  if (g.weaponRage >= RAGE_MAX && !g._ultimateMode) {
     enterUltimateMode(io, room, g);
   }
 };

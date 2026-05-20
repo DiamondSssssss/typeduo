@@ -23,7 +23,6 @@ class OverchargeAttack extends BaseAttack {
       attackId: this.id,
       windUpMs: this.windUpMs,
       blastDamage: this.blastDamage,
-      word: this.challengeWord,
     });
     ctx.emit("boss_windup_start", {
       attackType: this.id,
@@ -34,7 +33,7 @@ class OverchargeAttack extends BaseAttack {
   }
 
   onTick(ctx, elapsed) {
-    if (ctx.game._challenge?.kind !== "windup_cancel") return "done";
+    if (!ctx.game._windupCancel) return "done";
     if (elapsed < this.windUpMs) return "windup";
     return "done";
   }

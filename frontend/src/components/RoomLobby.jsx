@@ -233,6 +233,9 @@ function RoomLobby({ socket, currentUser, roomState, onRoomUpdate, onGameStarted
             The <strong style={{ color: "var(--accent-purple)" }}>Typer</strong> types words to deal damage.
             Roles swap every time the boss roars!
           </p>
+          <p className="lobby-helper" style={{ marginTop: 8 }}>
+            Sau trận: cả hai bấm <strong>Chơi lại</strong> để về đây cùng mã phòng — không cần tạo phòng mới.
+          </p>
         </div>
 
         {status ? <p className="status-text">{status}</p> : null}

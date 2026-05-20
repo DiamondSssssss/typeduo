@@ -15,9 +15,10 @@ const toPublicRoomState = (room) => ({
   selectedBoss: room.selectedBoss,
   gameMode:     room.gameMode || "coop",
   difficulty:   room.difficulty || "normal",
-  players:      room.players.map(({ socketId, username, role, ready, weaponTypeId }) => ({
+  players:      room.players.map(({ socketId, username, role, ready, weaponTypeId, wantsPlayAgain }) => ({
     socketId, username, role, ready: ready || false,
     weaponTypeId: weaponTypeId || DEFAULT_WEAPON_ID,
+    wantsPlayAgain: Boolean(wantsPlayAgain),
   })),
   status:       room.status,
 });
@@ -78,6 +79,11 @@ const emitGameState = (io, room, bossConfig) => {
     typedProgress:    g.typedProgress,
     challengeKind:    g._challenge?.kind || null,
     playerStunned:    Boolean(g._playerStun?.active),
+    paralyzeUntil:    g._playerStun?.until || 0,
+    windupActive:     Boolean(g._windupCancel),
+    chainCancel:      g._chainCancel
+      ? { completed: g._chainCancel.completed, total: g._chainCancel.required, expiresAt: g._chainCancel.expiresAt }
+      : null,
     typableMinionCount: (g._typableMinions || []).length,
     character:        g.character,
     boss:             buildBossStateForClient({ ...g.boss, _bossHP: g.bossHP }, cfg, g),

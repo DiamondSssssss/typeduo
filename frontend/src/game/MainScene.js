@@ -463,9 +463,59 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _setCharPos(x, y) {
-    [this.charGlow, this.charRing, this.charBody, this.charHit, this.charArrow].forEach(o => o?.setPosition(x, y));
+    [this.charGlow, this.charRing, this.charBody, this.charHit, this.charArrow, this.paralyzeGfx].forEach(o => o?.setPosition(x, y));
     this.charLabel1?.setPosition(x, y - 30);
     this.charLabel2?.setPosition(x, y - 19);
+  }
+
+  _showParalyzeWindup(durationMs = 2200) {
+    const ring = this.add.circle(this.charX, this.charY, 22, 0xc084fc, 0)
+      .setStrokeStyle(4, 0xf472b6, 0.95).setDepth(7);
+    this.tweens.add({
+      targets: ring, scale: 2.8, alpha: 0,
+      duration: durationMs,
+      ease: "cubic.out",
+      onComplete: () => ring.destroy(),
+    });
+    this._showFloatingText("PARALYZE INCOMING!", "#f472b6", 26);
+    this.cameras.main.flash(120, 180, 80, 220, false);
+  }
+
+  _startParalyzeVisual() {
+    this._endParalyzeVisual();
+    this.paralyzed = true;
+    this.charBody?.setFillStyle(0x7c3aed, 1);
+    this.charRing?.setStrokeStyle(3, 0xf472b6, 1);
+    this.paralyzeGfx = this.add.circle(this.charX, this.charY, 44, 0xc084fc, 0.22)
+      .setStrokeStyle(2, 0xf472b6, 0.7).setDepth(4);
+    this.tweens.add({
+      targets: this.paralyzeGfx,
+      scale: { from: 1, to: 1.18 },
+      alpha: { from: 0.35, to: 0.15 },
+      duration: 450,
+      yoyo: true,
+      repeat: -1,
+      ease: "sine.inOut",
+    });
+    this.tweens.add({
+      targets: [this.charBody, this.charRing],
+      alpha: { from: 1, to: 0.65 },
+      duration: 280,
+      yoyo: true,
+      repeat: -1,
+    });
+    this._showFloatingText("PARALYZED — TYPE YOUR WORD!", "#f472b6", 26);
+    this.cameras.main.flash(220, 160, 60, 220, false);
+  }
+
+  _endParalyzeVisual() {
+    if (!this.paralyzed && !this.paralyzeGfx) return;
+    this.paralyzed = false;
+    this.tweens.killTweensOf([this.charBody, this.charRing]);
+    this.charBody?.setAlpha(1).setFillStyle(0xffffff, 1);
+    this.charRing?.setAlpha(1).setStrokeStyle(2.5, 0x4ef0d4, 0.9);
+    this.paralyzeGfx?.destroy();
+    this.paralyzeGfx = null;
   }
 
   _setCharLabels(players) {
@@ -1129,9 +1179,10 @@ export default class MainScene extends Phaser.Scene {
     this._showFloatingText(`${getWeapon(this.weaponTypeId).icon} ${getWeapon(this.weaponTypeId).nameVi}`, getWeapon(this.weaponTypeId).color, 22);
   }
 
-  _onWeaponDrop(x, y) {
+  _onWeaponDrop(x, y, weaponTypeId) {
     this.weaponHeld = false;
     this.weaponHeldBadge.setVisible(false);
+    if (weaponTypeId) this.weaponTypeId = weaponTypeId;
     this._setWeaponPos(x, y, this.weaponTypeId);
 
     // Drop impact flash
@@ -1393,20 +1444,24 @@ export default class MainScene extends Phaser.Scene {
 
   // ── Game-over Return to Lobby button in canvas ─────────────────────────────
   _showGameOverButton() {
-    const bx = W / 2, by = H / 2 + 130;
-    const btnBg = this.add.rectangle(bx, by, 240, 52, 0x1a2347, 0.95)
-      .setStrokeStyle(2, 0x4ef0d4, 0.9)
-      .setInteractive({ useHandCursor: true })
-      .setDepth(60);
-    const btnTxt = this.add.text(bx, by, "Return to Lobby", {
-      fontFamily: FONT, fontSize: "16px", color: "#4ef0d4", fontStyle: "bold",
-    }).setOrigin(0.5).setDepth(61);
-    btnBg.on("pointerover",  () => btnBg.setFillStyle(0x2a4470, 0.95));
-    btnBg.on("pointerout",   () => btnBg.setFillStyle(0x1a2347, 0.95));
-    btnBg.on("pointerdown",  () => {
-      window.dispatchEvent(new CustomEvent("typeduo_leave_room"));
-    });
-    this.tweens.add({ targets: [btnBg, btnTxt], alpha: { from: 0, to: 1 }, duration: 600, ease: "cubic.out" });
+    const makeBtn = (x, y, label, color, stroke, eventName) => {
+      const bg = this.add.rectangle(x, y, 220, 48, 0x1a2347, 0.95)
+        .setStrokeStyle(2, stroke, 0.9)
+        .setInteractive({ useHandCursor: true })
+        .setDepth(60);
+      const txt = this.add.text(x, y, label, {
+        fontFamily: FONT, fontSize: "15px", color, fontStyle: "bold",
+      }).setOrigin(0.5).setDepth(61);
+      bg.on("pointerover", () => bg.setFillStyle(0x2a4470, 0.95));
+      bg.on("pointerout", () => bg.setFillStyle(0x1a2347, 0.95));
+      bg.on("pointerdown", () => window.dispatchEvent(new CustomEvent(eventName)));
+      return [bg, txt];
+    };
+    const targets = [
+      ...makeBtn(W / 2 - 125, H / 2 + 120, "Chơi lại", "#fde68a", 0xfbbf24, "typeduo_play_again"),
+      ...makeBtn(W / 2 + 125, H / 2 + 120, "Rời phòng", "#4ef0d4", 0x4ef0d4, "typeduo_leave_room"),
+    ];
+    this.tweens.add({ targets, alpha: { from: 0, to: 1 }, duration: 600, ease: "cubic.out" });
   }
 
   /** True when this client drives character movement (solo or runner). */
@@ -1522,13 +1577,21 @@ export default class MainScene extends Phaser.Scene {
         this.projectileSprites.forEach((sp, id) => { if (!active.has(id)) { sp.destroy(); this.projectileSprites.delete(id); } });
       },
 
-      typing_progress: ({ currentWord, typedProgress, weaponStreak, wordExpiresAt, weaponTypeId }) => {
+      typing_progress: ({ currentWord, typedProgress, weaponStreak, wordExpiresAt, weaponTypeId, weaponRage, ultimateMode, currentWordPhase }) => {
         this.expectedWord = currentWord || ""; this.localTypedProgress = typedProgress || 0;
         if (weaponStreak != null) this.weaponStreak = weaponStreak;
         if (wordExpiresAt != null) this.wordExpiresAt = wordExpiresAt;
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
+        if (weaponRage != null) this.weaponRage = weaponRage;
+        if (ultimateMode != null) this.ultimateMode = ultimateMode;
         this._renderWord(this.expectedWord, this.localTypedProgress);
-        if (weaponStreak != null || weaponTypeId) this._applyWeaponTypingStyle();
+        if (ultimateMode || currentWordPhase === "ultimate") {
+          this.typedTxt.setColor("#fef3c7");
+          this.typedTxt.setStroke("#78350f", 2);
+          this.typedTxt.setShadow(0, 0, "#fbbf24", 20, false, true);
+        } else if (weaponStreak != null || weaponTypeId) {
+          this._applyWeaponTypingStyle();
+        }
       },
 
       word_expired: ({ currentWord, weaponTypeId }) => {
@@ -1572,7 +1635,7 @@ export default class MainScene extends Phaser.Scene {
 
       overcharge_start: () => {
         this.cameras.main.flash(200, 255, 80, 80, false);
-        this._showFloatingText("OVERCHARGE — TYPE!", "#fbbf24", 26);
+        this._showFloatingText("OVERCHARGE — TYPE YOUR WORD!", "#fbbf24", 26);
       },
       overcharge_cancelled: () => {
         this._showFloatingText("CANCELLED!", "#4ade80", 30);
@@ -1641,11 +1704,14 @@ export default class MainScene extends Phaser.Scene {
         this.cameras.main.flash(200, 56, 189, 248, false);
       },
 
-      player_stun_start: () => {
-        this._showFloatingText("PARALYZED — TYPE!", "#f472b6", 26);
-        this.cameras.main.flash(180, 180, 80, 200, false);
+      paralyze_windup: ({ durationMs }) => this._showParalyzeWindup(durationMs || 2200),
+
+      player_stun_start: () => this._startParalyzeVisual(),
+      player_stun_cleared: () => {
+        this._endParalyzeVisual();
+        this._showFloatingText("FREE!", "#4ade80", 24);
+        this.cameras.main.flash(150, 80, 255, 120, false);
       },
-      player_stun_cleared: () => this._showFloatingText("FREE!", "#4ade80", 24),
 
       laser_beam_start: ({ x, width, warnMs, color }) => {
         this._showColumnWarning({ x, width: width || 72, color: color || 0xff2244, durationMs: warnMs || 1100 });
@@ -1670,9 +1736,12 @@ export default class MainScene extends Phaser.Scene {
       },
       mirror_word_cleared: () => this._showFloatingText("MIRROR CLEAR", "#4ade80", 22),
 
-      chain_cancel_start: () => this._showFloatingText("CHAIN CANCEL!", "#fbbf24", 24),
-      chain_cancel_step: ({ word, chainIndex }) => {
-        this._showFloatingText(`CHAIN ${chainIndex + 1}: ${word}`, "#fbbf24", 18);
+      chain_cancel_start: ({ chainTotal }) => {
+        this._showFloatingText(`CHAIN — TYPE ${chainTotal || 3} WORDS!`, "#fbbf24", 24);
+        this.cameras.main.flash(160, 255, 180, 60, false);
+      },
+      chain_cancel_progress: ({ completed, total }) => {
+        this._showFloatingText(`CHAIN ${completed}/${total}`, "#fbbf24", 20);
       },
 
       safe_zone_start: ({ x, y, radius, word }) => {
@@ -1704,9 +1773,11 @@ export default class MainScene extends Phaser.Scene {
         this._showFloatingText(`TYPO BOMB -${damage}`, "#84cc16", 30);
       },
 
-      weapon_ultimate_ready: ({ name, phrase }) => {
+      weapon_ultimate_ready: ({ name, phrase, weaponRage }) => {
         this.ultimateMode = true;
-        this._showFloatingText(`${name} READY!`, "#fbbf24", 28);
+        if (weaponRage != null) this.weaponRage = weaponRage;
+        this._showFloatingText(`${name} — GÕ CÂU VÀNG!`, "#fbbf24", 30);
+        this.cameras.main.flash(280, 255, 200, 80, false);
         this.expectedWord = phrase;
         this.localTypedProgress = 0;
         this._renderWord(phrase, 0);
@@ -1738,7 +1809,7 @@ export default class MainScene extends Phaser.Scene {
         if (message) this._showFloatingText(message, "#22d3ee", 22);
       },
 
-      word_completed: ({ by, word, damage, minionKilled, pillarDestroyed, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName, weaponRage }) => {
+      word_completed: ({ by, word, damage, minionKilled, pillarDestroyed, paralyzeCleared, windupCancelled, chainProgress, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName, weaponRage }) => {
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         if (weaponStreak != null) this.weaponStreak = weaponStreak;
         if (weaponRage != null) this.weaponRage = weaponRage;
@@ -1750,9 +1821,18 @@ export default class MainScene extends Phaser.Scene {
         }
         if (minionKilled) this._showFloatingText("MINION DOWN!", "#a3e635", 20);
         if (pillarDestroyed) this._showFloatingText("PILLAR DOWN!", "#c084fc", 20);
+        if (paralyzeCleared) this._showFloatingText("PARALYZE BROKEN!", "#4ade80", 22);
+        if (windupCancelled) this._showFloatingText("CANCELLED!", "#4ade80", 24);
+        if (chainProgress && !windupCancelled) {
+          this._showFloatingText(`CHAIN ${chainProgress.completed}/${chainProgress.total}`, "#fbbf24", 18);
+        }
         this._applyWeaponTypingStyle();
         if (by && word) {
-          const extra = minionKilled ? " → minion" : pillarDestroyed ? " → pillar" : "";
+          const extra = paralyzeCleared ? " → free"
+            : windupCancelled ? " → cancel"
+            : chainProgress ? ` → chain ${chainProgress.completed}/${chainProgress.total}`
+            : minionKilled ? " → minion"
+            : pillarDestroyed ? " → pillar" : "";
           const dmgLabel = damage > 0 ? `−${damage}` : minionKilled || pillarDestroyed ? "✓" : "−0";
           this.flashTxt.setText(`${by} typed "${word}"  ${dmgLabel}${stunBonus ? " ×2" : ""}${extra}`).setColor(stunBonus ? "#fbbf24" : "#86efac").setAlpha(1);
           this.flashTxt.y = 260;
@@ -1791,7 +1871,7 @@ export default class MainScene extends Phaser.Scene {
         });
       },
 
-      roles_swapped: ({ players }) => {
+      roles_swapped: ({ players, weaponTypeId, weaponHeld }) => {
         if (this.isSolo) return;
         this._setCharLabels(players);
         const lp = players.find(p => p.socketId === this.localSocketId);
@@ -1800,6 +1880,12 @@ export default class MainScene extends Phaser.Scene {
           this.canType  = lp.role === "typer";
           this._updateRoleBadge();
           this._bindKeyboard();
+        }
+        const teamWeapon = weaponTypeId || players?.find((p) => p.weaponTypeId)?.weaponTypeId;
+        if (teamWeapon) {
+          this.weaponTypeId = teamWeapon;
+          this._applyWeaponTypingStyle();
+          if (weaponHeld) this._updateWeaponHeldBadge();
         }
         this._drawBossShape(false, false);
       },
