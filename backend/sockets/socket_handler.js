@@ -384,8 +384,11 @@ const registerSocketHandlers = (io) => {
       if (!player || (player.role !== "typer" && player.role !== "solo")) { cb?.({ ok: false }); return; }
       const g = room.game;
       if (g.bossState === "countdown" || g.bossState === "roar") { cb?.({ ok: false }); return; }
-      const input = String(char || "").toLowerCase();
-      if (input.length !== 1 || !/[a-z]/.test(input)) { cb?.({ ok: false }); return; }
+      let input = String(char ?? "");
+      if (input === "Spacebar" || input === "space") input = " ";
+      else input = input.toLowerCase();
+      if (input.length !== 1) { cb?.({ ok: false }); return; }
+      if (input !== " " && !/[a-z]/.test(input)) { cb?.({ ok: false }); return; }
 
       if (!g.weapon?.held) {
         io.to(code).emit("no_weapon", { socketId: player.socketId });

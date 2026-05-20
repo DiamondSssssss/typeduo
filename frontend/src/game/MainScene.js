@@ -759,10 +759,14 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
+  _wordForDisplay(word) {
+    return String(word || "").replace(/ /g, "\u00B7");
+  }
+
   _renderWord(word, progress) {
     const w = word || "", p = Math.max(0, Math.min(w.length, progress || 0));
-    this.typedTxt.setText(w.slice(0, p));
-    this.remainTxt.setText(w.slice(p));
+    this.typedTxt.setText(this._wordForDisplay(w.slice(0, p)));
+    this.remainTxt.setText(this._wordForDisplay(w.slice(p)));
     const total = this.typedTxt.width + this.remainTxt.width;
     const sx = -total / 2;
     this.typedTxt.setX(sx);
@@ -898,11 +902,16 @@ export default class MainScene extends Phaser.Scene {
 
     if (this.canType) {
       this._onKeydown = (e) => {
-        const key = String(e?.key || "").toLowerCase();
-        if (key.length !== 1 || !/[a-z]/.test(key)) return;
+        let char;
+        if (e.key === " " || e.key === "Spacebar") {
+          char = " ";
+        } else {
+          char = String(e?.key || "").toLowerCase();
+          if (char.length !== 1 || !/[a-z]/.test(char)) return;
+        }
         if (this.bossState === "countdown" || this.bossState === "roar") return;
         if (this.expectedWord && this.localTypedProgress < this.expectedWord.length) {
-          if (key === this.expectedWord[this.localTypedProgress]) {
+          if (char === this.expectedWord[this.localTypedProgress]) {
             this.localTypedProgress++;
             this._renderWord(this.expectedWord, this.localTypedProgress);
             const letterX = this.wordCont.x + this.typedTxt.x + this.typedTxt.width - 8;
@@ -919,7 +928,7 @@ export default class MainScene extends Phaser.Scene {
             this._shakeWord();
           }
         }
-        this.socket?.emit("typer_input", { roomCode: this.roomCode, char: key });
+        this.socket?.emit("typer_input", { roomCode: this.roomCode, char });
       };
       this.input.keyboard.on("keydown", this._onKeydown, this);
     }
