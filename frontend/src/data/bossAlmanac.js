@@ -858,11 +858,12 @@ export const WEAPON_RAGE_GUIDE = {
     "Gõ xong câu vàng → sát thương lớn / hồi máu (tùy vũ khí) → Nộ reset.",
   ],
   weapons: [
-    { id: "swift_blade", name: "Kiếm Tốc", ultimate: "Storm Cut", phrase: "blade of the storm cuts deep", effect: "High burst damage + timer refresh." },
+    { id: "swift_blade", name: "Kiếm Tốc", ultimate: "Storm Cut", phrase: "blade of the storm cuts deep", effect: "10 nhát kiếm chọc boss (20/nhát) + làm mới timer." },
     { id: "shortsword", name: "Kiếm Ngắn", ultimate: "Guardian Strike", phrase: "honor guards the fallen line", effect: "Solid damage + team heal." },
     { id: "greatsword", name: "Đại Kiếm", ultimate: "Earth Splitter", phrase: "the earth splits before my steel", effect: "Massive single-hit damage." },
     { id: "lifestaff", name: "Gậy Hồi", ultimate: "Bloom of Life", phrase: "life blooms where shadows fall", effect: "Moderate damage + large team heal." },
     { id: "fury_axe", name: "Rìu Cuồng", ultimate: "Consuming Rage", phrase: "rage consumes all who stand near", effect: "Heavy damage; keeps streak stacks." },
+    { id: "gatling_gun", name: "Súng Mãng", ultimate: "Lead Storm", phrase: "lead storm falls upon the dark throne", effect: "56 viên đạn rơi từ trên xuống boss (8/viên)." },
   ],
 };
 

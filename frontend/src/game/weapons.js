@@ -14,6 +14,7 @@ export const WEAPON_TYPES = {
     tag: "Timer+",
     ultimateName: "Storm Cut",
     ultimatePhrase: "blade of the storm cuts deep",
+    ultimateEffect: "10 nhát kiếm chọc vào boss, 20 damage/nhát",
   },
   shortsword: {
     id: "shortsword",
@@ -87,6 +88,22 @@ export const WEAPON_TYPES = {
     tag: "Dual",
     ultimateName: "Sanctuary / Cataclysm",
     ultimatePhrase: "sanctuary psalm shields the faithful",
+  },
+  gatling_gun: {
+    id: "gatling_gun",
+    name: "Gatling Gun",
+    nameVi: "Súng Mãng",
+    icon: "🔫",
+    color: "#eab308",
+    glowBlur: 14,
+    sparkCount: 10,
+    damageMult: 0.42,
+    gatlingMode: true,
+    description: "Gõ 1 chữ cái trên bảng → 1 viên đạn. Sát thương cực thấp, bắn cực nhanh.",
+    tag: "1-Key",
+    ultimateName: "Lead Storm",
+    ultimatePhrase: "lead storm falls upon the dark throne",
+    ultimateEffect: "56 viên đạn rơi từ trời xuống boss (8 damage/viên).",
   },
 };
 

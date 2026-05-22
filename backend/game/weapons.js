@@ -76,6 +76,18 @@ const WEAPON_TYPES = {
     description: "Neutral: pick Good or Evil words to transform. Holy shields; Demon strikes hard.",
     descriptionVi: "Trung lập: chọn từ Thiện/Ác để biến hình. Thánh miễn đòn; Quỷ sát thương cao.",
   },
+  gatling_gun: {
+    id: "gatling_gun",
+    name: "Gatling Gun",
+    nameVi: "Súng Mãng",
+    icon: "🔫",
+    color: "#eab308",
+    damageMult: 0.42,
+    shotDamage: 3,
+    gatlingMode: true,
+    description: "Fire the alphabet — one letter per shot, tiny damage, extreme fire rate.",
+    descriptionVi: "Bắn theo bảng chữ cái — mỗi phát chỉ gõ 1 chữ, sát thương cực thấp, tốc bắn cực cao.",
+  },
 };
 
 const DEFAULT_WEAPON_ID = "shortsword";

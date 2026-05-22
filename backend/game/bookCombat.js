@@ -21,6 +21,7 @@ const initBookState = (g) => {
       neutralIndex: 0,
       committed: false,
       committedPool: null,
+      neutralPrefix: "",
       offerGood: null,
       offerEvil: null,
       aegisCharges: 0,
@@ -40,6 +41,7 @@ const emitBookPair = (io, room) => {
   book.offerEvil = pair.evil;
   book.committed = false;
   book.committedPool = null;
+  book.neutralPrefix = "";
   g.currentWord = "";
   g.typedProgress = 0;
   g.currentWordPhase = "book_neutral";
@@ -59,6 +61,7 @@ const offerNeutralPair = (g) => {
   book.offerEvil = pair.evil;
   book.committed = false;
   book.committedPool = null;
+  book.neutralPrefix = "";
   g.currentWord = "";
   g.typedProgress = 0;
   g.currentWordPhase = "book_neutral";
@@ -105,27 +108,41 @@ const transformBook = (io, room, alignment) => {
   });
 };
 
-/** First keystroke in neutral picks good vs evil word. */
+/** Neutral pool pick — prefix match until only one word fits (same first letter). */
 const tryCommitNeutralPool = (g, char) => {
   const book = initBookState(g);
   if (book.alignment !== "neutral" || book.committed) return { handled: false };
   const pair = getNeutralPair(book.neutralIndex);
-  const c = char.toLowerCase();
-  const g0 = pair.good[0];
-  const e0 = pair.evil[0];
-  if (c === g0 && c === e0) {
-    book.committedPool = "good";
-  } else if (c === g0) {
-    book.committedPool = "good";
-  } else if (c === e0) {
-    book.committedPool = "evil";
-  } else {
-    return { handled: true, ignored: true };
+  const c = String(char || "").toLowerCase();
+  if (c.length !== 1 || !/[a-z]/.test(c)) return { handled: true, ignored: true };
+
+  const next = (book.neutralPrefix || "") + c;
+  const goodMatch = pair.good.startsWith(next);
+  const evilMatch = pair.evil.startsWith(next);
+
+  if (!goodMatch && !evilMatch) {
+    book.neutralPrefix = "";
+    g.typedProgress = 0;
+    return { handled: true, typo: true };
   }
+
+  book.neutralPrefix = next;
+  g.typedProgress = next.length;
+
+  if (goodMatch && evilMatch) {
+    return { handled: true, ambiguous: true, prefix: next };
+  }
+
+  book.committedPool = goodMatch ? "good" : "evil";
   book.committed = true;
-  g.currentWord = book.committedPool === "good" ? pair.good : pair.evil;
-  g.typedProgress = 0;
-  return { handled: true, committed: book.committedPool, word: g.currentWord };
+  book.neutralPrefix = "";
+  g.currentWord = goodMatch ? pair.good : pair.evil;
+  return {
+    handled: true,
+    committed: book.committedPool,
+    word: g.currentWord,
+    prefix: next,
+  };
 };
 
 const onNeutralWordComplete = (io, room) => {
@@ -251,6 +268,7 @@ const getBookPublicState = (g) => {
     offerGood: book.offerGood,
     offerEvil: book.offerEvil,
     committed: book.committed,
+    neutralPrefix: book.neutralPrefix || "",
     aegisCharges: book.aegisCharges,
     temptation: book.verse?.temptation || null,
   };

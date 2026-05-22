@@ -31,6 +31,7 @@ const {
   initBookState,
   emitBookPair,
 } = require("../game/bookCombat");
+const { processGatlingInput } = require("../game/gatlingCombat");
 
 const rooms = new Map();
 /** How long a disconnected player can resume the same in-progress game. */
@@ -466,6 +467,11 @@ const registerSocketHandlers = (io) => {
         }
       }
 
+      if (processGatlingInput(io, room, player, input)) {
+        cb?.({ ok: true });
+        return;
+      }
+
       if (isBookWeapon(g)) {
         initBookState(g);
         const book = g.book;
@@ -497,7 +503,25 @@ const registerSocketHandlers = (io) => {
         if (book.alignment === "neutral" && !book.committed) {
           const commit = tryCommitNeutralPool(g, input);
           if (commit.handled) {
-            if (commit.ignored) {
+            if (commit.ignored || commit.ambiguous) {
+              io.to(code).emit("typing_progress", {
+                currentWord: "",
+                typedProgress: g.typedProgress || 0,
+                weaponTypeId: g.weapon.typeId,
+                currentWordPhase: g.currentWordPhase,
+                book: getBookPublicState(g),
+              });
+              emitGameState(io, room, resolveBossConfig(room));
+              cb?.({ ok: true });
+              return;
+            }
+            if (commit.typo) {
+              handleTypo(g);
+              io.to(code).emit("typo", {
+                socketId: player.socketId,
+                char: input,
+                expected: book.offerGood?.[0] || "?",
+              });
               io.to(code).emit("typing_progress", {
                 currentWord: "",
                 typedProgress: 0,
@@ -505,13 +529,11 @@ const registerSocketHandlers = (io) => {
                 currentWordPhase: g.currentWordPhase,
                 book: getBookPublicState(g),
               });
+              emitGameState(io, room, resolveBossConfig(room));
               cb?.({ ok: true });
               return;
             }
-            if (input === g.currentWord[0]) {
-              g.typedProgress = 1;
-              resetTypoStreak(g);
-            }
+            resetTypoStreak(g);
             io.to(code).emit("book_commit", {
               pool: commit.committed,
               currentWord: g.currentWord,

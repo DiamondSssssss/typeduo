@@ -24,7 +24,6 @@ const {
   initBookState,
   completeBookWord,
 } = require("./bookCombat");
-
 /** Assign a new word for the held weapon (or default pool if none held). */
 const refreshWeaponWord = (g) => {
   const typeId = g.weapon?.typeId || DEFAULT_WEAPON_ID;
@@ -32,6 +31,12 @@ const refreshWeaponWord = (g) => {
     initBookState(g);
     refreshBookPrompt(g);
     g.wordExpiresAt = 0;
+    return;
+  }
+  const heldWeapon = getWeapon(typeId);
+  if (heldWeapon.gatlingMode) {
+    const { refreshGatlingTarget } = require("./gatlingCombat");
+    refreshGatlingTarget(g);
     return;
   }
   g.currentWord = getWeaponWord(typeId, g.bossHP, g.bossMaxHP);
