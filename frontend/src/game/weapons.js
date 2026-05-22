@@ -14,7 +14,7 @@ export const WEAPON_TYPES = {
     tag: "Timer+",
     ultimateName: "Storm Cut",
     ultimatePhrase: "blade of the storm cuts deep",
-    ultimateEffect: "10 nhát kiếm chọc vào boss, 20 damage/nhát",
+    ultimateEffect: "Bão kiếm + 12 nhát chém boss (20/nhát) + finale xẻ màn hình",
   },
   shortsword: {
     id: "shortsword",
@@ -29,6 +29,7 @@ export const WEAPON_TYPES = {
     tag: "Balanced",
     ultimateName: "Guardian Strike",
     ultimatePhrase: "honor guards the fallen line",
+    ultimateEffect: "8 kiếm lao vào + xẻ màn hình bạc hoành tráng.",
   },
   greatsword: {
     id: "greatsword",
@@ -43,6 +44,7 @@ export const WEAPON_TYPES = {
     tag: "Heavy",
     ultimateName: "Earth Splitter",
     ultimatePhrase: "the earth splits before my steel",
+    ultimateEffect: "Đại kiếm rơi xuống — xẻ đất, sóng xung kích.",
   },
   lifestaff: {
     id: "lifestaff",
@@ -58,6 +60,7 @@ export const WEAPON_TYPES = {
     tag: "Heal",
     ultimateName: "Bloom of Life",
     ultimatePhrase: "life blooms where shadows fall",
+    ultimateEffect: "Gậy khổng lồ đập xuống + sóng hồi + nở hoa hướng boss.",
   },
   fury_axe: {
     id: "fury_axe",
@@ -73,6 +76,7 @@ export const WEAPON_TYPES = {
     tag: "Streak DMG",
     ultimateName: "Consuming Rage",
     ultimatePhrase: "rage consumes all who stand near",
+    ultimateEffect: "Cột lửa + rìu khổng lồ quật xuống + xẻ màn đỏ.",
   },
   animous_codex: {
     id: "animous_codex",
@@ -103,7 +107,7 @@ export const WEAPON_TYPES = {
     tag: "1-Key",
     ultimateName: "Lead Storm",
     ultimatePhrase: "lead storm falls upon the dark throne",
-    ultimateEffect: "56 viên đạn rơi từ trời xuống boss (8 damage/viên).",
+    ultimateEffect: "Ngắm boss + mưa 56 viên + finale nổ đạn.",
   },
 };
 

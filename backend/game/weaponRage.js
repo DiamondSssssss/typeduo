@@ -27,9 +27,10 @@ const WEAPON_ULTIMATES = {
   swift_blade: {
     phrase: "blade of the storm cuts deep",
     name: "Storm Cut",
-    hits: 10,
+    hits: 12,
     hitDamage: 20,
-    hitIntervalMs: 52,
+    hitIntervalMs: 56,
+    windupMs: 420,
     bonusEffect: "timer_refresh",
   },
   shortsword: {
@@ -61,6 +62,7 @@ const WEAPON_ULTIMATES = {
     hits: 56,
     hitDamage: 8,
     hitIntervalMs: 38,
+    windupMs: 480,
   },
 };
 
@@ -200,13 +202,22 @@ const executeSwiftStormCut = (io, room, player, g, ult, stunMult) => {
   player.wordsTyped++;
   g.totalWordsTyped++;
 
+  const windup = ult.windupMs ?? 420;
+  io.to(room.code).emit("weapon_ult_swift_start", {
+    bossX: g.boss.x,
+    bossY: g.boss.y,
+    totalHits: hits,
+    windupMs: windup,
+  });
+
   for (let i = 0; i < hits; i++) {
     setTimeout(() => {
       if (room.status !== "in_game" || !room.game) return;
       const rg = room.game;
       applyBossWordDamage(rg, hitDmg);
       player.damageDealt += hitDmg;
-      const angle = (i / hits) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const angle = (i / hits) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+      const isFinale = i === hits - 1;
       io.to(room.code).emit("weapon_ult_swift_stab", {
         hit: i + 1,
         totalHits: hits,
@@ -214,9 +225,10 @@ const executeSwiftStormCut = (io, room, player, g, ult, stunMult) => {
         bossX: rg.boss.x,
         bossY: rg.boss.y,
         angle,
+        finale: isFinale,
       });
       emitGameState(io, room, resolveBossConfig(room));
-    }, i * interval);
+    }, windup + i * interval);
   }
 
   return {
@@ -249,6 +261,14 @@ const executeGatlingLeadStorm = (io, room, player, g, ult, stunMult) => {
   player.wordsTyped++;
   g.totalWordsTyped++;
 
+  const windup = ult.windupMs ?? 480;
+  io.to(room.code).emit("weapon_ult_gatling_start", {
+    bossX: g.boss.x,
+    bossY: g.boss.y,
+    totalHits: hits,
+    windupMs: windup,
+  });
+
   for (let i = 0; i < hits; i++) {
     setTimeout(() => {
       if (room.status !== "in_game" || !room.game) return;
@@ -256,6 +276,7 @@ const executeGatlingLeadStorm = (io, room, player, g, ult, stunMult) => {
       applyBossWordDamage(rg, hitDmg);
       player.damageDealt += hitDmg;
       const spread = (i % 7) - 3;
+      const isFinale = i === hits - 1;
       io.to(room.code).emit("weapon_ult_gatling_rain", {
         hit: i + 1,
         totalHits: hits,
@@ -264,9 +285,10 @@ const executeGatlingLeadStorm = (io, room, player, g, ult, stunMult) => {
         bossY: rg.boss.y,
         spawnX: 80 + ((i * 47) % (1280 - 160)) + spread * 12,
         spawnY: 40 + (i % 5) * 8,
+        finale: isFinale,
       });
       emitGameState(io, room, resolveBossConfig(room));
-    }, i * interval);
+    }, windup + i * interval);
   }
 
   return {

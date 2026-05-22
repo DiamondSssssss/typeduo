@@ -58,25 +58,25 @@ export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }
         ) : null}
       </header>
 
-      <div className="solo-lobby__body">
-        <div className="solo-lobby__column solo-lobby__column--setup">
-          <section className="solo-lobby__section" aria-label="Difficulty">
-            <span className="solo-lobby__section-label">Difficulty</span>
-            <div className="solo-lobby__diff-options">
-              {["easy", "normal", "hard"].map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  className={`solo-lobby__diff-btn${difficulty === d ? " solo-lobby__diff-btn--active" : ""}`}
-                  onClick={() => setDifficulty(d)}
-                >
-                  <span className="solo-lobby__diff-btn-title">{DIFFICULTY_INFO[d].label}</span>
-                  <span className="solo-lobby__diff-btn-desc">{DIFFICULTY_INFO[d].desc}</span>
-                </button>
-              ))}
-            </div>
-          </section>
+      <section className="solo-lobby__diff-strip" aria-label="Difficulty">
+        <span className="solo-lobby__section-label">Difficulty</span>
+        <div className="solo-lobby__diff-options">
+          {["easy", "normal", "hard"].map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={`solo-lobby__diff-btn${difficulty === d ? " solo-lobby__diff-btn--active" : ""}`}
+              onClick={() => setDifficulty(d)}
+            >
+              <span className="solo-lobby__diff-btn-title">{DIFFICULTY_INFO[d].label}</span>
+              <span className="solo-lobby__diff-btn-desc">{DIFFICULTY_INFO[d].desc}</span>
+            </button>
+          ))}
+        </div>
+      </section>
 
+      <div className="solo-lobby__body">
+        <div className="solo-lobby__column solo-lobby__column--weapons">
           <WeaponPicker selectedId={weaponTypeId} onSelect={setWeaponTypeId} disabled={starting} />
         </div>
 

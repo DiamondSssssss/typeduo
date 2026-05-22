@@ -112,7 +112,10 @@ const processGatlingInput = (io, room, player, input) => {
   tryOfferUltimate(io, room, g);
 
   const hitLetter = target;
-  refreshGatlingTarget(g);
+  // Do not roll a new letter while ultimate phrase is active (rage just hit 100%).
+  if (!isUltimateMode(g)) {
+    refreshGatlingTarget(g);
+  }
 
   io.to(code).emit("gatling_shot", {
     letter: hitLetter,

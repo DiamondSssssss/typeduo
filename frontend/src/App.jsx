@@ -379,7 +379,7 @@ function App() {
   const inGame = Boolean(gamePayload);
 
   return (
-    <main className={`app-shell${!inGame && appView !== "home" ? " app-shell--lobby" : ""}${appView === "almanac" ? " app-shell--almanac" : ""}`}>
+    <main className={`app-shell${!inGame && appView !== "home" ? " app-shell--lobby" : ""}${appView === "solo" ? " app-shell--solo" : ""}${appView === "almanac" ? " app-shell--almanac" : ""}`}>
       <header className="app-header">
         <h1 className="brand">TypeDuo</h1>
         <div className="session-line">

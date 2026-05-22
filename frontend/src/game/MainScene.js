@@ -851,7 +851,11 @@ export default class MainScene extends Phaser.Scene {
       this._renderBookNeutralPair(progress || 0);
       return;
     }
-    if (this.weaponTypeId === "gatling_gun" && !this.ultimateMode) {
+    const gatlingLetterMode = this.weaponTypeId === "gatling_gun"
+      && !this.ultimateMode
+      && this.currentWordPhase !== "ultimate"
+      && (word || "").length <= 1;
+    if (gatlingLetterMode) {
       this._renderGatlingBoard((word || "a")[0]);
       return;
     }
@@ -974,26 +978,8 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _spawnAnimousUltimate(alignment, damage) {
-    const bx = this.bossX, by = this.bossY;
-    if (alignment === "demon") {
-      const beam = this.add.graphics().setDepth(48);
-      beam.lineStyle(28, 0xef4444, 0.95);
-      beam.beginPath();
-      beam.moveTo(bx, by - 120);
-      beam.lineTo(this.charX, this.charY);
-      beam.strokePath();
-      this.tweens.add({
-        targets: beam, alpha: 0, duration: 700, onComplete: () => beam.destroy(),
-      });
-      this.cameras.main.shake(500, 0.028);
-    } else {
-      const ring = this.add.circle(this.charX, this.charY, 30, 0xfbbf24, 0.2)
-        .setStrokeStyle(5, 0xfde68a, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(47);
-      this.tweens.add({
-        targets: ring, scale: 5, alpha: 0, duration: 900, onComplete: () => ring.destroy(),
-      });
-    }
-    this._spawnDamageBurst(damage, true, alignment === "holy" ? 0xfbbf24 : 0xef4444);
+    if (alignment === "demon") this._spawnAnimousDemonUltimate(damage);
+    else this._spawnAnimousHolyUltimate(damage);
   }
 
   _updateRoleBadge() {
@@ -1272,6 +1258,512 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  _spawnSwiftStormUltimate(_damage, col = 0x22d3ee) {
+    if (this._swiftStormIntroActive) return;
+    this._swiftStormIntroActive = true;
+    this.time.delayedCall(1200, () => { this._swiftStormIntroActive = false; });
+
+    const bx = this.bossX;
+    const by = this.bossY;
+    const edgeCol = 0xe0f2fe;
+    const stormCol = col || 0x22d3ee;
+
+    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x020617, 0).setDepth(44);
+    this.tweens.add({ targets: dim, alpha: 0.42, duration: 200 });
+
+    const vortex = this.add.graphics().setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
+    let spin = 0;
+    const vortexTimer = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: () => {
+        spin += 0.22;
+        vortex.clear();
+        vortex.lineStyle(2, stormCol, 0.35);
+        for (let r = 0; r < 3; r++) {
+          const rad = 55 + r * 38 + Math.sin(spin * 2 + r) * 8;
+          vortex.strokeCircle(bx, by, rad);
+        }
+        vortex.lineStyle(4, edgeCol, 0.5);
+        for (let i = 0; i < 8; i++) {
+          const a = spin + (i / 8) * Math.PI * 2;
+          vortex.lineBetween(bx, by, bx + Math.cos(a) * 160, by + Math.sin(a) * 120);
+        }
+      },
+    });
+
+    this.cameras.main.flash(200, 34, 211, 238, false);
+    this.cameras.main.shake(220, 0.012);
+
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+      const startDist = 220 + Math.random() * 40;
+      const sx = bx + Math.cos(angle) * startDist;
+      const sy = by + Math.sin(angle) * startDist;
+
+      const blade = this.add.graphics().setDepth(48).setPosition(sx, sy);
+      blade.fillStyle(edgeCol, 0.95);
+      blade.lineStyle(3, stormCol, 1);
+      blade.beginPath();
+      blade.moveTo(-22, 0);
+      blade.lineTo(-8, -5);
+      blade.lineTo(36, 0);
+      blade.lineTo(-8, 5);
+      blade.closePath();
+      blade.fillPath();
+      blade.strokePath();
+      blade.setRotation(angle + Math.PI);
+
+      const trail = this.add.graphics().setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
+      trail.lineStyle(14, stormCol, 0.25);
+      trail.lineBetween(sx, sy, bx, by);
+
+      this.tweens.add({
+        targets: blade,
+        x: bx,
+        y: by,
+        scale: { from: 1.8, to: 0.4 },
+        delay: i * 55,
+        duration: 280,
+        ease: "power3.in",
+        onComplete: () => {
+          blade.destroy();
+          trail.destroy();
+          const burst = this.add.circle(bx, by, 14, stormCol, 0.65)
+            .setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
+          this.tweens.add({
+            targets: burst, scale: 2.8, alpha: 0, duration: 220,
+            onComplete: () => burst.destroy(),
+          });
+          this.cameras.main.shake(90, 0.008);
+        },
+      });
+      this.tweens.add({ targets: trail, alpha: 0, duration: 300, delay: i * 55 + 180, onComplete: () => trail.destroy() });
+    }
+
+    this.time.delayedCall(900, () => {
+      vortexTimer.remove(false);
+      vortex.destroy();
+      this.tweens.add({ targets: dim, alpha: 0, duration: 500, onComplete: () => dim.destroy() });
+    });
+  }
+
+  _spawnSwiftStormFinale(bx, by, damage, col = 0x22d3ee) {
+    const stormCol = col || 0x22d3ee;
+    const edgeCol = 0xffffff;
+
+    this.cameras.main.shake(480, 0.032);
+    this.cameras.main.flash(320, 34, 211, 238, false);
+
+    const split = this.add.graphics().setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+    split.lineStyle(10, edgeCol, 0.95);
+    split.beginPath();
+    split.moveTo(bx - 6, 0);
+    split.lineTo(bx + 8, H);
+    split.strokePath();
+    split.lineStyle(22, stormCol, 0.9);
+    for (let i = -2; i <= 2; i++) {
+      split.beginPath();
+      split.moveTo(bx - 120 + i * 28, 30);
+      split.lineTo(bx + 140 + i * 32, H - 40);
+      split.strokePath();
+    }
+    split.lineStyle(6, edgeCol, 0.7);
+    split.beginPath();
+    split.moveTo(0, by);
+    split.lineTo(W, by + 20);
+    split.strokePath();
+
+    const gapL = this.add.rectangle(0, H / 2, bx, H, 0x020617, 0.5).setOrigin(0, 0.5).setDepth(48);
+    const gapR = this.add.rectangle(W, H / 2, W - bx, H, 0x020617, 0.5).setOrigin(1, 0.5).setDepth(48);
+    this.tweens.add({
+      targets: [gapL, gapR], alpha: 0, duration: 650, delay: 100,
+      onComplete: () => { gapL.destroy(); gapR.destroy(); },
+    });
+
+    const shock = this.add.circle(bx, by, 24, stormCol, 0.55)
+      .setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
+    this.tweens.add({ targets: shock, scale: 6, alpha: 0, duration: 520, onComplete: () => shock.destroy() });
+
+    const ring = this.add.circle(bx, by, 36, stormCol, 0)
+      .setStrokeStyle(5, edgeCol, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
+    this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 600, ease: "cubic.out", onComplete: () => ring.destroy() });
+
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2;
+      const sp = this.add.circle(bx, by, 4 + Math.random() * 4, stormCol, 0.95)
+        .setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: sp,
+        x: bx + Math.cos(a) * (80 + Math.random() * 160),
+        y: by + Math.sin(a) * (60 + Math.random() * 120),
+        alpha: 0, scale: 0.1, duration: 450 + Math.random() * 280,
+        onComplete: () => sp.destroy(),
+      });
+    }
+
+    this.tweens.add({ targets: split, alpha: 0, duration: 550, delay: 180, onComplete: () => split.destroy() });
+    this._spawnDamageBurst(damage, true, stormCol);
+  }
+
+  _ultScreenFinale(bx, by, damage, col, opts = {}) {
+    const {
+      gapColor = 0x020617,
+      gapAlpha = 0.52,
+      diagonals = 3,
+      vertical = true,
+      horizontal = false,
+      shake = 0.028,
+      flash = null,
+      sparks = 22,
+    } = opts;
+    const edgeCol = 0xffffff;
+
+    this.cameras.main.shake(420, shake);
+    if (flash) this.cameras.main.flash(280, flash[0], flash[1], flash[2], false);
+
+    const split = this.add.graphics().setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+    if (vertical) {
+      split.lineStyle(10, edgeCol, 0.92);
+      split.beginPath();
+      split.moveTo(bx - 6, 0);
+      split.lineTo(bx + 8, H);
+      split.strokePath();
+    }
+    split.lineStyle(20, col, 0.88);
+    for (let i = -(diagonals >> 1); i <= (diagonals >> 1); i++) {
+      split.beginPath();
+      split.moveTo(bx - 110 + i * 30, 35);
+      split.lineTo(bx + 130 + i * 34, H - 45);
+      split.strokePath();
+    }
+    if (horizontal) {
+      split.lineStyle(6, edgeCol, 0.75);
+      split.beginPath();
+      split.moveTo(0, by);
+      split.lineTo(W, by + 16);
+      split.strokePath();
+    }
+
+    const gapL = this.add.rectangle(0, H / 2, bx, H, gapColor, gapAlpha).setOrigin(0, 0.5).setDepth(48);
+    const gapR = this.add.rectangle(W, H / 2, W - bx, H, gapColor, gapAlpha).setOrigin(1, 0.5).setDepth(48);
+    this.tweens.add({
+      targets: [gapL, gapR], alpha: 0, duration: 620, delay: 90,
+      onComplete: () => { gapL.destroy(); gapR.destroy(); },
+    });
+
+    const shock = this.add.circle(bx, by, 22, col, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
+    this.tweens.add({ targets: shock, scale: 5.5, alpha: 0, duration: 500, onComplete: () => shock.destroy() });
+
+    for (let i = 0; i < sparks; i++) {
+      const a = (i / sparks) * Math.PI * 2;
+      const sp = this.add.circle(bx, by, 4 + Math.random() * 4, col, 0.92)
+        .setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: sp,
+        x: bx + Math.cos(a) * (70 + Math.random() * 150),
+        y: by + Math.sin(a) * (55 + Math.random() * 110),
+        alpha: 0, scale: 0.1, duration: 420 + Math.random() * 260,
+        onComplete: () => sp.destroy(),
+      });
+    }
+
+    this.tweens.add({ targets: split, alpha: 0, duration: 520, delay: 160, onComplete: () => split.destroy() });
+    this._spawnDamageBurst(damage, true, col);
+  }
+
+  _spawnShortswordUltimate(damage, col = 0x94a3b8) {
+    const bx = this.bossX, by = this.bossY;
+    const edge = 0xf8fafc;
+    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x0f172a, 0).setDepth(44);
+    this.tweens.add({ targets: dim, alpha: 0.45, duration: 180 });
+    this.cameras.main.flash(180, 220, 230, 255, false);
+
+    for (let r = 0; r < 3; r++) {
+      const ring = this.add.circle(bx, by, 40 + r * 35, col, 0)
+        .setStrokeStyle(3, edge, 0.7 - r * 0.15).setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: ring, scale: 2.2 + r * 0.3, alpha: 0, duration: 700, delay: r * 90, onComplete: () => ring.destroy() });
+    }
+
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const dist = 200 + (i % 2) * 40;
+      const sx = bx + Math.cos(angle) * dist;
+      const sy = by + Math.sin(angle) * dist;
+      const blade = this.add.graphics().setDepth(48).setPosition(sx, sy);
+      blade.fillStyle(edge, 0.95);
+      blade.lineStyle(3, col, 1);
+      blade.beginPath();
+      blade.moveTo(-20, 0);
+      blade.lineTo(-7, -5);
+      blade.lineTo(32, 0);
+      blade.lineTo(-7, 5);
+      blade.closePath();
+      blade.fillPath();
+      blade.strokePath();
+      blade.setRotation(angle + Math.PI);
+      const trail = this.add.graphics().setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
+      trail.lineStyle(12, col, 0.3);
+      trail.lineBetween(sx, sy, bx, by);
+      this.tweens.add({
+        targets: blade, x: bx, y: by, scale: { from: 1.7, to: 0.5 },
+        delay: i * 65, duration: 300, ease: "power3.in",
+        onComplete: () => { blade.destroy(); trail.destroy(); this.cameras.main.shake(70, 0.007); },
+      });
+      this.tweens.add({ targets: trail, alpha: 0, duration: 280, delay: i * 65 + 150, onComplete: () => trail.destroy() });
+    }
+
+    this.time.delayedCall(720, () => {
+      this.tweens.add({ targets: dim, alpha: 0, duration: 450, onComplete: () => dim.destroy() });
+      this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x1e293b, diagonals: 2, vertical: true, flash: [200, 210, 230] });
+    });
+  }
+
+  _spawnLifestaffUltimate(damage, col = 0x4ade80) {
+    const bx = this.bossX, by = this.bossY;
+    const fx = this.charX, fy = this.charY;
+    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x022c22, 0).setDepth(44);
+    this.tweens.add({ targets: dim, alpha: 0.5, duration: 200 });
+    this.cameras.main.flash(220, 74, 222, 128, false);
+
+    const staff = this.add.graphics().setDepth(49);
+    const drawStaff = (x, y, sc) => {
+      staff.clear();
+      staff.lineStyle(5, col, 1);
+      staff.lineBetween(x, y, x, y - 90 * sc);
+      staff.fillStyle(0x86efac, 0.95);
+      staff.fillCircle(x, y - 94 * sc, 14 * sc);
+      staff.fillStyle(col, 0.5);
+      staff.fillCircle(x, y - 94 * sc, 22 * sc);
+    };
+    drawStaff(bx, -60, 1.5);
+    this.tweens.add({
+      targets: { p: 0 }, p: 1, duration: 420, ease: "power2.in",
+      onUpdate: (tw) => {
+        const p = tw.getValue();
+        drawStaff(bx, Phaser.Math.Linear(-60, by - 20, p), 1.5 - p * 0.2);
+      },
+      onComplete: () => {
+        drawStaff(bx, by - 20, 1.3);
+        this.cameras.main.shake(380, 0.022);
+        for (let w = 0; w < 4; w++) {
+          const wave = this.add.circle(bx, by, 20 + w * 8, col, 0)
+            .setStrokeStyle(4, 0xdcfce7, 0.85 - w * 0.15).setDepth(48).setBlendMode(Phaser.BlendModes.ADD);
+          this.tweens.add({ targets: wave, scale: 5 + w, alpha: 0, duration: 700, delay: w * 100, onComplete: () => wave.destroy() });
+        }
+      },
+    });
+
+    const healRing = this.add.circle(fx, fy, 25, col, 0.2)
+      .setStrokeStyle(4, 0xdcfce7, 1).setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: healRing, scale: 6, alpha: 0, duration: 900, ease: "sine.out", onComplete: () => healRing.destroy() });
+
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2;
+      const dist = 120 + Math.random() * 140;
+      const petal = this.add.circle(fx + Math.cos(a) * dist * 0.3, fy + Math.sin(a) * dist * 0.2, 5, 0xbbf7d0, 0.9)
+        .setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: petal, x: bx, y: by, alpha: 0, scale: 0.3,
+        duration: 650 + Math.random() * 350, delay: 200 + i * 25, ease: "sine.inOut",
+        onComplete: () => petal.destroy(),
+      });
+    }
+
+    this.time.delayedCall(880, () => {
+      const healTxt = this.add.text(fx, fy - 50, "+TEAM", {
+        fontFamily: FONT, fontSize: "20px", color: "#bbf7d0", fontStyle: "bold",
+        stroke: "#14532d", strokeThickness: 4,
+      }).setOrigin(0.5).setDepth(51);
+      this.tweens.add({ targets: healTxt, y: fy - 90, alpha: 0, duration: 900, onComplete: () => healTxt.destroy() });
+      this.tweens.add({ targets: dim, alpha: 0, duration: 500, onComplete: () => { dim.destroy(); staff.destroy(); } });
+      this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x022c22, horizontal: true, diagonals: 2, flash: [120, 255, 180] });
+    });
+  }
+
+  _spawnFuryAxeUltimate(damage, col = 0xef4444) {
+    const bx = this.bossX, by = this.bossY;
+    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x1a0505, 0).setDepth(44);
+    this.tweens.add({ targets: dim, alpha: 0.55, duration: 160 });
+    this._updateFuryOverlay(true);
+    this.cameras.main.flash(200, 255, 80, 40, false);
+
+    for (let i = 0; i < 6; i++) {
+      this.time.delayedCall(i * 100, () => {
+        const w = 90 + Math.random() * 70;
+        const h = 260 + Math.random() * 120;
+        const leftX = bx - w / 2 + (Math.random() - 0.5) * 30;
+        const topY = by - h;
+        const pillar = this.add.graphics().setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
+        pillar.fillStyle(0xef4444, 0.4);
+        pillar.fillRect(leftX, topY, w, h);
+        pillar.lineStyle(3, 0xf97316, 0.9);
+        pillar.strokeRect(leftX, topY, w, h);
+        this.tweens.add({ targets: pillar, alpha: 0, scaleY: 1.35, duration: 450, onComplete: () => pillar.destroy() });
+        this.cameras.main.shake(120, 0.012);
+      });
+    }
+
+    const axe = this.add.graphics().setDepth(48).setPosition(bx, by - 140);
+    const drawAxe = (sc) => {
+      axe.clear();
+      axe.fillStyle(0xef4444, 0.95);
+      axe.lineStyle(4, 0xfca5a5, 1);
+      axe.fillRect(-4 * sc, -30 * sc, 8 * sc, 50 * sc);
+      axe.beginPath();
+      axe.moveTo(-38 * sc, -8 * sc);
+      axe.lineTo(-8 * sc, -8 * sc);
+      axe.lineTo(0, -48 * sc);
+      axe.lineTo(38 * sc, -8 * sc);
+      axe.lineTo(8 * sc, -8 * sc);
+      axe.closePath();
+      axe.fillPath();
+      axe.strokePath();
+    };
+    drawAxe(2);
+    this.tweens.add({
+      targets: axe, y: by, angle: 900, scale: { from: 2.2, to: 0.9 },
+      duration: 580, ease: "power2.in",
+      onComplete: () => {
+        axe.destroy();
+        this._updateFuryOverlay(false);
+        this.tweens.add({ targets: dim, alpha: 0, duration: 400, onComplete: () => dim.destroy() });
+        this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x1a0505, diagonals: 4, vertical: true, shake: 0.035, flash: [255, 100, 50] });
+      },
+    });
+  }
+
+  _spawnGatlingLeadStormIntro() {
+    if (this._gatlingUltIntroActive) return;
+    this._gatlingUltIntroActive = true;
+    this.time.delayedCall(1400, () => { this._gatlingUltIntroActive = false; });
+
+    const col = parseInt(String(getWeapon("gatling_gun").color || "#eab308").replace("#", ""), 16);
+    const bx = this.bossX, by = this.bossY;
+    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(46);
+    this.tweens.add({ targets: dim, alpha: 0.5, duration: 200 });
+
+    const reticle = this.add.graphics().setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
+    reticle.lineStyle(2, col, 0.8);
+    reticle.strokeCircle(bx, by, 55);
+    reticle.strokeCircle(bx, by, 85);
+    reticle.lineBetween(0, by, W, by);
+    reticle.lineBetween(bx, 0, bx, H);
+
+    const spinGfx = this.add.graphics().setPosition(this.charX, this.charY).setDepth(48);
+    let rot = 0;
+    const spinTimer = this.time.addEvent({
+      delay: 16, loop: true,
+      callback: () => {
+        rot += 0.4;
+        spinGfx.clear();
+        spinGfx.lineStyle(3, col, 0.9);
+        for (let i = 0; i < 10; i++) {
+          const a = rot + (i / 10) * Math.PI * 2;
+          spinGfx.lineBetween(0, 0, Math.cos(a) * 32, Math.sin(a) * 32);
+        }
+        spinGfx.fillStyle(col, 0.4);
+        spinGfx.fillCircle(0, 0, 12);
+      },
+    });
+
+    this.cameras.main.flash(180, 255, 220, 80, false);
+    this.cameras.main.shake(300, 0.012);
+
+    this.time.delayedCall(1200, () => {
+      spinTimer.remove(false);
+      spinGfx.destroy();
+      this.tweens.add({ targets: [dim, reticle], alpha: 0, duration: 400, onComplete: () => { dim.destroy(); reticle.destroy(); } });
+    });
+  }
+
+  _spawnGatlingLeadStormFinale(bx, by, damage, col = 0xeab308) {
+    this.cameras.main.shake(450, 0.025);
+    const crater = this.add.circle(bx, by, 50, col, 0.35).setDepth(49).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: crater, scale: 3.5, alpha: 0, duration: 550, onComplete: () => crater.destroy() });
+    this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x1c1917, diagonals: 5, vertical: true, horizontal: true, flash: [255, 220, 80] });
+  }
+
+  _spawnAnimousHolyUltimate(damage) {
+    const bx = this.bossX, by = this.bossY;
+    const fx = this.charX, fy = this.charY;
+    const col = 0xfbbf24;
+    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x1a1205, 0).setDepth(44);
+    this.tweens.add({ targets: dim, alpha: 0.48, duration: 200 });
+    this.cameras.main.flash(260, 255, 240, 180, false);
+
+    const dome = this.add.circle(fx, fy, 20, col, 0.15)
+      .setStrokeStyle(5, 0xfde68a, 1).setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: dome, scale: 9, alpha: 0, duration: 900, ease: "sine.out", onComplete: () => dome.destroy() });
+
+    for (let i = 0; i < 6; i++) {
+      const px = 120 + (i / 5) * (W - 240);
+      const beam = this.add.graphics().setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+      beam.fillStyle(col, 0.12);
+      beam.fillRect(px - 18, 0, 36, H);
+      beam.lineStyle(2, 0xfde68a, 0.7);
+      beam.strokeRect(px - 18, 0, 36, H);
+      this.tweens.add({ targets: beam, alpha: 0, duration: 800, delay: 300 + i * 40, onComplete: () => beam.destroy() });
+    }
+
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2;
+      const sp = this.add.circle(bx + Math.cos(a) * 160, by - 80 + Math.sin(a) * 40, 4, 0xfde68a, 0.9)
+        .setDepth(48).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: sp, x: bx, y: by, alpha: 0, duration: 500 + i * 20, delay: 350,
+        onComplete: () => sp.destroy(),
+      });
+    }
+
+    this.time.delayedCall(750, () => {
+      this.tweens.add({ targets: dim, alpha: 0, duration: 450, onComplete: () => dim.destroy() });
+      this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x1a1205, diagonals: 2, vertical: true, flash: [255, 240, 180] });
+    });
+  }
+
+  _spawnAnimousDemonUltimate(damage) {
+    const bx = this.bossX, by = this.bossY;
+    const col = 0xef4444;
+    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x0a0000, 0).setDepth(44);
+    this.tweens.add({ targets: dim, alpha: 0.58, duration: 180 });
+    this.cameras.main.flash(280, 255, 40, 40, false);
+
+    const portal = this.add.ellipse(bx, by + 30, 200, 50, 0x450a0a, 0.7).setDepth(45).setStrokeStyle(4, col, 1);
+    this.tweens.add({ targets: portal, scaleX: 1.4, scaleY: 0.6, alpha: 0, duration: 700, onComplete: () => portal.destroy() });
+
+    const bolt = this.add.graphics().setDepth(48).setBlendMode(Phaser.BlendModes.ADD);
+    bolt.lineStyle(24, col, 0.9);
+    bolt.beginPath();
+    bolt.moveTo(bx, -40);
+    bolt.lineTo(bx + 30, by - 40);
+    bolt.lineTo(bx - 20, by);
+    bolt.lineTo(bx + 40, by - 80);
+    bolt.lineTo(bx, by);
+    bolt.strokePath();
+    this.tweens.add({ targets: bolt, alpha: 0, duration: 500, delay: 200, onComplete: () => bolt.destroy() });
+
+    const claw = this.add.graphics().setDepth(49);
+    claw.fillStyle(0x7f1d1d, 0.9);
+    claw.lineStyle(4, col, 1);
+    claw.beginPath();
+    claw.moveTo(bx - 90, by - 120);
+    claw.lineTo(bx - 20, by - 20);
+    claw.lineTo(bx + 30, by - 100);
+    claw.lineTo(bx + 10, by);
+    claw.lineTo(bx - 50, by - 60);
+    claw.closePath();
+    claw.fillPath();
+    claw.strokePath();
+    claw.setAlpha(0);
+    this.tweens.add({ targets: claw, alpha: 1, duration: 120, yoyo: true, hold: 200, onComplete: () => claw.destroy() });
+
+    this.time.delayedCall(650, () => {
+      this.tweens.add({ targets: dim, alpha: 0, duration: 400, onComplete: () => dim.destroy() });
+      this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x0a0000, diagonals: 4, vertical: true, shake: 0.038, flash: [255, 50, 50] });
+    });
+  }
+
   // ── Countdown ─────────────────────────────────────────────────────────────
   _handleInitialCountdown() {
     const rem = this.payload?.countdownRemaining ?? 0;
@@ -1377,32 +1869,6 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  _spawnGatlingUltimateIntro() {
-    const col = parseInt(String(getWeapon("gatling_gun").color || "#eab308").replace("#", ""), 16);
-    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.55).setOrigin(0.5).setDepth(46);
-    const spinGfx = this.add.graphics().setPosition(this.charX, this.charY).setDepth(47);
-    const drawBarrels = (rot) => {
-      spinGfx.clear();
-      spinGfx.lineStyle(3, col, 0.85);
-      for (let i = 0; i < 8; i++) {
-        const a = rot + (i / 8) * Math.PI * 2;
-        spinGfx.lineBetween(0, 0, Math.cos(a) * 28, Math.sin(a) * 28);
-      }
-      spinGfx.fillStyle(col, 0.35);
-      spinGfx.fillCircle(0, 0, 10);
-    };
-    let rot = 0;
-    const spinTimer = this.time.addEvent({
-      delay: 16, loop: true, callback: () => { rot += 0.35; drawBarrels(rot); },
-    });
-    this.tweens.add({ targets: dim, alpha: 0, duration: 2400, delay: 300, onComplete: () => dim.destroy() });
-    this.time.delayedCall(2200, () => {
-      spinTimer.remove(false);
-      spinGfx.destroy();
-    });
-    this.cameras.main.shake(280, 0.01);
-  }
-
   _spawnWeaponAttack(weaponTypeId, damage, isCrit) {
     if (weaponTypeId === "gatling_gun") {
       this._spawnGatlingShot(damage, isCrit);
@@ -1460,8 +1926,8 @@ export default class MainScene extends Phaser.Scene {
     const fire = () => {
       if (weaponTypeId === "animous_codex") {
         this._spawnAnimousUltimate(this.bookAlignment, damage);
-      } else if (weaponTypeId === "gatling_gun") {
-        this._spawnGatlingUltimateIntro();
+      } else if (weaponTypeId === "gatling_gun" || weaponTypeId === "swift_blade") {
+        /* Intro synced via weapon_ult_*_start socket events */
       } else {
         this._spawnWeaponUltimateAttack(weaponTypeId, damage);
       }
@@ -1477,227 +1943,18 @@ export default class MainScene extends Phaser.Scene {
   _spawnWeaponUltimateAttack(weaponTypeId, damage) {
     const weapon = getWeapon(weaponTypeId);
     const col = parseInt(String(weapon.color || "#ff9ec8").replace("#", ""), 16);
-    const fx = this.charX, fy = this.charY;
-    const bx = this.bossX, by = this.bossY;
 
-    if (weaponTypeId === "swift_blade" || weaponTypeId === "gatling_gun") {
-      return;
+    if (weaponTypeId === "swift_blade" || weaponTypeId === "gatling_gun") return;
 
-    } else if (weaponTypeId === "shortsword") {
-      // ── Kiếm Ngắn: Guardian Strike 🗡 ──────────────
-      for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2;
-        const startDist = 180;
-        const swordX = bx + Math.cos(angle) * startDist;
-        const swordY = by + Math.sin(angle) * startDist;
-
-        const swordGfx = this.add.graphics().setDepth(45).setPosition(swordX, swordY);
-        swordGfx.fillStyle(0xf8fafc, 0.95);
-        swordGfx.lineStyle(2, col, 1);
-
-        swordGfx.beginPath();
-        swordGfx.moveTo(-16, 0);
-        swordGfx.lineTo(-6, -4);
-        swordGfx.lineTo(24, 0);
-        swordGfx.lineTo(-6, 4);
-        swordGfx.closePath();
-        swordGfx.fillPath();
-        swordGfx.strokePath();
-
-        swordGfx.setRotation(angle + Math.PI);
-
-        this.tweens.add({
-          targets: swordGfx,
-          x: bx,
-          y: by,
-          scale: { from: 1.5, to: 0.8 },
-          delay: i * 80,
-          duration: 350,
-          ease: "back.in",
-          onComplete: () => {
-            swordGfx.destroy();
-            this.cameras.main.shake(120, 0.01);
-            const boom = this.add.circle(bx, by, 16, 0xf1f5f9, 0.7).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
-            this.tweens.add({
-              targets: boom,
-              scale: 2.2,
-              alpha: 0,
-              duration: 250,
-              onComplete: () => boom.destroy()
-            });
-          }
-        });
-      }
-
-      this.time.delayedCall(480 + 350, () => {
-        const shockwave = this.add.circle(bx, by, 40, col, 0).setStrokeStyle(6, 0xf8fafc, 1).setDepth(44).setBlendMode(Phaser.BlendModes.ADD);
-        this.tweens.add({
-          targets: shockwave,
-          scale: 4.5,
-          alpha: 0,
-          duration: 600,
-          ease: "cubic.out",
-          onComplete: () => {
-            shockwave.destroy();
-            this._spawnDamageBurst(damage, true, col);
-          }
-        });
-      });
-
+    if (weaponTypeId === "shortsword") {
+      this._spawnShortswordUltimate(damage, col);
     } else if (weaponTypeId === "greatsword") {
       this._spawnGreatswordUltimate(damage, col);
-
     } else if (weaponTypeId === "lifestaff") {
-      // ── Gậy Hồi: Bloom of Life 💚 ────────────────────
-      for (let i = 0; i < 20; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 150 + Math.random() * 150;
-        const startX = fx + Math.cos(angle) * dist;
-        const startY = fy + Math.sin(angle) * dist;
-
-        const seed = this.add.circle(startX, startY, 4, 0x86efac, 0.9).setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
-        this.tweens.add({
-          targets: seed,
-          x: fx,
-          y: fy,
-          alpha: 0.3,
-          duration: 500 + Math.random() * 300,
-          ease: "sine.in",
-          onComplete: () => seed.destroy()
-        });
-      }
-
-      this.time.delayedCall(400, () => {
-        this.cameras.main.shake(200, 0.01);
-
-        const bloom = this.add.circle(fx, fy, 20, 0x4ade80, 0.25).setDepth(44).setBlendMode(Phaser.BlendModes.ADD);
-        this.tweens.add({
-          targets: bloom,
-          scale: 8,
-          alpha: 0,
-          duration: 1000,
-          ease: "cubic.out",
-          onComplete: () => bloom.destroy()
-        });
-
-        const bossBloom = this.add.circle(bx, by, 20, 0x4ade80, 0.25).setDepth(44).setBlendMode(Phaser.BlendModes.ADD);
-        this.tweens.add({
-          targets: bossBloom,
-          scale: 8,
-          alpha: 0,
-          duration: 1000,
-          ease: "cubic.out",
-          onComplete: () => bossBloom.destroy()
-        });
-
-        for (let i = 0; i < 25; i++) {
-          const star = this.add.circle(fx, fy, Math.random() * 5 + 3, 0xdcfce7, 1).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
-          const ctrlX = (fx + bx) / 2 + (Math.random() - 0.5) * 300;
-          const ctrlY = (fy + by) / 2 + (Math.random() - 0.5) * 300;
-
-          this.tweens.add({
-            targets: star,
-            x: [ctrlX, bx],
-            y: [ctrlY, by],
-            alpha: { from: 1, to: 0 },
-            scale: 0.2,
-            duration: 800 + Math.random() * 400,
-            ease: "sine.inOut",
-            onComplete: () => star.destroy()
-          });
-        }
-
-        this.time.delayedCall(600, () => {
-          this._spawnDamageBurst(damage, true, col);
-        });
-      });
-
+      this._spawnLifestaffUltimate(damage, col);
     } else if (weaponTypeId === "fury_axe") {
-      // ── Rìu Cuồng: Consuming Rage 🔥 ──────────────────
-      for (let i = 0; i < 5; i++) {
-        this.time.delayedCall(i * 120, () => {
-          const fireCol = this.add.graphics().setDepth(44);
-          fireCol.fillStyle(0xef4444, 0.35);
-          fireCol.lineStyle(3, 0xf97316, 0.85);
-
-          const width = 80 + Math.random() * 60;
-          const height = 250 + Math.random() * 150;
-          const leftX = bx - width / 2;
-          const topY = by - height;
-
-          fireCol.fillRect(leftX, topY, width, height);
-          fireCol.strokeRect(leftX, topY, width, height);
-
-          this.cameras.main.shake(150, 0.015);
-
-          this.tweens.add({
-            targets: fireCol,
-            alpha: 0,
-            scaleY: 1.4,
-            y: topY - 40,
-            duration: 400,
-            onComplete: () => fireCol.destroy()
-          });
-
-          for (let j = 0; j < 6; j++) {
-            const spark = this.add.circle(bx + (Math.random() - 0.5) * width, by, Math.random() * 4 + 3, 0xfca5a5, 0.95).setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
-            this.tweens.add({
-              targets: spark,
-              x: spark.x + (Math.random() - 0.5) * 80,
-              y: by - height - Math.random() * 100,
-              scale: 0.1,
-              alpha: 0,
-              duration: 500 + Math.random() * 300,
-              onComplete: () => spark.destroy()
-            });
-          }
-        });
-      }
-
-      const giantAxe = this.add.graphics().setDepth(46).setPosition(bx, by - 100);
-      giantAxe.fillStyle(0xef4444, 0.9);
-      giantAxe.lineStyle(4, 0xfca5a5, 1);
-
-      giantAxe.beginPath();
-      giantAxe.moveTo(-20, -10);
-      giantAxe.lineTo(-40, -40);
-      giantAxe.lineTo(40, -40);
-      giantAxe.lineTo(20, -10);
-      giantAxe.lineTo(40, 20);
-      giantAxe.lineTo(-40, 20);
-      giantAxe.closePath();
-      giantAxe.fillPath();
-      giantAxe.strokePath();
-
-      this.tweens.add({
-        targets: giantAxe,
-        angle: 720,
-        y: by,
-        scale: { from: 2.2, to: 0.8 },
-        duration: 600,
-        ease: "bounce.out",
-        onComplete: () => {
-          giantAxe.destroy();
-          this.cameras.main.shake(300, 0.025);
-
-          for (let i = 0; i < 20; i++) {
-            const a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 100;
-            const p = this.add.circle(bx, by, 5, 0xf97316, 0.9).setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
-            this.tweens.add({
-              targets: p,
-              x: bx + Math.cos(a) * d,
-              y: by + Math.sin(a) * d,
-              alpha: 0,
-              duration: 450,
-              onComplete: () => p.destroy()
-            });
-          }
-
-          this._spawnDamageBurst(damage, true, col);
-        }
-      });
+      this._spawnFuryAxeUltimate(damage, col);
     } else {
-      // ── Mặc định nếu không khớp weaponTypeId ────────────────
       this._spawnWeaponAttack(weaponTypeId, damage, true);
     }
   }
@@ -1714,49 +1971,102 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
-  _showSwiftStabIntoBoss(bx, by, angle, damage, color = 0x22d3ee) {
-    const len = 55 + Math.random() * 45;
+  _showSwiftStabIntoBoss(bx, by, angle, damage, color = 0x22d3ee, hit = 1, totalHits = 12) {
+    const len = 110 + Math.random() * 70;
     const x1 = bx + Math.cos(angle) * len;
     const y1 = by + Math.sin(angle) * len;
-    const slash = this.add.graphics().setDepth(46);
-    slash.lineStyle(3 + Math.random() * 2, color, 0.95);
+    const edgeCol = 0xe0f2fe;
+
+    const glow = this.add.graphics().setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
+    glow.lineStyle(18, color, 0.22);
+    glow.beginPath();
+    glow.moveTo(x1, y1);
+    glow.lineTo(bx, by);
+    glow.strokePath();
+
+    const slash = this.add.graphics().setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+    slash.lineStyle(5, edgeCol, 0.95);
     slash.beginPath();
     slash.moveTo(x1, y1);
     slash.lineTo(bx, by);
     slash.strokePath();
-    this.tweens.add({ targets: slash, alpha: 0, duration: 130, onComplete: () => slash.destroy() });
+    slash.lineStyle(3, color, 1);
+    slash.beginPath();
+    slash.moveTo(x1 + Math.cos(angle + 0.4) * 20, y1 + Math.sin(angle + 0.4) * 20);
+    slash.lineTo(bx, by);
+    slash.strokePath();
 
-    const tip = this.add.circle(bx, by, 5, color, 0.9)
-      .setBlendMode(Phaser.BlendModes.ADD).setDepth(47);
+    const bladeGfx = this.add.graphics().setDepth(47);
+    bladeGfx.fillStyle(edgeCol, 0.9);
+    bladeGfx.lineStyle(2, color, 1);
+    bladeGfx.beginPath();
+    bladeGfx.moveTo(-18, 0);
+    bladeGfx.lineTo(-6, -4);
+    bladeGfx.lineTo(28, 0);
+    bladeGfx.lineTo(-6, 4);
+    bladeGfx.closePath();
+    bladeGfx.fillPath();
+    bladeGfx.setPosition(x1, y1);
+    bladeGfx.setRotation(angle + Math.PI);
     this.tweens.add({
-      targets: tip, scale: 2.2, alpha: 0, duration: 140,
+      targets: bladeGfx,
+      x: bx, y: by,
+      duration: 120,
+      ease: "power2.in",
+      onComplete: () => bladeGfx.destroy(),
+    });
+
+    this.tweens.add({
+      targets: [glow, slash], alpha: 0, duration: 200,
+      onComplete: () => { glow.destroy(); slash.destroy(); },
+    });
+
+    for (let w = 0; w < 5; w++) {
+      const t = w / 5;
+      const px = Phaser.Math.Linear(x1, bx, t);
+      const py = Phaser.Math.Linear(y1, by, t);
+      const wind = this.add.circle(px, py, 3 + Math.random() * 3, color, 0.7)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(46);
+      this.tweens.add({
+        targets: wind, alpha: 0, scale: 0.2, duration: 180 + w * 20,
+        onComplete: () => wind.destroy(),
+      });
+    }
+
+    const tip = this.add.circle(bx, by, 8, color, 0.85)
+      .setBlendMode(Phaser.BlendModes.ADD).setDepth(48);
+    this.tweens.add({
+      targets: tip, scale: 3, alpha: 0, duration: 180,
       onComplete: () => tip.destroy(),
     });
 
-    if (damage > 0) {
-      const ox = (Math.random() - 0.5) * 30;
-      const dmgTxt = this.add.text(bx + ox, by - 18, `-${damage}`, {
-        fontFamily: FONT, fontSize: "15px", color: "#fef08a", fontStyle: "bold",
-        stroke: "#000", strokeThickness: 3,
+    if (damage > 0 && hit % 3 === 0) {
+      const ox = (Math.random() - 0.5) * 24;
+      const dmgTxt = this.add.text(bx + ox, by - 22, `-${damage}`, {
+        fontFamily: FONT, fontSize: hit === totalHits ? "22px" : "16px",
+        color: "#e0f2fe", fontStyle: "bold", stroke: "#0c4a6e", strokeThickness: 3,
       }).setOrigin(0.5).setDepth(48);
       this.tweens.add({
-        targets: dmgTxt, y: by - 42, alpha: 0, duration: 380,
+        targets: dmgTxt, y: by - 50, alpha: 0, duration: 420,
         onComplete: () => dmgTxt.destroy(),
       });
-      if (this.bossFlash) {
-        this.bossFlash.clear();
-        this.bossFlash.fillStyle(color, 0.4);
-        this.bossFlash.fillCircle(0, 0, 14);
-        this.bossFlash.x = bx;
-        this.bossFlash.y = by;
-        this.bossFlash.alpha = 1;
-        this.tweens.add({
-          targets: this.bossFlash, alpha: 0, duration: 100,
-          onComplete: () => this.bossFlash?.clear(),
-        });
-      }
     }
-    this.cameras.main.shake(35, 0.004);
+
+    if (this.bossFlash) {
+      this.bossFlash.clear();
+      this.bossFlash.fillStyle(color, 0.45);
+      this.bossFlash.fillCircle(0, 0, 18);
+      this.bossFlash.x = bx;
+      this.bossFlash.y = by;
+      this.bossFlash.alpha = 1;
+      this.tweens.add({
+        targets: this.bossFlash, alpha: 0, duration: 120,
+        onComplete: () => this.bossFlash?.clear(),
+      });
+    }
+
+    const shakeAmt = hit === totalHits ? 0.02 : 0.006 + (hit % 3) * 0.003;
+    this.cameras.main.shake(hit === totalHits ? 0 : 80, shakeAmt);
   }
 
   _spawnUltimateEffect(specialName, windUpMs, color) {
@@ -2513,6 +2823,9 @@ export default class MainScene extends Phaser.Scene {
         if (weaponRage != null) this.weaponRage = weaponRage;
         if (ultimateMode != null) this.ultimateMode = ultimateMode;
         if (book) this._applyBookState(book);
+        if (this.ultimateMode || currentWordPhase === "ultimate") {
+          if (this.gatlingGridTxt) this.gatlingGridTxt.setVisible(false);
+        }
         this._renderWord(this.expectedWord, this.localTypedProgress);
         this._drawRageBar(this.weaponRage, this.ultimateMode);
         if (ultimateMode || currentWordPhase === "ultimate") {
@@ -2818,13 +3131,15 @@ export default class MainScene extends Phaser.Scene {
         this._showFloatingText(`TYPO BOMB -${damage}`, "#84cc16", 30);
       },
 
-      weapon_ultimate_ready: ({ name, phrase, weaponRage }) => {
+      weapon_ultimate_ready: ({ name, phrase, weaponRage, currentWordPhase }) => {
         this.ultimateMode = true;
+        this.currentWordPhase = currentWordPhase || "ultimate";
         if (weaponRage != null) this.weaponRage = weaponRage;
         this._drawRageBar(this.weaponRage, true);
         this._showFloatingText(`${name} — GÕ CÂU VÀNG!`, "#fbbf24", 30);
         this.expectedWord = phrase;
         this.localTypedProgress = 0;
+        if (this.gatlingGridTxt) this.gatlingGridTxt.setVisible(false);
         this._renderWord(phrase, 0);
         this.typedTxt.setColor("#fef3c7");
         this.typedTxt.setStroke("#78350f", 2);
@@ -2854,11 +3169,23 @@ export default class MainScene extends Phaser.Scene {
         if (message) this._showFloatingText(message, "#22d3ee", 22);
       },
 
-      weapon_ult_swift_stab: ({ bossX, bossY, angle, damage, hit, totalHits }) => {
+      weapon_ult_swift_start: ({ bossX, bossY }) => {
         const col = parseInt(String(getWeapon("swift_blade").color || "#22d3ee").replace("#", ""), 16);
-        this._showSwiftStabIntoBoss(bossX ?? this.bossX, bossY ?? this.bossY, angle, damage, col);
-        if (hit === totalHits) {
-          this._spawnDamageBurst((damage || 20) * (totalHits || 10), true, col);
+        if (bossX != null) this.bossX = bossX;
+        if (bossY != null) this.bossY = bossY;
+        this._spawnSwiftStormUltimate(0, col);
+      },
+
+      weapon_ult_swift_stab: ({ bossX, bossY, angle, damage, hit, totalHits, finale }) => {
+        const col = parseInt(String(getWeapon("swift_blade").color || "#22d3ee").replace("#", ""), 16);
+        const bx = bossX ?? this.bossX;
+        const by = bossY ?? this.bossY;
+        const h = hit || 1;
+        const t = totalHits || 12;
+        if (finale || h === t) {
+          this._spawnSwiftStormFinale(bx, by, (damage || 20) * t, col);
+        } else {
+          this._showSwiftStabIntoBoss(bx, by, angle, damage, col, h, t);
         }
       },
 
@@ -2880,21 +3207,23 @@ export default class MainScene extends Phaser.Scene {
         }
       },
 
-      weapon_ult_gatling_rain: ({ spawnX, spawnY, damage, hit, totalHits, bossX, bossY }) => {
+      weapon_ult_gatling_start: ({ bossX, bossY }) => {
+        if (bossX != null) this.bossX = bossX;
+        if (bossY != null) this.bossY = bossY;
+        this._spawnGatlingLeadStormIntro();
+      },
+
+      weapon_ult_gatling_rain: ({ spawnX, spawnY, damage, hit, totalHits, bossX, bossY, finale }) => {
         const col = parseInt(String(getWeapon("gatling_gun").color || "#eab308").replace("#", ""), 16);
         const bx = bossX ?? this.bossX;
         const by = bossY ?? this.bossY;
-        this._showGatlingRainBullet(spawnX ?? W / 2, spawnY ?? 30, bx, by, damage || 8, col);
-        if (hit === totalHits) {
-          const ring = this.add.circle(bx, by, 40, col, 0.4).setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
-          this.tweens.add({
-            targets: ring, scale: 4, alpha: 0, duration: 500,
-            onComplete: () => ring.destroy(),
-          });
-          this.cameras.main.shake(420, 0.018);
-          this._spawnDamageBurst((damage || 8) * (totalHits || 56), true, col);
-        } else if (hit % 8 === 0) {
-          this.cameras.main.shake(60, 0.005);
+        const h = hit || 1;
+        const t = totalHits || 56;
+        if (finale || h === t) {
+          this._spawnGatlingLeadStormFinale(bx, by, (damage || 8) * t, col);
+        } else {
+          this._showGatlingRainBullet(spawnX ?? W / 2, spawnY ?? 30, bx, by, damage || 8, col);
+          if (h % 8 === 0) this.cameras.main.shake(55, 0.004);
         }
       },
 

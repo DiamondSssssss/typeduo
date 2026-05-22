@@ -81,6 +81,13 @@ button {
 .app-shell--lobby {
   overflow-y: auto;
   overflow-x: hidden;
+  width: min(96vw, 1680px);
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+.app-shell--solo {
+  width: min(98vw, 1760px);
 }
 
 /* Game mode: wider container to fit 1280px canvas */
@@ -254,7 +261,8 @@ button {
 }
 
 .solo-lobby.card-wide {
-  width: min(100%, 1280px);
+  width: 100%;
+  max-width: none;
 }
 
 .boss-diff__empty {
@@ -2393,10 +2401,25 @@ button {
   align-self: start;
 }
 
+.solo-lobby__diff-strip {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 14px 20px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.solo-lobby__diff-strip .solo-lobby__diff-options {
+  max-width: none;
+}
+
 .solo-lobby__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
-  gap: 20px 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 24px 32px;
   align-items: stretch;
   min-height: 0;
 }
@@ -2408,8 +2431,17 @@ button {
   min-width: 0;
 }
 
+.solo-lobby__column--weapons .weapon-picker__grid {
+  grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+}
+
 .solo-lobby__column--boss {
   min-height: 0;
+}
+
+.solo-lobby__column--boss .boss-picker__grid {
+  max-height: min(46vh, 440px);
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
 }
 
 .solo-lobby__column--boss .boss-picker {
@@ -2671,7 +2703,33 @@ button {
 .callout--poison { border-color: rgba(132, 204, 22, 0.6); color: #a3e635; }
 .callout--slow { border-color: rgba(148, 163, 184, 0.6); color: #94a3b8; }
 
+@media (min-width: 1280px) {
+  .solo-lobby__body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: 28px 40px;
+  }
+
+  .solo-lobby__column--weapons .weapon-picker__grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  .solo-lobby__column--boss .boss-picker__grid {
+    grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  }
+}
+
+@media (min-width: 1500px) {
+  .solo-lobby__column--weapons .weapon-picker__grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1024px) {
+  .solo-lobby__diff-strip {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
   .solo-lobby__body {
     grid-template-columns: 1fr;
   }
@@ -2680,12 +2738,20 @@ button {
     min-height: 240px;
   }
 
+  .solo-lobby__column--weapons .weapon-picker__grid,
   .weapon-picker__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 720px) {
+  .app-shell--lobby,
+  .app-shell--solo {
+    width: 100%;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
   .app-header .brand { font-size: 1.6rem; }
 
   .solo-lobby {
