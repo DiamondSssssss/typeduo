@@ -36,9 +36,14 @@ module.exports = {
     void_orb:    600,
     tendrils:    500,
     dark_pulse:  800,
-    eruption:    900,
+    eruption:    2200,   // increased: player needs time to type the cancel word
     singularity: 1800,
     void_zone:   1200,
+  },
+
+  // Attacks the player can cancel by completing their weapon word during wind-up
+  cancellableWindUps: {
+    eruption: { blastDamage: 28 },
   },
 
   fireIntervals: {

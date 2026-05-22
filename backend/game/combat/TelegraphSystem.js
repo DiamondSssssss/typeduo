@@ -38,7 +38,7 @@ class TelegraphSystem {
    * @param {number} damage - TWEAK: damage dealt if player inside radius
    * @param {number} radius - TWEAK: hit radius in pixels
    */
-  static circleAoE(ctx, { x, y, radius, warnMs, damage, event = "aoe_telegraph", color = 0xff4444, skipWeaponDrop = false }) {
+  static circleAoE(ctx, { x, y, radius, warnMs, damage, event = "aoe_telegraph", color = 0xff4444, skipWeaponDrop = false, source = 'aoe' }) {
     TelegraphSystem.schedule(ctx, {
       event,
       payload: { x, y, radius, color },
@@ -47,7 +47,7 @@ class TelegraphSystem {
         const dx = c.char.x - x;
         const dy = c.char.y - y;
         if (dx * dx + dy * dy <= radius * radius) {
-          takeDamage(c.io, c.room, damage, x, y, { skipWeaponDrop });
+          takeDamage(c.io, c.room, damage, x, y, { skipWeaponDrop, source });
         }
         c.emit("aoe_detonate", { x, y, radius, color });
       },

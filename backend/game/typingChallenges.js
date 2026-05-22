@@ -157,7 +157,7 @@ const fireMapBlast = (io, room, g, damage) => {
   const ev = g._safeZoneEvent;
   const safe = ev && ev.phase === "shielded" && charInZone(g, ev);
   if (!safe) {
-    takeDamage(io, room, damage, g.character.x, g.character.y);
+    takeDamage(io, room, damage, g.character.x, g.character.y, { source: 'hazard' });
   }
   io.to(room.code).emit("map_blast", { damage: safe ? 0 : damage, safe });
   if (ev) g._safeZoneEvent = null;
@@ -189,7 +189,7 @@ const trackTypoBomb = (io, room, bossConfig, g) => {
   if (g.consecutiveTypos >= (cfg.threshold || 4)) {
     g.consecutiveTypos = 0;
     const dmg = cfg.damage || 28;
-    takeDamage(io, room, dmg, g.character.x, g.character.y);
+    takeDamage(io, room, dmg, g.character.x, g.character.y, { source: 'typo_bomb' });
     io.to(room.code).emit("typo_bomb", { damage: dmg, threshold: cfg.threshold });
   }
 };
@@ -230,7 +230,16 @@ const fireOvercharge = (io, room, g) => {
   const dmg = wc?.blastDamage || cc?.blastDamage || 35;
   g._windupCancel = null;
   g._chainCancel = null;
-  takeDamage(io, room, dmg, g.character.x, g.character.y);
+  // Also cancel the boss wind-up so the attack doesn't ALSO fire after penalty.
+  // (Only affects non-combatProfile bosses; combatProfile uses AttackManager instead.)
+  if (g.boss) {
+    g.boss.windingUp    = false;
+    g.boss.windUpAttack = null;
+    g.boss.windUpUntil  = 0;
+    g.boss.nextMoveAt   = Date.now();
+  }
+  g.bossInvulnUntil = 0;
+  takeDamage(io, room, dmg, g.character.x, g.character.y, { source: 'overcharge' });
   io.to(room.code).emit("overcharge_hit", { damage: dmg });
   io.to(room.code).emit("boss_windup_cancel");
 };
@@ -391,7 +400,7 @@ const applyTypoBossEffect = (io, room, bossConfig, g) => {
 
   if (enraged && bossConfig.typoEnrage?.damage) {
     const dmg = bossConfig.typoEnrage.damage;
-    takeDamage(io, room, dmg, g.character.x, g.character.y);
+    takeDamage(io, room, dmg, g.character.x, g.character.y, { source: 'typo_backlash' });
     io.to(room.code).emit("typo_backlash", { damage: dmg });
   }
 };
@@ -494,7 +503,7 @@ const tickTypingChallenges = (io, room, now) => {
     p.fired = true;
     const halfW = 70;
     if (Math.abs(g.character.x - p.x) < halfW) {
-      takeDamage(io, room, 22, p.x, g.character.y);
+      takeDamage(io, room, 22, p.x, g.character.y, { source: 'pillar' });
     }
     io.to(room.code).emit("typable_pillar_fire", { id: p.id, x: p.x });
   });
@@ -516,7 +525,7 @@ const tickTypingChallenges = (io, room, now) => {
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < MINION_HIT_R) {
         // Minion reached the player — deal damage and die
-        takeDamage(io, room, MINION_DAMAGE, m.x, m.y);
+        takeDamage(io, room, MINION_DAMAGE, m.x, m.y, { source: 'minion' });
         io.to(room.code).emit("minion_hit", { id: m.id, x: m.x, y: m.y, damage: MINION_DAMAGE });
         m.killed = true;
         toRemove.push(m.id);

@@ -2621,7 +2621,7 @@ export default class MainScene extends Phaser.Scene {
 
       boss_ultimate_start: ({ specialName, windUpMs }) => this._spawnUltimateEffect(specialName, windUpMs),
 
-      game_over: ({ winner, bossHP }) => {
+      game_over: ({ winner, bossHP, killingAttack }) => {
         const won = winner === "players";
         this.overlayTxt.setColor(won ? "#4ade80" : "#ff6b6b").setFontSize(56).setText(won ? "VICTORY!\nBOSS DEFEATED" : "DEFEATED\nBOSS WINS").setVisible(true);
         this.subOverlayTxt.setVisible(false);
@@ -2630,6 +2630,42 @@ export default class MainScene extends Phaser.Scene {
         this.bossHP = bossHP ?? this.bossHP;
         this._drawBossHpBar(this.bossHP, this.bossMaxHP);
         this._hideWindUpBar();
+
+        // ── "Killed by" badge on defeat ──────────────────────────────────────
+        if (!won && killingAttack?.label) {
+          const cx = W / 2;
+          const cy = H / 2 + 60;
+
+          // Glow backing
+          const glow = this.add.circle(cx, cy, 80, 0xff3030, 0).setBlendMode(Phaser.BlendModes.ADD).setDepth(58);
+          this.tweens.add({ targets: glow, scale: { from: 0.4, to: 1.6 }, alpha: { from: 0.5, to: 0 }, duration: 1200, ease: "cubic.out", onComplete: () => glow.destroy() });
+
+          // Dark pill background
+          const pill = this.add.rectangle(cx, cy, 340, 54, 0x1a0808, 0.92).setStrokeStyle(2, 0xff4444, 0.9).setDepth(59);
+          pill.setAlpha(0);
+          this.tweens.add({ targets: pill, alpha: 1, duration: 400, delay: 200, ease: "cubic.out" });
+
+          // "KILLED BY" label
+          const lbl = this.add.text(cx, cy - 10, "☠  KILLED BY", {
+            fontFamily: FONT, fontSize: "11px", color: "#ff8888", fontStyle: "bold",
+            letterSpacing: 3,
+          }).setOrigin(0.5).setDepth(60).setAlpha(0);
+          this.tweens.add({ targets: lbl, alpha: 1, duration: 400, delay: 250, ease: "cubic.out" });
+
+          // Attack name
+          const nameTxt = this.add.text(cx, cy + 13, killingAttack.label.toUpperCase(), {
+            fontFamily: FONT, fontSize: "20px", color: "#ffffff", fontStyle: "bold",
+            stroke: "#ff0000", strokeThickness: 2,
+          }).setOrigin(0.5).setDepth(60).setAlpha(0);
+          this.tweens.add({ targets: nameTxt, alpha: 1, y: cy + 11, duration: 500, delay: 300, ease: "back.out" });
+
+          // Pulse red flicker on the name
+          this.time.delayedCall(800, () => {
+            if (!nameTxt.active) return;
+            this.tweens.add({ targets: nameTxt, alpha: { from: 1, to: 0.55 }, duration: 320, yoyo: true, repeat: 4 });
+          });
+        }
+
         this._showGameOverButton();
       },
     };

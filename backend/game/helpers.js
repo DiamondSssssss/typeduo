@@ -60,6 +60,50 @@ const computeWeaponDropPosition = (char) => {
   return clampWeaponXY(320 + Math.random() * 640, 360 + Math.random() * 180);
 };
 
+/** Human-readable labels for every attack source that can kill the player. */
+const KILLING_LABELS = {
+  // Projectile types
+  normal:         "Boss Projectile",
+  void_orb:       "Void Orb",
+  tendrils:       "Tendrils",
+  eruption:       "Eruption",
+  singularity:    "Singularity",
+  dark_pulse:     "Dark Pulse",
+  void_zone:      "Void Burst",
+  depth_charge:   "Depth Charge",
+  spray:          "Water Spray",
+  tidal_wave:     "Tidal Sweep",
+  whirlpool:      "Whirlpool",
+  rust_shot:      "Rust Shot",
+  gear_spread:    "Gear Spread",
+  shockwave:      "Shockwave",
+  spore_burst:    "Spore Burst",
+  sick_rain:      "Sick Rain",
+  plague_wave:    "Plague Wave",
+  clock_bolt:     "Clock Bolt",
+  delayed_orb:    "Delayed Orb",
+  rewind_burst:   "Rewind Burst",
+  crown_volley:   "Crown Volley",
+  knight_charge:  "Knight Charge",
+  judgment_beam:  "Judgment Beam",
+  ember_arc:      "Ember Arc",
+  cinder_shot:    "Cinder Shot",
+  // Named sources
+  poison:         "Poison",
+  toxic_pool:     "Toxic Pool",
+  hazard:         "Hazard Zone",
+  column:         "Column Laser",
+  overcharge:     "Eruption (Failed Cancel)",
+  shield_break:   "Shield Break",
+  minion:         "Minion",
+  pillar:         "Pillar",
+  paralyze:       "Paralyze",
+  typo_backlash:  "Typo Backlash",
+  typo_bomb:      "Typo Bomb",
+  hazard:         "Hazard Zone",
+  aoe:            "Area of Effect",
+};
+
 const takeDamage = (io, room, damage, x, y, opts = {}) => {
   const g = room.game;
   // Team shield absorbs one hit
@@ -70,6 +114,14 @@ const takeDamage = (io, room, damage, x, y, opts = {}) => {
   }
   g.sharedHP = Math.max(0, g.sharedHP - damage);
   if (!opts.skipWeaponStreakReset) g.weaponStreak = 0;
+
+  // Track the most recent damaging source for the defeat screen
+  if (opts.source) {
+    g.lastKillingAttack = {
+      source: opts.source,
+      label:  KILLING_LABELS[opts.source] || opts.source,
+    };
+  }
 
   // Drop weapon if held and immunity period has passed
   let weaponDropped = false;
@@ -92,4 +144,4 @@ const takeDamage = (io, room, damage, x, y, opts = {}) => {
   return room.game.sharedHP;
 };
 
-module.exports = { spawnProjectile, aimAtChar, takeDamage };
+module.exports = { spawnProjectile, aimAtChar, takeDamage, KILLING_LABELS };

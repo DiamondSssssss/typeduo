@@ -130,6 +130,19 @@ exports.advanceBossAttackQueue = (io, room, bossConfig, phase, deltaMs, now) => 
 
   if (windUpMs > 0) {
     exports.beginWindUp(io, room, nextAttack, windUpMs);
+
+    // If boss config marks this wind-up as cancellable, start a cancel window.
+    // The player completes their current weapon word to cancel the attack.
+    const cancelCfg = bossConfig.cancellableWindUps?.[nextAttack];
+    if (cancelCfg) {
+      const { startWindupCancel } = require('./typingChallenges');
+      const scaledMs = Math.round(windUpMs * (room.game.windUpMult ?? 1));
+      startWindupCancel(io, room, room.game, {
+        attackId:    nextAttack,
+        windUpMs:    scaledMs,
+        blastDamage: cancelCfg.blastDamage ?? 28,
+      });
+    }
   } else {
     exports.applyAttack(io, room, bossConfig, nextAttack, now);
   }
@@ -160,7 +173,7 @@ exports.tickColumnAttack = (io, room, bossConfig, now) => {
       x: b.columnX, width: colCfg.width, color: colCfg.color, durationMs: colCfg.activeMs,
     });
     if (Math.abs(room.game.character.x - b.columnX) < colCfg.width / 2) {
-      takeDamage(io, room, colCfg.damage, b.columnX, 300);
+      takeDamage(io, room, colCfg.damage, b.columnX, 300, { source: 'column' });
     }
 
   } else if (b.columnState === "active" && now - b.columnStateAt >= colCfg.activeMs) {

@@ -154,7 +154,7 @@ const tick = (io, room) => {
     const dx = char.x - p.x;
     const dy = char.y - p.y;
     if (dx * dx + dy * dy < HIT_RADIUS * HIT_RADIUS) {
-      takeDamage(io, room, projDmg, p.x, p.y);
+      takeDamage(io, room, projDmg, p.x, p.y, { source: p.type || 'normal' });
       return false;
     }
     return p.y <= 800 && p.x >= -100 && p.x <= 1380 && p.y >= -100;
@@ -181,6 +181,7 @@ const tick = (io, room) => {
       elapsedMs:      now - g.startedAt,
       totalWordsTyped: g.totalWordsTyped,
       gameMode:       room.gameMode || "coop",
+      killingAttack:  g.bossHP > 0 ? (g.lastKillingAttack || null) : null,
       players: room.players.map(({ socketId, username, wordsTyped, damageDealt }) => ({
         socketId, username, wordsTyped: wordsTyped || 0, damageDealt: damageDealt || 0,
       })),
