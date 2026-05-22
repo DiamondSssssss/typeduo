@@ -170,6 +170,7 @@ function App() {
       }));
     };
     const onWordCompleted = (payload) => {
+      if (!payload) return;
       setGamePayload((prev) => ({
         ...(prev || {}),
         weaponRage: payload.weaponRage ?? prev?.weaponRage,

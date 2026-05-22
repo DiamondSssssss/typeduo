@@ -1218,39 +1218,34 @@ export default class MainScene extends Phaser.Scene {
         drawBlade(bx, by + 10, 1.25, 1);
         this.cameras.main.shake(520, 0.035);
 
-        const split = this.add.graphics().setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
-        split.lineStyle(18, 0xffffff, 1);
-        split.beginPath();
-        split.moveTo(bx - 8, 0);
-        split.lineTo(bx + 10, H);
-        split.strokePath();
-        split.lineStyle(32, bladeCol, 0.85);
-        split.beginPath();
-        split.moveTo(bx - 140, 40);
-        split.lineTo(bx + 160, H - 30);
-        split.strokePath();
-
-        const gapL = this.add.rectangle(0, H / 2, bx, H, 0x000000, 0.55).setOrigin(0, 0.5).setDepth(48);
-        const gapR = this.add.rectangle(W, H / 2, W - bx, H, 0x000000, 0.55).setOrigin(1, 0.5).setDepth(48);
-        this.tweens.add({ targets: [gapL, gapR], alpha: 0, duration: 700, delay: 120, onComplete: () => { gapL.destroy(); gapR.destroy(); } });
+        const cracks = this.add.graphics().setDepth(49).setBlendMode(Phaser.BlendModes.ADD);
+        cracks.lineStyle(4, 0xfff7ed, 0.9);
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + 0.2;
+          const len = 40 + Math.random() * 70;
+          cracks.beginPath();
+          cracks.moveTo(bx, by);
+          cracks.lineTo(bx + Math.cos(a) * len, by + Math.sin(a) * len * 0.65);
+          cracks.strokePath();
+        }
+        this.tweens.add({ targets: cracks, alpha: 0, duration: 500, delay: 200, onComplete: () => cracks.destroy() });
 
         const shock = this.add.circle(bx, by, 30, bladeCol, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(47);
         this.tweens.add({ targets: shock, scale: 5.5, alpha: 0, duration: 550, onComplete: () => shock.destroy() });
 
-        for (let i = 0; i < 24; i++) {
-          const a = (i / 24) * Math.PI * 2;
-          const sp = this.add.circle(bx, by, 5 + Math.random() * 5, bladeCol, 0.9)
+        for (let i = 0; i < 18; i++) {
+          const a = (i / 18) * Math.PI * 2;
+          const sp = this.add.circle(bx, by, 4 + Math.random() * 4, bladeCol, 0.9)
             .setDepth(48).setBlendMode(Phaser.BlendModes.ADD);
           this.tweens.add({
             targets: sp,
-            x: bx + Math.cos(a) * (60 + Math.random() * 140),
-            y: by + Math.sin(a) * (50 + Math.random() * 100),
-            alpha: 0, scale: 0.1, duration: 500 + Math.random() * 300,
+            x: bx + Math.cos(a) * (35 + Math.random() * 55),
+            y: by + Math.sin(a) * (30 + Math.random() * 45),
+            alpha: 0, scale: 0.1, duration: 450 + Math.random() * 250,
             onComplete: () => sp.destroy(),
           });
         }
 
-        this.tweens.add({ targets: split, alpha: 0, duration: 600, delay: 200, onComplete: () => split.destroy() });
         this.tweens.add({ targets: giantBlade, alpha: 0, duration: 400, delay: 250, onComplete: () => giantBlade.destroy() });
         this.tweens.add({ targets: dim, alpha: 0, duration: 500, delay: 300, onComplete: () => dim.destroy() });
         this._spawnDamageBurst(damage, true, bladeCol);
@@ -1350,125 +1345,150 @@ export default class MainScene extends Phaser.Scene {
 
   _spawnSwiftStormFinale(bx, by, damage, col = 0x22d3ee) {
     const stormCol = col || 0x22d3ee;
-    const edgeCol = 0xffffff;
+    this.cameras.main.shake(380, 0.028);
+    this.cameras.main.flash(220, 34, 211, 238, false);
 
-    this.cameras.main.shake(480, 0.032);
-    this.cameras.main.flash(320, 34, 211, 238, false);
+    const core = this.add.circle(bx, by, 55, stormCol, 0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
+    this.tweens.add({ targets: core, scale: 0.15, alpha: 0, duration: 420, ease: "power3.in", onComplete: () => core.destroy() });
 
-    const split = this.add.graphics().setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
-    split.lineStyle(10, edgeCol, 0.95);
-    split.beginPath();
-    split.moveTo(bx - 6, 0);
-    split.lineTo(bx + 8, H);
-    split.strokePath();
-    split.lineStyle(22, stormCol, 0.9);
-    for (let i = -2; i <= 2; i++) {
-      split.beginPath();
-      split.moveTo(bx - 120 + i * 28, 30);
-      split.lineTo(bx + 140 + i * 32, H - 40);
-      split.strokePath();
-    }
-    split.lineStyle(6, edgeCol, 0.7);
-    split.beginPath();
-    split.moveTo(0, by);
-    split.lineTo(W, by + 20);
-    split.strokePath();
-
-    const gapL = this.add.rectangle(0, H / 2, bx, H, 0x020617, 0.5).setOrigin(0, 0.5).setDepth(48);
-    const gapR = this.add.rectangle(W, H / 2, W - bx, H, 0x020617, 0.5).setOrigin(1, 0.5).setDepth(48);
-    this.tweens.add({
-      targets: [gapL, gapR], alpha: 0, duration: 650, delay: 100,
-      onComplete: () => { gapL.destroy(); gapR.destroy(); },
-    });
-
-    const shock = this.add.circle(bx, by, 24, stormCol, 0.55)
-      .setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
-    this.tweens.add({ targets: shock, scale: 6, alpha: 0, duration: 520, onComplete: () => shock.destroy() });
-
-    const ring = this.add.circle(bx, by, 36, stormCol, 0)
-      .setStrokeStyle(5, edgeCol, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
-    this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 600, ease: "cubic.out", onComplete: () => ring.destroy() });
-
-    for (let i = 0; i < 28; i++) {
-      const a = (i / 28) * Math.PI * 2;
-      const sp = this.add.circle(bx, by, 4 + Math.random() * 4, stormCol, 0.95)
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const dist = 90 + (i % 4) * 25;
+      const sp = this.add.circle(bx + Math.cos(a) * dist, by + Math.sin(a) * dist * 0.7, 5, stormCol, 0.9)
         .setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({
-        targets: sp,
-        x: bx + Math.cos(a) * (80 + Math.random() * 160),
-        y: by + Math.sin(a) * (60 + Math.random() * 120),
-        alpha: 0, scale: 0.1, duration: 450 + Math.random() * 280,
+        targets: sp, x: bx, y: by, alpha: 0, scale: 0.2,
+        duration: 380 + (i % 5) * 30, ease: "power2.in",
         onComplete: () => sp.destroy(),
       });
     }
 
-    this.tweens.add({ targets: split, alpha: 0, duration: 550, delay: 180, onComplete: () => split.destroy() });
+    const nova = this.add.circle(bx, by, 12, 0xffffff, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(51);
+    this.tweens.add({ targets: nova, scale: 4, alpha: 0, duration: 280, onComplete: () => nova.destroy() });
     this._spawnDamageBurst(damage, true, stormCol);
   }
 
-  _ultScreenFinale(bx, by, damage, col, opts = {}) {
-    const {
-      gapColor = 0x020617,
-      gapAlpha = 0.52,
-      diagonals = 3,
-      vertical = true,
-      horizontal = false,
-      shake = 0.028,
-      flash = null,
-      sparks = 22,
-    } = opts;
-    const edgeCol = 0xffffff;
-
-    this.cameras.main.shake(420, shake);
-    if (flash) this.cameras.main.flash(280, flash[0], flash[1], flash[2], false);
-
-    const split = this.add.graphics().setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
-    if (vertical) {
-      split.lineStyle(10, edgeCol, 0.92);
-      split.beginPath();
-      split.moveTo(bx - 6, 0);
-      split.lineTo(bx + 8, H);
-      split.strokePath();
+  _finaleShortsword(bx, by, damage, col = 0x94a3b8) {
+    this.cameras.main.shake(320, 0.022);
+    this.cameras.main.flash(200, 220, 230, 255, false);
+    const edge = 0xf8fafc;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const ray = this.add.graphics().setDepth(49).setPosition(bx, by).setBlendMode(Phaser.BlendModes.ADD);
+      ray.lineStyle(5, edge, 0.95);
+      ray.lineBetween(0, 0, Math.cos(a) * 95, Math.sin(a) * 75);
+      ray.lineStyle(2, col, 0.8);
+      ray.lineBetween(0, 0, Math.cos(a) * 70, Math.sin(a) * 55);
+      this.tweens.add({ targets: ray, alpha: 0, scaleX: 1.4, scaleY: 1.4, duration: 380, onComplete: () => ray.destroy() });
     }
-    split.lineStyle(20, col, 0.88);
-    for (let i = -(diagonals >> 1); i <= (diagonals >> 1); i++) {
-      split.beginPath();
-      split.moveTo(bx - 110 + i * 30, 35);
-      split.lineTo(bx + 130 + i * 34, H - 45);
-      split.strokePath();
-    }
-    if (horizontal) {
-      split.lineStyle(6, edgeCol, 0.75);
-      split.beginPath();
-      split.moveTo(0, by);
-      split.lineTo(W, by + 16);
-      split.strokePath();
-    }
+    const seal = this.add.circle(bx, by, 20, col, 0).setStrokeStyle(4, edge, 1).setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: seal, scale: 3.5, alpha: 0, duration: 450, onComplete: () => seal.destroy() });
+    this._spawnDamageBurst(damage, true, col);
+  }
 
-    const gapL = this.add.rectangle(0, H / 2, bx, H, gapColor, gapAlpha).setOrigin(0, 0.5).setDepth(48);
-    const gapR = this.add.rectangle(W, H / 2, W - bx, H, gapColor, gapAlpha).setOrigin(1, 0.5).setDepth(48);
-    this.tweens.add({
-      targets: [gapL, gapR], alpha: 0, duration: 620, delay: 90,
-      onComplete: () => { gapL.destroy(); gapR.destroy(); },
-    });
-
-    const shock = this.add.circle(bx, by, 22, col, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
-    this.tweens.add({ targets: shock, scale: 5.5, alpha: 0, duration: 500, onComplete: () => shock.destroy() });
-
-    for (let i = 0; i < sparks; i++) {
-      const a = (i / sparks) * Math.PI * 2;
-      const sp = this.add.circle(bx, by, 4 + Math.random() * 4, col, 0.92)
-        .setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+  _finaleLifestaff(bx, by, damage, col = 0x4ade80) {
+    this.cameras.main.shake(280, 0.018);
+    this.cameras.main.flash(180, 120, 255, 160, false);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const petal = this.add.ellipse(bx, by, 22, 10, 0x86efac, 0.7)
+        .setDepth(49).setBlendMode(Phaser.BlendModes.ADD);
+      petal.setRotation(a);
       this.tweens.add({
-        targets: sp,
-        x: bx + Math.cos(a) * (70 + Math.random() * 150),
-        y: by + Math.sin(a) * (55 + Math.random() * 110),
-        alpha: 0, scale: 0.1, duration: 420 + Math.random() * 260,
-        onComplete: () => sp.destroy(),
+        targets: petal, scaleX: 2.8, scaleY: 2.2, alpha: 0,
+        duration: 520, delay: i * 35, onComplete: () => petal.destroy(),
       });
     }
+    const bloom = this.add.circle(bx, by - 8, 16, col, 0.6).setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: bloom, scale: 2.5, alpha: 0, duration: 400, onComplete: () => bloom.destroy() });
+    this._spawnDamageBurst(damage, true, col);
+  }
 
-    this.tweens.add({ targets: split, alpha: 0, duration: 520, delay: 160, onComplete: () => split.destroy() });
+  _finaleFuryAxe(bx, by, damage, col = 0xef4444) {
+    this.cameras.main.shake(400, 0.03);
+    this.cameras.main.flash(240, 255, 90, 50, false);
+    const scorch = this.add.ellipse(bx, by + 25, 120, 35, 0x450a0a, 0.75).setDepth(48);
+    this.tweens.add({ targets: scorch, scaleX: 1.8, scaleY: 1.4, alpha: 0, duration: 500, onComplete: () => scorch.destroy() });
+    const pillar = this.add.graphics().setDepth(49).setBlendMode(Phaser.BlendModes.ADD);
+    pillar.fillStyle(col, 0.5);
+    pillar.fillRect(bx - 22, by - 180, 44, 160);
+    pillar.lineStyle(3, 0xfca5a5, 0.9);
+    pillar.strokeRect(bx - 22, by - 180, 44, 160);
+    this.tweens.add({ targets: pillar, alpha: 0, scaleY: 0.3, duration: 450, onComplete: () => pillar.destroy() });
+    for (let i = 0; i < 14; i++) {
+      const em = this.add.circle(bx + (Math.random() - 0.5) * 60, by, 5, 0xf97316, 0.9)
+        .setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: em, y: by - 120 - Math.random() * 80, alpha: 0, scale: 0.2,
+        duration: 400 + Math.random() * 200, onComplete: () => em.destroy(),
+      });
+    }
+    this._spawnDamageBurst(damage, true, col);
+  }
+
+  _finaleGatling(bx, by, damage, col = 0xeab308) {
+    this.cameras.main.shake(420, 0.024);
+    this.cameras.main.flash(200, 255, 210, 80, false);
+    for (let i = 0; i < 20; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = 30 + Math.random() * 80;
+      const shell = this.add.rectangle(bx + Math.cos(a) * d, by + Math.sin(a) * d * 0.6, 4, 2, 0xd97706, 0.9)
+        .setDepth(48).setRotation(Math.random() * Math.PI);
+      this.tweens.add({
+        targets: shell, y: shell.y + 40 + Math.random() * 30, alpha: 0,
+        duration: 350 + Math.random() * 200, onComplete: () => shell.destroy(),
+      });
+    }
+    const brass = this.add.circle(bx, by, 35, col, 0.45).setBlendMode(Phaser.BlendModes.ADD).setDepth(49);
+    this.tweens.add({ targets: brass, scale: 3.2, alpha: 0, duration: 480, onComplete: () => brass.destroy() });
+    this._spawnDamageBurst(damage, true, col);
+  }
+
+  _finaleAnimousHoly(bx, by, damage) {
+    const col = 0xfbbf24;
+    this.cameras.main.shake(300, 0.02);
+    this.cameras.main.flash(260, 255, 245, 200, false);
+    const pillar = this.add.graphics().setDepth(49).setBlendMode(Phaser.BlendModes.ADD);
+    pillar.fillStyle(col, 0.25);
+    pillar.fillRect(bx - 28, by - 200, 56, 190);
+    pillar.lineStyle(2, 0xfde68a, 0.9);
+    pillar.strokeRect(bx - 28, by - 200, 56, 190);
+    this.tweens.add({ targets: pillar, alpha: 0, duration: 500, onComplete: () => pillar.destroy() });
+    const halo = this.add.circle(bx, by, 25, col, 0).setStrokeStyle(5, 0xfde68a, 1).setDepth(50).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: halo, scale: 3, alpha: 0, duration: 550, onComplete: () => halo.destroy() });
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const star = this.add.circle(bx + Math.cos(a) * 50, by + Math.sin(a) * 38, 3, 0xfffbeb, 1)
+        .setDepth(51).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: star, alpha: 0, scale: 0.3, duration: 400, delay: i * 25, onComplete: () => star.destroy() });
+    }
+    this._spawnDamageBurst(damage, true, col);
+  }
+
+  _finaleAnimousDemon(bx, by, damage) {
+    const col = 0xef4444;
+    this.cameras.main.shake(380, 0.032);
+    this.cameras.main.flash(260, 255, 50, 50, false);
+    const vortex = this.add.graphics().setDepth(48).setBlendMode(Phaser.BlendModes.ADD);
+    let spin = 0;
+    const timer = this.time.addEvent({
+      delay: 16, loop: true, callback: () => {
+        spin += 0.5;
+        vortex.clear();
+        vortex.lineStyle(3, col, 0.6);
+        for (let r = 0; r < 4; r++) {
+          const rad = 25 + r * 18;
+          vortex.beginPath();
+          vortex.arc(bx, by, rad, spin + r, spin + r + Math.PI * 1.2, false);
+          vortex.strokePath();
+        }
+      },
+    });
+    this.time.delayedCall(480, () => { timer.remove(false); vortex.destroy(); });
+    const implosion = this.add.circle(bx, by, 70, 0x000000, 0.55).setDepth(47);
+    this.tweens.add({ targets: implosion, scale: 0.2, alpha: 0, duration: 450, ease: "power2.in", onComplete: () => implosion.destroy() });
+    const burst = this.add.circle(bx, by, 15, col, 0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(50);
+    this.tweens.add({ targets: burst, scale: 3.5, alpha: 0, duration: 350, onComplete: () => burst.destroy() });
     this._spawnDamageBurst(damage, true, col);
   }
 
@@ -1515,7 +1535,7 @@ export default class MainScene extends Phaser.Scene {
 
     this.time.delayedCall(720, () => {
       this.tweens.add({ targets: dim, alpha: 0, duration: 450, onComplete: () => dim.destroy() });
-      this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x1e293b, diagonals: 2, vertical: true, flash: [200, 210, 230] });
+      this._finaleShortsword(bx, by, damage, col);
     });
   }
 
@@ -1577,7 +1597,7 @@ export default class MainScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(51);
       this.tweens.add({ targets: healTxt, y: fy - 90, alpha: 0, duration: 900, onComplete: () => healTxt.destroy() });
       this.tweens.add({ targets: dim, alpha: 0, duration: 500, onComplete: () => { dim.destroy(); staff.destroy(); } });
-      this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x022c22, horizontal: true, diagonals: 2, flash: [120, 255, 180] });
+      this._finaleLifestaff(bx, by, damage, col);
     });
   }
 
@@ -1628,7 +1648,7 @@ export default class MainScene extends Phaser.Scene {
         axe.destroy();
         this._updateFuryOverlay(false);
         this.tweens.add({ targets: dim, alpha: 0, duration: 400, onComplete: () => dim.destroy() });
-        this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x1a0505, diagonals: 4, vertical: true, shake: 0.035, flash: [255, 100, 50] });
+        this._finaleFuryAxe(bx, by, damage, col);
       },
     });
   }
@@ -1678,10 +1698,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _spawnGatlingLeadStormFinale(bx, by, damage, col = 0xeab308) {
-    this.cameras.main.shake(450, 0.025);
-    const crater = this.add.circle(bx, by, 50, col, 0.35).setDepth(49).setBlendMode(Phaser.BlendModes.ADD);
-    this.tweens.add({ targets: crater, scale: 3.5, alpha: 0, duration: 550, onComplete: () => crater.destroy() });
-    this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x1c1917, diagonals: 5, vertical: true, horizontal: true, flash: [255, 220, 80] });
+    this._finaleGatling(bx, by, damage, col);
   }
 
   _spawnAnimousHolyUltimate(damage) {
@@ -1718,7 +1735,7 @@ export default class MainScene extends Phaser.Scene {
 
     this.time.delayedCall(750, () => {
       this.tweens.add({ targets: dim, alpha: 0, duration: 450, onComplete: () => dim.destroy() });
-      this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x1a1205, diagonals: 2, vertical: true, flash: [255, 240, 180] });
+      this._finaleAnimousHoly(bx, by, damage);
     });
   }
 
@@ -1760,7 +1777,7 @@ export default class MainScene extends Phaser.Scene {
 
     this.time.delayedCall(650, () => {
       this.tweens.add({ targets: dim, alpha: 0, duration: 400, onComplete: () => dim.destroy() });
-      this._ultScreenFinale(bx, by, damage, col, { gapColor: 0x0a0000, diagonals: 4, vertical: true, shake: 0.038, flash: [255, 50, 50] });
+      this._finaleAnimousDemon(bx, by, damage);
     });
   }
 
@@ -3227,7 +3244,14 @@ export default class MainScene extends Phaser.Scene {
         }
       },
 
-      word_completed: ({ by, word, damage, minionKilled, pillarDestroyed, paralyzeCleared, windupCancelled, chainProgress, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName, weaponRage, book, bookMeta }) => {
+      word_completed: (payload) => {
+        if (!payload) return;
+        const {
+          by, word, damage, minionKilled, pillarDestroyed, paralyzeCleared, windupCancelled,
+          chainProgress, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName,
+          weaponRage, book, bookMeta, aborted,
+        } = payload;
+        if (aborted) return;
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         if (weaponStreak != null) {
           this.weaponStreak = weaponStreak;

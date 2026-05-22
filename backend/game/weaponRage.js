@@ -92,6 +92,14 @@ const getBookUltimate = (g) => {
   return null;
 };
 
+/** Ultimate phrase locked at enter — survives book falling neutral mid-phrase. */
+const getBookUltimateForExecute = (g) => {
+  const align = g._ultimateBookAlignment || g.book?.alignment;
+  if (align === "holy") return BOOK_HOLY_ULTIMATE;
+  if (align === "demon") return BOOK_DEMON_ULTIMATE;
+  return null;
+};
+
 const addRage = (g, weaponId) => {
   initRage(g);
   if (weaponId === "animous_codex" && g.book?.alignment === "neutral") {
@@ -121,6 +129,7 @@ const restoreSavedWeaponWord = (g) => {
 const cancelUltimateMode = (g) => {
   if (!g._ultimateMode) return;
   g._ultimateMode = false;
+  g._ultimateBookAlignment = null;
   restoreSavedWeaponWord(g);
 };
 
@@ -134,6 +143,11 @@ const DEFERRED_CHALLENGE_KINDS = new Set(["shield_break", "mirror_word", "safe_z
 
 const enterUltimateMode = (io, room, g) => {
   const weapon = getWeapon(g.weapon?.typeId);
+  if (weapon.id === "animous_codex") {
+    const { initBookState } = require("./bookCombat");
+    initBookState(g);
+    g._ultimateBookAlignment = g.book.alignment;
+  }
   const ult = weapon.id === "animous_codex"
     ? getBookUltimate(g)
     : WEAPON_ULTIMATES[weapon.id];
@@ -183,6 +197,7 @@ const finishUltimateState = (g, weapon, ult) => {
   }
   g.weaponRage = 0;
   g._ultimateMode = false;
+  g._ultimateBookAlignment = null;
   g._savedWeaponWord = null;
   const { refreshWeaponWord } = require("./weaponCombat");
   refreshWeaponWord(g);
@@ -309,10 +324,29 @@ const executeGatlingLeadStorm = (io, room, player, g, ult, stunMult) => {
 
 const executeUltimate = (io, room, player, g) => {
   const weapon = getWeapon(g.weapon?.typeId);
-  const ult = weapon.id === "animous_codex"
-    ? getBookUltimate(g)
-    : WEAPON_ULTIMATES[weapon.id];
-  if (!ult) return null;
+  let ult;
+  if (weapon.id === "animous_codex") {
+    const { initBookState } = require("./bookCombat");
+    initBookState(g);
+    ult = getBookUltimateForExecute(g);
+  } else {
+    ult = WEAPON_ULTIMATES[weapon.id];
+  }
+
+  if (!ult) {
+    if (g._ultimateMode) cancelUltimateMode(g);
+    return {
+      socketId: player.socketId,
+      by: player.username,
+      word: g.currentWord || "",
+      weaponTypeId: weapon.id,
+      damage: 0,
+      bossHP: g.bossHP,
+      prevHP: g.bossHP,
+      weaponRage: g.weaponRage || 0,
+      aborted: true,
+    };
+  }
 
   const stunMult = g.bossState === "stunned" ? 2 : 1;
   if (weapon.id === "swift_blade" && ult.hits && ult.hitDamage) {
@@ -325,7 +359,8 @@ const executeUltimate = (io, room, player, g) => {
   let damage;
   if (weapon.id === "animous_codex") {
     const { computeVerseDamage } = require("./bookWords");
-    damage = Math.round(computeVerseDamage(ult.phrase, g.book.alignment, stunMult) * ult.bossDamageMult);
+    const align = g._ultimateBookAlignment || g.book?.alignment || "holy";
+    damage = Math.round(computeVerseDamage(ult.phrase, align, stunMult) * ult.bossDamageMult);
   } else {
     const base = computeWordDamage(ult.phrase) * (weapon.damageMult || 1);
     damage = Math.round(base * ult.bossDamageMult * stunMult);
@@ -360,7 +395,7 @@ const executeUltimate = (io, room, player, g) => {
 
   finishUltimateState(g, weapon, ult);
 
-  return {
+  const payload = {
     socketId: player.socketId,
     by: player.username,
     word: ult.phrase,
@@ -373,6 +408,11 @@ const executeUltimate = (io, room, player, g) => {
     prevHP,
     weaponRage: 0,
   };
+  if (weapon.id === "animous_codex") {
+    const { getBookPublicState } = require("./bookCombat");
+    payload.book = getBookPublicState(g);
+  }
+  return payload;
 };
 
 const isUltimateMode = (g) => Boolean(g._ultimateMode);
@@ -386,4 +426,6 @@ module.exports = {
   executeUltimate,
   isUltimateMode,
   enterUltimateMode,
+  cancelUltimateMode,
+  getBookUltimateForExecute,
 };

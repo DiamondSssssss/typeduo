@@ -79,6 +79,10 @@ const offerVerse = (g, alignment) => {
 
 const fallToNeutral = (io, room, reason = "fall") => {
   const g = room.game;
+  if (g._ultimateMode) {
+    const { cancelUltimateMode } = require("./weaponRage");
+    cancelUltimateMode(g);
+  }
   const book = initBookState(g);
   book.alignment = "neutral";
   book.goodProgress = 0;

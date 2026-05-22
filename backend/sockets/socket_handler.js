@@ -599,21 +599,23 @@ const registerSocketHandlers = (io) => {
         const bossConfig = resolveBossConfig(room);
         const result = completeWord(room, player, io);
 
-        io.to(code).emit("word_completed", result);
+        if (result) {
+          io.to(code).emit("word_completed", result);
 
-        const soloMode = room.gameMode === "solo";
-        const threshold = SWAP_THRESHOLDS.find(
-          (t) =>
-            !g.triggeredSwapThresholds.includes(t) &&
-            result.prevHP > (g.bossMaxHP * t / 100) &&
-            g.bossHP <= (g.bossMaxHP * t / 100)
-        );
-        if (threshold && g.bossState !== "roar" && g.bossState !== "stunned") {
-          g.triggeredSwapThresholds.push(threshold);
-          g.bossState   = "roar";
-          g.stateEndsAt = Date.now() + ROAR_DURATION_MS;
-          g.projectiles = [];
-          io.to(code).emit("boss_roar_start", { threshold, countdownMs: ROAR_DURATION_MS, soloMode });
+          const soloMode = room.gameMode === "solo";
+          const threshold = SWAP_THRESHOLDS.find(
+            (t) =>
+              !g.triggeredSwapThresholds.includes(t) &&
+              result.prevHP > (g.bossMaxHP * t / 100) &&
+              g.bossHP <= (g.bossMaxHP * t / 100)
+          );
+          if (threshold && g.bossState !== "roar" && g.bossState !== "stunned") {
+            g.triggeredSwapThresholds.push(threshold);
+            g.bossState   = "roar";
+            g.stateEndsAt = Date.now() + ROAR_DURATION_MS;
+            g.projectiles = [];
+            io.to(code).emit("boss_roar_start", { threshold, countdownMs: ROAR_DURATION_MS, soloMode });
+          }
         }
       }
 
