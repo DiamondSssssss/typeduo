@@ -3,6 +3,7 @@ const { SHARED_MAX_HP, COUNTDOWN_DURATION_MS } = require("./constants");
 const { applyDifficultyToGame } = require("./difficulty");
 const { DEFAULT_WEAPON_ID } = require("./weapons");
 const { refreshWeaponWord } = require("./weaponCombat");
+const { buildTrainingStats } = require("./trainingStats");
 
 const randomWeaponPos = () => ({
   x: 300 + Math.random() * 680,
@@ -90,6 +91,12 @@ const emitGameState = (io, room, bossConfig) => {
     boss:             buildBossStateForClient({ ...g.boss, _bossHP: g.bossHP }, cfg, g),
     projectiles:      g.projectiles,
     players:          room.players.map(playerStateForClient),
+    book:             g.weapon?.typeId === "animous_codex"
+      ? require("./bookCombat").getBookPublicState(g)
+      : null,
+    paused:           Boolean(g.paused),
+    trainingMode:     Boolean(g.trainingMode),
+    trainingStats:    g.trainingMode ? buildTrainingStats(g, room) : null,
   });
 };
 
@@ -98,8 +105,15 @@ const createInitialGameState = (bossConfig, opts = {}) => {
   const maxHP = bossConfig.maxHP;
   const gameMode = opts.gameMode || "coop";
 
+  const trainingMode = Boolean(bossConfig.trainingMode);
   const g = {
     gameMode,
+    trainingMode,
+    trainingDamageTotal: 0,
+    paused: false,
+    pauseStartedAt: 0,
+    totalPausedMs: 0,
+    battleStartedAt: 0,
     sharedHP:    SHARED_MAX_HP,
     sharedMaxHP: SHARED_MAX_HP,
     bossHP:      maxHP,
@@ -178,6 +192,12 @@ const createInitialGameState = (bossConfig, opts = {}) => {
   };
 
   refreshWeaponWord(g);
+
+  if (g.weapon?.typeId === "animous_codex") {
+    const { initBookState, offerNeutralPair } = require("./bookCombat");
+    initBookState(g);
+    offerNeutralPair(g);
+  }
 
   if (opts.difficulty) applyDifficultyToGame(g, opts.difficulty);
   return g;

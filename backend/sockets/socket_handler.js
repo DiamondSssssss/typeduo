@@ -21,6 +21,16 @@ const {
   applyTypoBossEffect,
   resetTypoStreak,
 } = require("../game/typingChallenges");
+const {
+  isBookWeapon,
+  tryCommitNeutralPool,
+  trySkipTemptation,
+  checkTemptationFall,
+  onBookTypo,
+  getBookPublicState,
+  initBookState,
+  emitBookPair,
+} = require("../game/bookCombat");
 
 const rooms = new Map();
 /** How long a disconnected player can resume the same in-progress game. */
@@ -63,6 +73,8 @@ const buildStartPayload = (room, g) => ({
   character: g.character,
   boss: { x: g.boss.x, y: g.boss.y, attackType: g.boss.attackType, windingUp: false, windUpRemaining: 0, columnState: null, phase: 0 },
   weaponHeld: g.weapon?.held || false, weaponX: g.weapon.x, weaponY: g.weapon.y,
+  paused: Boolean(g.paused),
+  trainingMode: Boolean(g.trainingMode),
 });
 
 const resetRoomToWaiting = (io, room) => {
@@ -143,7 +155,14 @@ const startGameForRoom = (io, room, cb) => {
     weaponTypeId: teamWeaponId,
   });
   const g = room.game;
+  if (g.weapon?.typeId === "animous_codex") {
+    initBookState(g);
+    emitBookPair(io, room);
+  }
   const startPayload = buildStartPayload(room, g);
+  if (g.weapon?.typeId === "animous_codex") {
+    startPayload.book = getBookPublicState(g);
+  }
   io.to(room.code).emit("startGame", startPayload);
   emitGameState(io, room, resolveBossConfig(room));
   startGameLoop(io, room);
@@ -364,12 +383,41 @@ const registerSocketHandlers = (io) => {
       cb?.({ ok: true, room: toPublicRoomState(room) });
     });
 
+    socket.on("set_pause", ({ roomCode, paused }, cb) => {
+      const code = (roomCode || "").toUpperCase().trim();
+      const room = rooms.get(code);
+      if (!room || room.status !== "in_game" || !room.game) {
+        cb?.({ ok: false, message: "No active game." });
+        return;
+      }
+      const g = room.game;
+      const wantPause = Boolean(paused);
+      if (wantPause === Boolean(g.paused)) {
+        cb?.({ ok: true, paused: g.paused });
+        return;
+      }
+      const now = Date.now();
+      if (wantPause) {
+        g.paused = true;
+        g.pauseStartedAt = now;
+      } else {
+        if (g.pauseStartedAt) g.totalPausedMs = (g.totalPausedMs || 0) + (now - g.pauseStartedAt);
+        g.paused = false;
+        g.pauseStartedAt = 0;
+        g.lastTickAt = now;
+      }
+      io.to(code).emit("game_paused", { paused: g.paused });
+      emitGameState(io, room, resolveBossConfig(room));
+      cb?.({ ok: true, paused: g.paused });
+    });
+
     socket.on("player_move", ({ roomCode, x, y }, cb) => {
       const code = (roomCode || "").toUpperCase().trim();
       const room = rooms.get(code);
       if (!room || room.status !== "in_game") { cb?.({ ok: false }); return; }
       const player = room.players.find((p) => p.socketId === socket.id);
       if (!player || (player.role !== "runner" && player.role !== "solo")) { cb?.({ ok: false }); return; }
+      if (room.game?.paused) { cb?.({ ok: false, reason: "paused" }); return; }
       if (room.game?.bossState === "countdown") { cb?.({ ok: false }); return; }
       if (room.game?._playerStun?.active) { cb?.({ ok: false, reason: "stunned" }); return; }
 
@@ -395,6 +443,7 @@ const registerSocketHandlers = (io) => {
       const player = room.players.find((p) => p.socketId === socket.id);
       if (!player || (player.role !== "typer" && player.role !== "solo")) { cb?.({ ok: false }); return; }
       const g = room.game;
+      if (g.paused) { cb?.({ ok: false, reason: "paused" }); return; }
       if (g.bossState === "countdown" || g.bossState === "roar") { cb?.({ ok: false }); return; }
       let input = String(char ?? "");
       if (input === "Spacebar" || input === "space") input = " ";
@@ -417,24 +466,110 @@ const registerSocketHandlers = (io) => {
         }
       }
 
-      const expected = g.currentWord[g.typedProgress];
-      if (input === expected) {
-        g.typedProgress += 1;
-        resetTypoStreak(g);
-        bumpWordTimer(g);
+      if (isBookWeapon(g)) {
+        initBookState(g);
+        const book = g.book;
+
+        if (book.alignment !== "neutral" && input === " ") {
+          const now = Date.now();
+          if (g._bookLastSpaceAt && now - g._bookLastSpaceAt < 450) {
+            if (trySkipTemptation(io, room)) {
+              g._bookLastSpaceAt = 0;
+              io.to(code).emit("typing_progress", {
+                currentWord: g.currentWord,
+                typedProgress: g.typedProgress,
+                weaponTypeId: g.weapon.typeId,
+                weaponRage: g.weaponRage || 0,
+                ultimateMode: Boolean(g._ultimateMode),
+                currentWordPhase: g.currentWordPhase,
+                book: getBookPublicState(g),
+              });
+              emitGameState(io, room, resolveBossConfig(room));
+              cb?.({ ok: true, skipped: true });
+              return;
+            }
+          }
+          g._bookLastSpaceAt = now;
+        } else {
+          g._bookLastSpaceAt = 0;
+        }
+
+        if (book.alignment === "neutral" && !book.committed) {
+          const commit = tryCommitNeutralPool(g, input);
+          if (commit.handled) {
+            if (commit.ignored) {
+              io.to(code).emit("typing_progress", {
+                currentWord: "",
+                typedProgress: 0,
+                weaponTypeId: g.weapon.typeId,
+                currentWordPhase: g.currentWordPhase,
+                book: getBookPublicState(g),
+              });
+              cb?.({ ok: true });
+              return;
+            }
+            if (input === g.currentWord[0]) {
+              g.typedProgress = 1;
+              resetTypoStreak(g);
+            }
+            io.to(code).emit("book_commit", {
+              pool: commit.committed,
+              currentWord: g.currentWord,
+              typedProgress: g.typedProgress,
+            });
+            if (g.typedProgress < g.currentWord.length) {
+              io.to(code).emit("typing_progress", {
+                currentWord: g.currentWord,
+                typedProgress: g.typedProgress,
+                weaponTypeId: g.weapon.typeId,
+                currentWordPhase: g.currentWordPhase,
+                book: getBookPublicState(g),
+              });
+              emitGameState(io, room, resolveBossConfig(room));
+              cb?.({ ok: true });
+              return;
+            }
+          }
+        }
+
+        const t = book.verse?.temptation;
+        const expected = g.currentWord[g.typedProgress];
+        if (input === expected) {
+          if (t && g.typedProgress >= t.start && g.typedProgress < t.start + t.len) {
+            const { fallToNeutral } = require("../game/bookCombat");
+            fallToNeutral(io, room, "temptation");
+            emitGameState(io, room, resolveBossConfig(room));
+            cb?.({ ok: true });
+            return;
+          }
+          g.typedProgress += 1;
+          resetTypoStreak(g);
+        } else {
+          g.typedProgress = input === g.currentWord[0] ? 1 : 0;
+          handleTypo(g);
+          onBookTypo(io, room);
+          io.to(code).emit("typo", { socketId: player.socketId, char: input, expected });
+        }
       } else {
-        g.typedProgress = input === g.currentWord[0] ? 1 : 0;
-        handleTypo(g);
-        io.to(code).emit("typo", { socketId: player.socketId, char: input, expected });
-        const bossCfg = resolveBossConfig(room);
-        if (bossCfg.typoFeed || bossCfg.typoEnrage || bossCfg.typoBomb) {
-          applyTypoBossEffect(io, room, bossCfg, g);
-        } else if (bossCfg.typoBacklash?.damage) {
-          takeDamage(io, room, bossCfg.typoBacklash.damage, g.character.x, g.character.y);
-          io.to(code).emit("typo_backlash", {
-            damage: bossCfg.typoBacklash.damage,
-            socketId: player.socketId,
-          });
+        const expected = g.currentWord[g.typedProgress];
+        if (input === expected) {
+          g.typedProgress += 1;
+          resetTypoStreak(g);
+          bumpWordTimer(g);
+        } else {
+          g.typedProgress = input === g.currentWord[0] ? 1 : 0;
+          handleTypo(g);
+          io.to(code).emit("typo", { socketId: player.socketId, char: input, expected });
+          const bossCfg = resolveBossConfig(room);
+          if (bossCfg.typoFeed || bossCfg.typoEnrage || bossCfg.typoBomb) {
+            applyTypoBossEffect(io, room, bossCfg, g);
+          } else if (bossCfg.typoBacklash?.damage) {
+            takeDamage(io, room, bossCfg.typoBacklash.damage, g.character.x, g.character.y);
+            io.to(code).emit("typo_backlash", {
+              damage: bossCfg.typoBacklash.damage,
+              socketId: player.socketId,
+            });
+          }
         }
       }
 
@@ -460,7 +595,7 @@ const registerSocketHandlers = (io) => {
         }
       }
 
-      io.to(code).emit("typing_progress", {
+      const progressPayload = {
         currentWord: g.currentWord,
         typedProgress: g.typedProgress,
         weaponStreak: g.weaponStreak || 0,
@@ -469,7 +604,9 @@ const registerSocketHandlers = (io) => {
         weaponRage: g.weaponRage || 0,
         ultimateMode: Boolean(g._ultimateMode),
         currentWordPhase: g.currentWordPhase,
-      });
+      };
+      if (isBookWeapon(g)) progressPayload.book = getBookPublicState(g);
+      io.to(code).emit("typing_progress", progressPayload);
       emitGameState(io, room, resolveBossConfig(room));
       cb?.({ ok: true });
     });

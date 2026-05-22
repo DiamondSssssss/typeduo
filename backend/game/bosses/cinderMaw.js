@@ -19,7 +19,7 @@ module.exports = {
       { id: "ember_pools",   weight: 26 },
       { id: "boss_dash",     weight: 20, minRange: 130 },
       { id: "boss_teleport", weight: 12 },
-      { id: "void_orb",      weight: 10, minRange: 100 },
+      { id: "melee_swipe",   weight: 10, maxRange: 160 },
     ],
     ultimate: { id: "cinder_ultimate", triggerHpPct: 0.5, name: "Inferno Crown" },
   },

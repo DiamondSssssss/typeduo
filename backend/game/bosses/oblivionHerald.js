@@ -24,7 +24,7 @@ module.exports = {
       { id: "summon_typable_minions", weight: 10 },
       { id: "ruin_pillars",           weight: 10 },
       { id: "paralyze_typer",         weight: 9 },
-      { id: "void_orb",               weight: 8, minRange: 80 },
+      { id: "boss_dash",              weight: 8, minRange: 120 },
     ],
     ultimate: { id: "oblivion_ultimate", triggerHpPct: 0.4, name: "Oblivion Fall" },
   },

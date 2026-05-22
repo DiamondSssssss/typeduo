@@ -32,8 +32,8 @@ function clampPct(value, max) {
   return Math.max(0, Math.min(1, (value || 0) / safeMax));
 }
 
-function HPBar({ label, hp, maxHP, variant = "team", prominent = false }) {
-  const pct = clampPct(hp, maxHP);
+function HPBar({ label, hp, maxHP, variant = "team", prominent = false, infinite = false }) {
+  const pct = infinite ? 1 : clampPct(hp, maxHP);
   const prevHpRef = useRef(hp);
   const [flashing, setFlashing] = useState(false);
   const [healing, setHealing] = useState(false);
@@ -81,7 +81,7 @@ function HPBar({ label, hp, maxHP, variant = "team", prominent = false }) {
       <div className="hp-meta">
         <span>{label}</span>
         <span className="hp-meta-value">
-          {Math.round(hp)} / {maxHP}
+          {infinite ? "∞" : `${Math.round(hp)} / ${maxHP}`}
         </span>
       </div>
       <div
@@ -197,8 +197,38 @@ function WeaponHudPanel({ weaponTypeId, weaponHeld, weaponStreak, wordExpiresAt,
   );
 }
 
+function TrainingStatsPanel({ stats }) {
+  if (!stats) return null;
+  const elapsed = formatElapsed(stats.elapsedMs);
+  return (
+    <div className="training-stats" aria-label="Training statistics">
+      <div className="training-stats__item">
+        <span className="training-stats__label">DPS</span>
+        <strong className="training-stats__value">{stats.dps}</strong>
+      </div>
+      <div className="training-stats__item">
+        <span className="training-stats__label">WPM</span>
+        <strong className="training-stats__value">{stats.wpm}</strong>
+      </div>
+      <div className="training-stats__item">
+        <span className="training-stats__label">Damage</span>
+        <strong className="training-stats__value">{Math.round(stats.totalDamage)}</strong>
+      </div>
+      <div className="training-stats__item">
+        <span className="training-stats__label">Words</span>
+        <strong className="training-stats__value">{stats.wordsTyped}</strong>
+      </div>
+      <div className="training-stats__item">
+        <span className="training-stats__label">Time</span>
+        <strong className="training-stats__value">{elapsed}</strong>
+      </div>
+    </div>
+  );
+}
+
 function GameHUD({
   gamePayload,
+  paused = false,
   socketConnected = true,
   connectionNotice = "",
   playAgainVotes = null,
@@ -206,6 +236,7 @@ function GameHUD({
   isHost = false,
   onPlayAgain,
   onLeaveRoom,
+  onTogglePause,
 }) {
   const players = gamePayload?.players || [];
   const sharedHP = gamePayload?.sharedHP ?? 100;
@@ -228,6 +259,8 @@ function GameHUD({
   const windUpAttack = gamePayload?.boss?.windUpAttack;
   const windUpRemaining = gamePayload?.boss?.windUpRemaining || 0;
   const bossId = gamePayload?.bossId || "watcher";
+  const trainingMode = gamePayload?.trainingMode || bossId === "training_dummy";
+  const trainingStats = gamePayload?.trainingStats;
   const gameMode = gamePayload?.gameMode || gameOver?.gameMode || "coop";
   const isSolo = gameMode === "solo";
   const roomCode = gamePayload?.roomCode || gameOver?.roomCode;
@@ -253,6 +286,18 @@ function GameHUD({
 
   return (
     <section className="card card-wide hud-card hud-card--compact" aria-label="Game HUD">
+      {paused && !gameOver ? (
+        <div className="pause-overlay" role="status">
+          <p className="pause-overlay__title">Tạm dừng</p>
+          <p className="pause-overlay__hint">Gõ và di chuyển tạm khóa · bấm Tiếp tục hoặc Esc</p>
+          {typeof onTogglePause === "function" ? (
+            <button type="button" className="btn btn-primary btn-compact" onClick={onTogglePause}>
+              ▶ Tiếp tục
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {(!socketConnected || connectionNotice) && !gameOver ? (
         <div className="connection-banner" role="status">
           <span className="connection-banner__dot" aria-hidden="true" />
@@ -261,7 +306,7 @@ function GameHUD({
       ) : null}
       <div className="hud-state-row">
         <h2 className="title" style={{ fontSize: "1rem", margin: 0 }}>
-          {isSolo ? "Solo Battle" : "Boss Battle"}
+          {trainingMode ? "Training · Dummy" : isSolo ? "Solo Battle" : "Boss Battle"}
         </h2>
         <span
           className={`weapon-badge${weaponHeld ? " weapon-badge--held" : " weapon-badge--dropped"}`}
@@ -328,10 +373,28 @@ function GameHUD({
         <div className="callout callout--laser callout--laser-active">⚡ FIRING!</div>
       ) : null}
 
+      {trainingMode && !gameOver ? (
+        <TrainingStatsPanel stats={trainingStats} />
+      ) : null}
+
       <div className="hud-grid">
         <HPBar label="♥ Team HP" hp={sharedHP} maxHP={sharedMaxHP} prominent />
-        <HPBar label="Boss HP" hp={bossHP} maxHP={bossMaxHP} variant="boss" />
+        <HPBar
+          label={trainingMode ? "Dummy HP" : "Boss HP"}
+          hp={bossHP}
+          maxHP={bossMaxHP}
+          variant="boss"
+          infinite={trainingMode}
+        />
       </div>
+
+      {trainingMode && !gameOver && typeof onLeaveRoom === "function" ? (
+        <div className="training-actions">
+          <button type="button" className="btn btn-ghost btn-compact" onClick={onLeaveRoom}>
+            Kết thúc luyện tập
+          </button>
+        </div>
+      ) : null}
 
       {weaponHeld && !gameOver && ultimateMode ? (
         <div className="callout callout--ultimate">
@@ -382,7 +445,11 @@ function GameHUD({
               playersWon ? "game-over-headline--win" : "game-over-headline--lose"
             }`}
           >
-            {playersWon ? "Victory! Boss defeated." : "Defeat. The boss prevailed."}
+            {gameOver?.trainingMode
+              ? (playersWon ? "Training complete." : "Training ended — team HP depleted.")
+              : playersWon
+                ? "Victory! Boss defeated."
+                : "Defeat. The boss prevailed."}
           </p>
           <p className="status-text">
             Time {formatElapsed(gameOver.elapsedMs)} · Total words {gameOver.totalWordsTyped ?? "—"}

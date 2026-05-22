@@ -10,7 +10,11 @@ const { MeleeSwipeAttack }     = require("./attacks/MeleeSwipeAttack");
 const { DashChargeAttack }     = require("./attacks/DashChargeAttack");
 const { TeleportAttack }       = require("./attacks/TeleportAttack");
 const { GroundHazardAttack }   = require("./attacks/GroundHazardAttack");
-const { UltimateComboAttack }  = require("./attacks/UltimateComboAttack");
+const {
+  ReaperUltimate, MatronUltimate, SerpentUltimate, CinderUltimate,
+  GlitchUltimate, EntityUltimate, LeechUltimate, WardenUltimate,
+  CataclysmUltimate, OblivionUltimate, OmegaUltimate,
+} = require("./attacks/bossUltimates");
 const { PatternBridgeAttack }  = require("./attacks/PatternBridgeAttack");
 const { ProjectileVolleyAttack } = require("./attacks/ProjectileVolleyAttack");
 const { OverchargeAttack }       = require("./attacks/OverchargeAttack");
@@ -48,40 +52,18 @@ registerAttack(new MirrorWordAttack("mirror_word", { weight: 12 }));
 registerAttack(new ChainCancelAttack("chain_cancel", { weight: 14, chainLength: 3 }));
 registerAttack(new SafeZoneAttack("safe_zone", { weight: 13, mapDamage: 50 }));
 
-// ── Ultimates (one per boss theme; triggered by AttackManager at HP%) ─────────
-registerAttack(new UltimateComboAttack("reaper_ultimate", {
-  name: "Harvest Moon", windUpMs: 2600, color: 0xa855f7, blastDamage: 26,
-}));
-registerAttack(new UltimateComboAttack("serpent_ultimate", {
-  name: "Abyss Maw", windUpMs: 3000, color: 0x22d3ee, blastRadius: 180, blastDamage: 32, minionCount: 8,
-}));
-registerAttack(new UltimateComboAttack("cinder_ultimate", {
-  name: "Inferno Crown", windUpMs: 2400, color: 0xff6600, blastDamage: 24,
-}));
-registerAttack(new UltimateComboAttack("matron_ultimate", {
-  name: "Iron Judgment", windUpMs: 2200, color: 0xb45309, blastDamage: 20, minionCount: 4,
-}));
-registerAttack(new UltimateComboAttack("glitch_ultimate", {
-  name: "System Crash", windUpMs: 2800, color: 0xe879f9, blastDamage: 28, minionCount: 6,
-}));
-registerAttack(new UltimateComboAttack("entity_ultimate", {
-  name: "Null Collapse", windUpMs: 3200, color: 0x22d3ee, blastRadius: 200, blastDamage: 34, minionCount: 10,
-}));
-registerAttack(new UltimateComboAttack("leech_ultimate", {
-  name: "Hemorrhage Pulse", windUpMs: 2600, color: 0x84cc16, blastDamage: 26,
-}));
-registerAttack(new UltimateComboAttack("warden_ultimate", {
-  name: "Abyss Collapse", windUpMs: 3000, color: 0x0ea5e9, blastDamage: 32, minionCount: 8,
-}));
-registerAttack(new UltimateComboAttack("cataclysm_ultimate", {
-  name: "Worldbreaker", windUpMs: 3200, color: 0xf97316, blastRadius: 200, blastDamage: 38, minionCount: 10,
-}));
-registerAttack(new UltimateComboAttack("oblivion_ultimate", {
-  name: "Oblivion Fall", windUpMs: 3400, color: 0x6366f1, blastRadius: 210, blastDamage: 40, minionCount: 12,
-}));
-registerAttack(new UltimateComboAttack("omega_ultimate", {
-  name: "Null Genesis", windUpMs: 3600, color: 0xffffff, blastRadius: 220, blastDamage: 45, minionCount: 14,
-}));
+// ── Unique boss ultimates (Watcher keeps legacy special at 10% HP) ───────────
+registerAttack(new ReaperUltimate());
+registerAttack(new SerpentUltimate());
+registerAttack(new CinderUltimate());
+registerAttack(new MatronUltimate());
+registerAttack(new GlitchUltimate());
+registerAttack(new EntityUltimate());
+registerAttack(new LeechUltimate());
+registerAttack(new WardenUltimate());
+registerAttack(new CataclysmUltimate());
+registerAttack(new OblivionUltimate());
+registerAttack(new OmegaUltimate());
 
 // ── Pattern bridges (legacy projectile patterns, lower weight) ────────────────
 const bridge = (id, opts = {}) => registerAttack(new PatternBridgeAttack(id, { patternId: id, weight: 8, ...opts }));

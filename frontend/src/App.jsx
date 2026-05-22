@@ -56,6 +56,7 @@ function App() {
   const [playAgainVotes, setPlayAgainVotes] = useState(null);
   const [playAgainPending, setPlayAgainPending] = useState(false);
   const [connectionNotice, setConnectionNotice] = useState("");
+  const [gamePaused, setGamePaused] = useState(false);
   const gameRef = useRef(null);
   const tutorialRef = useRef(null);
 
@@ -140,8 +141,10 @@ function App() {
     const onRoomUpdate = (payload) => setRoomState(payload);
     const onGameState = (payload) => {
       setConnectionNotice("");
+      if (payload?.paused != null) setGamePaused(Boolean(payload.paused));
       setGamePayload((prev) => ({ ...(prev || {}), ...payload }));
     };
+    const onGamePaused = ({ paused }) => setGamePaused(Boolean(paused));
     const onTypingProgress = (payload) => {
       setGamePayload((prev) => ({
         ...(prev || {}),
@@ -193,6 +196,7 @@ function App() {
       if (payload?.roomCode && username) saveActiveGame(payload.roomCode, username);
       setPlayAgainVotes(null);
       setPlayAgainPending(false);
+      setGamePaused(Boolean(payload?.paused));
       setGamePayload(payload);
       setConnectionNotice("");
     };
@@ -203,6 +207,7 @@ function App() {
     socket.on("disconnect", onDisconnect);
     socket.on("room_update", onRoomUpdate);
     socket.on("game_state", onGameState);
+    socket.on("game_paused", onGamePaused);
     socket.on("typing_progress", onTypingProgress);
     socket.on("weapon_ultimate_ready", onUltimateReady);
     socket.on("word_completed", onWordCompleted);
@@ -218,6 +223,7 @@ function App() {
       socket.off("disconnect", onDisconnect);
       socket.off("room_update", onRoomUpdate);
       socket.off("game_state", onGameState);
+      socket.off("game_paused", onGamePaused);
       socket.off("typing_progress", onTypingProgress);
       socket.off("weapon_ultimate_ready", onUltimateReady);
       socket.off("word_completed", onWordCompleted);
@@ -312,6 +318,27 @@ function App() {
     });
   }, [socket, gamePayload, roomState, goToRematchLobby]);
 
+  const handleTogglePause = useCallback(() => {
+    const code = gamePayload?.roomCode;
+    if (!socket?.connected || !code || gamePayload?.gameOver) return;
+    socket.emit("set_pause", { roomCode: code, paused: !gamePaused }, (res) => {
+      if (res?.ok && res.paused != null) setGamePaused(Boolean(res.paused));
+    });
+  }, [socket, gamePayload, gamePaused]);
+
+  useEffect(() => {
+    if (!gamePayload || gamePayload.gameOver) return undefined;
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+      handleTogglePause();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [gamePayload, handleTogglePause]);
+
   const handleLeaveRoom = useCallback(() => {
     const code = roomState?.code || gamePayload?.roomCode;
     const finish = () => {
@@ -319,6 +346,7 @@ function App() {
       setConnectionNotice("");
       setRoomState(null);
       setGamePayload(null);
+      setGamePaused(false);
       setAppView("home");
     };
     if (!socket || !code) { finish(); return; }
@@ -371,9 +399,24 @@ function App() {
 
       {inGame ? (
         <div className="game-layout">
+          <div className="game-toolbar" role="toolbar" aria-label="Battle controls">
+            <button
+              type="button"
+              className="btn btn-ghost btn-compact"
+              onClick={handleTogglePause}
+              disabled={Boolean(gamePayload?.gameOver)}
+            >
+              {gamePaused ? "▶ Tiếp tục" : "⏸ Tạm dừng"}
+            </button>
+            <button type="button" className="btn btn-ghost btn-compact" onClick={handleLeaveRoom}>
+              Main menu
+            </button>
+            <span className="game-toolbar__hint">Esc · tạm dừng</span>
+          </div>
           <div id="game-root" className="game-root" />
           <GameHUD
             gamePayload={gamePayload}
+            paused={gamePaused}
             socketConnected={socketConnected}
             connectionNotice={connectionNotice}
             playAgainVotes={playAgainVotes}
@@ -384,6 +427,7 @@ function App() {
             }
             onPlayAgain={handlePlayAgain}
             onLeaveRoom={handleLeaveRoom}
+            onTogglePause={handleTogglePause}
           />
         </div>
       ) : appView === "tutorial" ? (

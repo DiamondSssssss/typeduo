@@ -18,10 +18,22 @@ const {
   tryKillMinionOnWord,
   tryDestroyPillarOnWord,
 } = require("./typingChallenges");
+const {
+  isBookWeapon,
+  refreshBookPrompt,
+  initBookState,
+  completeBookWord,
+} = require("./bookCombat");
 
 /** Assign a new word for the held weapon (or default pool if none held). */
 const refreshWeaponWord = (g) => {
   const typeId = g.weapon?.typeId || DEFAULT_WEAPON_ID;
+  if (isBookWeapon(g)) {
+    initBookState(g);
+    refreshBookPrompt(g);
+    g.wordExpiresAt = 0;
+    return;
+  }
   g.currentWord = getWeaponWord(typeId, g.bossHP, g.bossMaxHP);
   g.currentWordPhase = getWeaponWordPhase(typeId, g.currentWord);
   g.typedProgress = 0;
@@ -92,6 +104,10 @@ const completeWord = (room, player, io = null) => {
 
   if (isUltimateMode(g) && io) {
     return executeUltimate(io, room, player, g);
+  }
+
+  if (isBookWeapon(g) && io) {
+    return completeBookWord(io, room, player);
   }
 
   const weapon = getWeapon(g.weapon?.typeId);

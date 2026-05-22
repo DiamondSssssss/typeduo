@@ -73,6 +73,21 @@ export const WEAPON_TYPES = {
     ultimateName: "Consuming Rage",
     ultimatePhrase: "rage consumes all who stand near",
   },
+  animous_codex: {
+    id: "animous_codex",
+    name: "Animous Codex",
+    nameVi: "Thiên Ma Lục",
+    icon: "📖",
+    color: "#a78bfa",
+    glowBlur: 20,
+    sparkCount: 6,
+    damageMult: 1.0,
+    bookWeapon: true,
+    description: "Chọn Thiện hoặc Ác để biến hình. Thánh miễn đòn; Quỷ sát thương cao.",
+    tag: "Dual",
+    ultimateName: "Sanctuary / Cataclysm",
+    ultimatePhrase: "sanctuary psalm shields the faithful",
+  },
 };
 
 export const RAGE_MAX = 100;

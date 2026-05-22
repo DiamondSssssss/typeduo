@@ -13,6 +13,7 @@ const RAGE_PER_WORD = {
   greatsword: 9,
   lifestaff: 12,
   fury_axe: 13,
+  animous_codex: 11,
 };
 
 const RAGE_LOST_ON_TYPO = 18;
@@ -50,13 +51,37 @@ const WEAPON_ULTIMATES = {
   },
 };
 
+const BOOK_HOLY_ULTIMATE = {
+  phrase: "sanctuary psalm shields the faithful",
+  name: "Sanctuary Psalm",
+  bossDamageMult: 1.85,
+  teamHeal: 15,
+  sanctuaryMs: 3000,
+};
+
+const BOOK_DEMON_ULTIMATE = {
+  phrase: "cataclysm verdict ends all hope",
+  name: "Cataclysm Verdict",
+  bossDamageMult: 3.1,
+  selfCost: 5,
+};
+
 const initRage = (g) => {
   if (g.weaponRage == null) g.weaponRage = 0;
   if (g.consecutiveTypos == null) g.consecutiveTypos = 0;
 };
 
+const getBookUltimate = (g) => {
+  if (g.book?.alignment === "holy") return BOOK_HOLY_ULTIMATE;
+  if (g.book?.alignment === "demon") return BOOK_DEMON_ULTIMATE;
+  return null;
+};
+
 const addRage = (g, weaponId) => {
   initRage(g);
+  if (weaponId === "animous_codex" && g.book?.alignment === "neutral") {
+    return g.weaponRage || 0;
+  }
   const gain = RAGE_PER_WORD[weaponId] ?? 12;
   g.weaponRage = Math.min(RAGE_MAX, (g.weaponRage || 0) + gain);
   return g.weaponRage;
@@ -92,7 +117,9 @@ const DEFERRED_CHALLENGE_KINDS = new Set(["shield_break", "mirror_word", "safe_z
 
 const enterUltimateMode = (io, room, g) => {
   const weapon = getWeapon(g.weapon?.typeId);
-  const ult = WEAPON_ULTIMATES[weapon.id];
+  const ult = weapon.id === "animous_codex"
+    ? getBookUltimate(g)
+    : WEAPON_ULTIMATES[weapon.id];
   if (!ult || g._ultimateMode) return false;
   if (g._challenge && DEFERRED_CHALLENGE_KINDS.has(g._challenge.kind)) return false;
 
@@ -131,12 +158,20 @@ const tryOfferUltimate = (io, room, g) => {
 
 const executeUltimate = (io, room, player, g) => {
   const weapon = getWeapon(g.weapon?.typeId);
-  const ult = WEAPON_ULTIMATES[weapon.id];
+  const ult = weapon.id === "animous_codex"
+    ? getBookUltimate(g)
+    : WEAPON_ULTIMATES[weapon.id];
   if (!ult) return null;
 
   const stunMult = g.bossState === "stunned" ? 2 : 1;
-  const base = computeWordDamage(ult.phrase) * (weapon.damageMult || 1);
-  const damage = Math.round(base * ult.bossDamageMult * stunMult);
+  let damage;
+  if (weapon.id === "animous_codex") {
+    const { computeVerseDamage } = require("./bookWords");
+    damage = Math.round(computeVerseDamage(ult.phrase, g.book.alignment, stunMult) * ult.bossDamageMult);
+  } else {
+    const base = computeWordDamage(ult.phrase) * (weapon.damageMult || 1);
+    damage = Math.round(base * ult.bossDamageMult * stunMult);
+  }
   const prevHP = g.bossHP;
 
   applyBossWordDamage(g, damage);
@@ -148,6 +183,21 @@ const executeUltimate = (io, room, player, g) => {
   if (ult.teamHeal) {
     healed = ult.teamHeal;
     g.sharedHP = Math.min(g.sharedMaxHP, g.sharedHP + healed);
+  }
+
+  if (ult.sanctuaryMs) {
+    const { applySanctuary } = require("./bookCombat");
+    applySanctuary(g, ult.sanctuaryMs);
+    io.to(room.code).emit("book_sanctuary_start", { durationMs: ult.sanctuaryMs });
+  }
+
+  if (ult.selfCost) {
+    const { takeDamage } = require("./helpers");
+    takeDamage(io, room, ult.selfCost, g.character.x, g.character.y, {
+      source: "typo_backlash",
+      skipWeaponDrop: true,
+      skipWeaponStreakReset: true,
+    });
   }
 
   if (ult.bonusEffect === "timer_refresh" && weapon.wordTimer) {

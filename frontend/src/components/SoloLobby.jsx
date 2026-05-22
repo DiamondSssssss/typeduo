@@ -16,7 +16,7 @@ const DIFFICULTY_INFO = {
 };
 
 export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }) {
-  const [selectedBoss, setSelectedBoss] = useState("void_serpent");
+  const [selectedBoss, setSelectedBoss] = useState("training_dummy");
   const [weaponTypeId, setWeaponTypeId] = useState(DEFAULT_WEAPON_ID);
 
   useEffect(() => {

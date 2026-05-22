@@ -64,6 +64,18 @@ const WEAPON_TYPES = {
     description: "Damage ramps with consecutive words — typos reset your ramp.",
     descriptionVi: "Càng gõ liên tục càng đau — gõ sai mất chuỗi.",
   },
+  animous_codex: {
+    id: "animous_codex",
+    name: "Animous Codex",
+    nameVi: "Thiên Ma Lục",
+    icon: "📖",
+    color: "#a78bfa",
+    damageMult: 1.0,
+    wordPool: "book",
+    bookWeapon: true,
+    description: "Neutral: pick Good or Evil words to transform. Holy shields; Demon strikes hard.",
+    descriptionVi: "Trung lập: chọn từ Thiện/Ác để biến hình. Thánh miễn đòn; Quỷ sát thương cao.",
+  },
 };
 
 const DEFAULT_WEAPON_ID = "shortsword";

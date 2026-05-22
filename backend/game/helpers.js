@@ -106,6 +106,20 @@ const KILLING_LABELS = {
 
 const takeDamage = (io, room, damage, x, y, opts = {}) => {
   const g = room.game;
+
+  if (damage > 0 && g.sanctuaryUntil && Date.now() < g.sanctuaryUntil) {
+    io.to(room.code).emit("book_sanctuary_block", { x, y });
+    return g.sharedHP;
+  }
+
+  if (damage > 0 && g.weapon?.typeId === "animous_codex") {
+    const { consumeAegis } = require("./bookCombat");
+    if (consumeAegis(g)) {
+      io.to(room.code).emit("book_aegis_block", { x, y });
+      return g.sharedHP;
+    }
+  }
+
   // Team shield absorbs one hit
   if (g.teamShield > 0 && !opts.skipShield) {
     g.teamShield = 0;
@@ -127,7 +141,8 @@ const takeDamage = (io, room, damage, x, y, opts = {}) => {
   let weaponDropped = false;
   const w = room.game.weapon;
   const now = Date.now();
-  if (!opts.skipWeaponDrop && w && w.held && (now - w.pickedUpAt) > WEAPON_DROP_IMMUNITY_MS) {
+  const skipDrop = w?.typeId === "animous_codex" && g.book?.alignment && g.book.alignment !== "neutral";
+  if (!opts.skipWeaponDrop && !skipDrop && w && w.held && (now - w.pickedUpAt) > WEAPON_DROP_IMMUNITY_MS) {
     const pos = computeWeaponDropPosition(room.game.character);
     w.held = false;
     w.x = pos.x;

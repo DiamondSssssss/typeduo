@@ -4,6 +4,22 @@
  */
 
 export const BOSS_VISUALS = {
+  training_dummy: {
+    id: "training_dummy",
+    label: "DUMMY",
+    shape: "hex",
+    size: { body: 56, border: 72, aura: 86 },
+    phases: [
+      { body: 0x1e293b, outer: 0x334155, border: 0x94a3b8, eye: 0xcbd5e1, core: 0xe2e8f0 },
+      { body: 0x1e293b, outer: 0x334155, border: 0x94a3b8, eye: 0xcbd5e1, core: 0xe2e8f0 },
+      { body: 0x1e293b, outer: 0x334155, border: 0x94a3b8, eye: 0xcbd5e1, core: 0xe2e8f0 },
+    ],
+    roar: { body: 0x334155, outer: 0x475569, border: 0xffffff, eye: 0xffffff, core: 0xffffff },
+    stun: { body: 0x0a2244, outer: 0x1a4488, border: 0x4ef0d4, eye: 0x4ef0d4, core: 0x4ef0d4 },
+    auraColors: [0x94a3b8, 0x94a3b8, 0x94a3b8],
+    windUpColor: 0xcbd5e1,
+  },
+
   watcher: {
     id:    "watcher",
     label: "THE WATCHER",
@@ -422,6 +438,7 @@ export const ATTACK_LABELS = {
 
 /** Star tier names (1–10). Tiers 7–10 are reserved for future bosses. */
 export const DIFFICULTY_LABELS = {
+  0:  "Training",
   1:  "Beginner",
   2:  "Easy",
   3:  "Medium",
@@ -439,6 +456,15 @@ export const COMING_SOON_DIFFICULTIES = [];
 
 /** Lobby-facing boss list (mirrors backend /api/bosses). */
 export const BOSS_LIST = [
+  {
+    id: "training_dummy",
+    name: "Dummy",
+    tagline: "Mục tiêu luyện tập — máu vô hạn, DPS & WPM trực tiếp.",
+    difficulty: 0,
+    maxHP: 999999,
+    color: "#94a3b8",
+    trainingMode: true,
+  },
   { id: "iron_matron",    name: "Iron Matron",      tagline: "Forged in wrath, tempered in battle.",           difficulty: 1, maxHP: 520,  color: "#94a3b8" },
   { id: "rust_golem",     name: "Rust Golem",       tagline: "Ancient iron that never rests.",                difficulty: 2, maxHP: 580,  color: "#b45309" },
   { id: "watcher",        name: "The Watcher",      tagline: "An ancient arcane entity that sees all.",       difficulty: 3, maxHP: 550,  color: "#ff6b9d" },

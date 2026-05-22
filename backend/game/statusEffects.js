@@ -82,6 +82,12 @@ const tickStatusAndHazards = (io, room, now, deltaSeconds) => {
     });
   }
 
+  if (g._magnetUntil && now >= g._magnetUntil) {
+    g._magnetActive = false;
+    g._magnetTarget = null;
+    g._magnetUntil = 0;
+  }
+
   // Magnet pull — toward boss OR ultimate center target
   if (g._magnetActive && (g.boss || g._magnetTarget)) {
     const char = g.character;

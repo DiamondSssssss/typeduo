@@ -8,7 +8,12 @@ const applyBossWordDamage = (g, damage) => {
     remaining -= absorbed;
   }
   if (remaining > 0) {
-    g.bossHP = Math.max(0, g.bossHP - remaining);
+    if (g.trainingMode) {
+      g.trainingDamageTotal = (g.trainingDamageTotal || 0) + remaining;
+      g.bossHP = g.bossMaxHP;
+    } else {
+      g.bossHP = Math.max(0, g.bossHP - remaining);
+    }
   }
   return remaining;
 };

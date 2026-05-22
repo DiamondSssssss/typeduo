@@ -1,5 +1,6 @@
-/** Star difficulty tiers (1–10). 7–10 reserved for future bosses. */
+/** Star difficulty tiers (0 = training, 1–10 = live bosses). */
 const DIFFICULTY_LABELS = {
+  0:  "Training",
   1:  "Beginner",
   2:  "Easy",
   3:  "Medium",

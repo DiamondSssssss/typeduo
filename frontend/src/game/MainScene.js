@@ -95,6 +95,15 @@ export default class MainScene extends Phaser.Scene {
     this.paralyzeWindupExpires = 0;
     this.paralyzeWindupGfx = null;
     this.paralyzeBeamGfx = null;
+    // Animous Codex
+    this.bookAlignment = "neutral";
+    this.bookOfferGood = "";
+    this.bookOfferEvil = "";
+    this.bookCommitted = false;
+    this.bookGoodProgress = 0;
+    this.bookEvilProgress = 0;
+    this.bookChoiceTxt = null;
+    this.gamePaused = false;
   }
 
   init(data) {
@@ -833,6 +842,10 @@ export default class MainScene extends Phaser.Scene {
   }
 
   _renderWord(word, progress) {
+    if (this.weaponTypeId === "animous_codex" && this.bookAlignment === "neutral" && !this.bookCommitted) {
+      this._renderBookNeutralPair(progress || 0);
+      return;
+    }
     const w = word || "", p = Math.max(0, Math.min(w.length, progress || 0));
     this.typedTxt.setText(this._wordForDisplay(w.slice(0, p)));
     this.remainTxt.setText(this._wordForDisplay(w.slice(p)));
@@ -841,6 +854,92 @@ export default class MainScene extends Phaser.Scene {
     this.typedTxt.setX(sx);
     this.remainTxt.setX(sx + this.typedTxt.width);
     this._applyWeaponTypingStyle();
+  }
+
+  _applyBookState(book) {
+    if (!book) return;
+    this.bookAlignment = book.alignment || "neutral";
+    this.bookOfferGood = book.offerGood || "";
+    this.bookOfferEvil = book.offerEvil || "";
+    this.bookCommitted = Boolean(book.committed);
+    this.bookGoodProgress = book.goodProgress ?? 0;
+    this.bookEvilProgress = book.evilProgress ?? 0;
+  }
+
+  _renderBookNeutralPair(progress = 0) {
+    const g = this.bookOfferGood || "???";
+    const e = this.bookOfferEvil || "???";
+    if (!this.bookChoiceTxt) {
+      this.bookChoiceTxt = this.add.text(W / 2, 118, "", {
+        fontFamily: FONT, fontSize: "13px", color: "#94a3b8",
+      }).setOrigin(0.5).setDepth(32);
+    }
+    this.bookChoiceTxt.setText(
+      `THIỆN ${this.bookGoodProgress}/10  ·  ÁC ${this.bookEvilProgress}/10  — gõ chữ đầu để chọn`
+    );
+    if (!this.bookCommitted) {
+      this.typedTxt.setFontSize("40px");
+      this.remainTxt.setFontSize("40px");
+      this.typedTxt.setText(g).setColor("#fde68a");
+      this.remainTxt.setText(e).setColor("#fca5a5");
+      const gap = 72;
+      const total = this.typedTxt.width + gap + this.remainTxt.width;
+      const sx = -total / 2;
+      this.typedTxt.setX(sx);
+      this.remainTxt.setX(sx + this.typedTxt.width + gap);
+      this.typedTxt.setStroke("#422006", 2);
+      this.remainTxt.setStroke("#450a0a", 2);
+      return;
+    }
+    const w = this.expectedWord || g;
+    const p = Math.max(0, Math.min(w.length, progress));
+    this.typedTxt.setText(this._wordForDisplay(w.slice(0, p)));
+    this.remainTxt.setText("");
+    const sx = -this.typedTxt.width / 2;
+    this.typedTxt.setX(sx);
+    this.remainTxt.setX(sx + this.typedTxt.width);
+    this._applyWeaponTypingStyle();
+  }
+
+  _playBookTransform(alignment) {
+    const col = alignment === "holy" ? "#fde68a" : "#f87171";
+    const label = alignment === "holy" ? "THÁNH KHÍ" : "QUỶ KHÍ";
+    this._showFloatingText(label, col, 40);
+    this.cameras.main.shake(420, 0.018);
+    if (this.weaponCont?.visible) {
+      const glowCol = alignment === "holy" ? 0xfbbf24 : 0xef4444;
+      this.weaponGlow.setFillStyle(glowCol, 0.35);
+      this.tweens.add({
+        targets: this.weaponCont,
+        scale: { from: 0.6, to: 1.15 },
+        duration: 500,
+        ease: "back.out",
+      });
+    }
+    this._drawWeaponGraphic(this.weaponGfx, "animous_codex", alignment);
+  }
+
+  _spawnAnimousUltimate(alignment, damage) {
+    const bx = this.bossX, by = this.bossY;
+    if (alignment === "demon") {
+      const beam = this.add.graphics().setDepth(48);
+      beam.lineStyle(28, 0xef4444, 0.95);
+      beam.beginPath();
+      beam.moveTo(bx, by - 120);
+      beam.lineTo(this.charX, this.charY);
+      beam.strokePath();
+      this.tweens.add({
+        targets: beam, alpha: 0, duration: 700, onComplete: () => beam.destroy(),
+      });
+      this.cameras.main.shake(500, 0.028);
+    } else {
+      const ring = this.add.circle(this.charX, this.charY, 30, 0xfbbf24, 0.2)
+        .setStrokeStyle(5, 0xfde68a, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(47);
+      this.tweens.add({
+        targets: ring, scale: 5, alpha: 0, duration: 900, onComplete: () => ring.destroy(),
+      });
+    }
+    this._spawnDamageBurst(damage, true, alignment === "holy" ? 0xfbbf24 : 0xef4444);
   }
 
   _updateRoleBadge() {
@@ -918,6 +1017,7 @@ export default class MainScene extends Phaser.Scene {
     this.isRunner = this.isSolo || localP?.role === "runner";
     this.canType  = this.isSolo || localP?.role === "typer";
     this.roomCode  = p.roomCode;
+    this.gamePaused = Boolean(p.paused);
     // Boss visual config
     const bossId   = p.bossId || "watcher";
     this.bossVisual = BOSS_VISUALS[bossId] || BOSS_VISUALS.watcher;
@@ -936,6 +1036,7 @@ export default class MainScene extends Phaser.Scene {
     this.weaponTypeId = p.weaponTypeId || DEFAULT_WEAPON_ID;
     this.weaponStreak = p.weaponStreak || 0;
     this.wordExpiresAt = p.wordExpiresAt || 0;
+    if (p.book) this._applyBookState(p.book);
 
     if (p.character) { this.charX = p.character.x; this.charY = p.character.y; this.charTargetX = this.charX; this.charTargetY = this.charY; this._setCharPos(this.charX, this.charY); }
     if (p.boss)      { this.bossX = p.boss.x || 640; this.bossY = p.boss.y || 110; this.bossTX = this.bossX; this.bossTY = this.bossY; this.bossCont.x = this.bossX; this.bossCont.y = this.bossY; }
@@ -971,6 +1072,7 @@ export default class MainScene extends Phaser.Scene {
 
     if (this.canType) {
       this._onKeydown = (e) => {
+        if (this.gamePaused) return;
         let char;
         if (e.key === " " || e.key === "Spacebar") {
           char = " ";
@@ -979,7 +1081,12 @@ export default class MainScene extends Phaser.Scene {
           if (char.length !== 1 || !/[a-z]/.test(char)) return;
         }
         if (this.bossState === "countdown" || this.bossState === "roar") return;
-        if (this.expectedWord && this.localTypedProgress < this.expectedWord.length) {
+        const canTypeWord = this.expectedWord && (
+          this.weaponTypeId !== "animous_codex"
+          || this.bookAlignment !== "neutral"
+          || this.bookCommitted
+        );
+        if (canTypeWord && this.localTypedProgress < this.expectedWord.length) {
           if (char === this.expectedWord[this.localTypedProgress]) {
             this.localTypedProgress++;
             this._renderWord(this.expectedWord, this.localTypedProgress);
@@ -1119,6 +1226,31 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  _playUltimateCutscene(weaponTypeId, damage, ultimateName) {
+    const weapon = getWeapon(weaponTypeId);
+    const colHex = weapon?.color || "#fbbf24";
+    const label = (ultimateName || weapon?.ultimateName || "ULTIMATE").toUpperCase();
+    const cut = this.add.text(W / 2, H * 0.32, label, {
+      fontFamily: FONT, fontSize: "40px", color: colHex, fontStyle: "bold",
+      stroke: "#0f172a", strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(55).setAlpha(0).setScale(1.35);
+    this.tweens.add({ targets: cut, alpha: 1, scale: 1, duration: 140, ease: "back.out" });
+    this.cameras.main.shake(160, 0.007);
+    const fire = () => {
+      if (weaponTypeId === "animous_codex") {
+        this._spawnAnimousUltimate(this.bookAlignment, damage);
+      } else {
+        this._spawnWeaponUltimateAttack(weaponTypeId, damage);
+      }
+    };
+    this.time.delayedCall(340, () => {
+      this.tweens.add({
+        targets: cut, alpha: 0, y: cut.y - 28, duration: 180,
+        onComplete: () => { cut.destroy(); fire(); },
+      });
+    });
+  }
+
   _spawnWeaponUltimateAttack(weaponTypeId, damage) {
     const weapon = getWeapon(weaponTypeId);
     const col = parseInt(String(weapon.color || "#ff9ec8").replace("#", ""), 16);
@@ -1126,54 +1258,31 @@ export default class MainScene extends Phaser.Scene {
     const bx = this.bossX, by = this.bossY;
 
     if (weaponTypeId === "swift_blade") {
-      // ── Kiếm Tốc: Storm Cut ⚡ ──────────────────────
+      const aim = Math.atan2(by - fy, bx - fx);
       let delay = 0;
       for (let i = 0; i < 9; i++) {
         this.time.delayedCall(delay, () => {
           const slash = this.add.graphics().setDepth(45);
-          slash.lineStyle(6, col, 0.95);
-
-          const angle = Math.random() * Math.PI * 2;
-          const length = 180;
-          const x1 = bx - Math.cos(angle) * length;
-          const y1 = by - Math.sin(angle) * length;
-          const x2 = bx + Math.cos(angle) * length;
-          const y2 = by + Math.sin(angle) * length;
-
+          slash.lineStyle(5 + (i % 2), col, 0.92);
+          const spread = (i - 4) * 0.12;
+          const angle = aim + spread;
+          const len = 160 + i * 8;
           slash.beginPath();
-          slash.moveTo(x1, y1);
-          slash.lineTo(x2, y2);
+          slash.moveTo(fx, fy);
+          slash.lineTo(fx + Math.cos(angle) * len, fy + Math.sin(angle) * len);
           slash.strokePath();
-
-          this.cameras.main.shake(100, 0.008);
-          this.tweens.add({
-            targets: slash,
-            alpha: 0,
-            duration: 180,
-            onComplete: () => slash.destroy()
-          });
-
-          // Bắn ra tia điện nhỏ
-          for (let j = 0; j < 3; j++) {
-            const spark = this.add.circle(bx, by, 3, 0x22d3ee, 0.9).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
-            const spAngle = angle + (Math.random() - 0.5) * 1.5;
-            const spSpeed = 100 + Math.random() * 200;
-            this.tweens.add({
-              targets: spark,
-              x: bx + Math.cos(spAngle) * spSpeed,
-              y: by + Math.sin(spAngle) * spSpeed,
-              alpha: 0,
-              scale: 0.1,
-              duration: 400,
-              onComplete: () => spark.destroy()
-            });
-          }
+          this.tweens.add({ targets: slash, alpha: 0, duration: 160, onComplete: () => slash.destroy() });
+          if (i % 2 === 0) this.cameras.main.shake(80, 0.006);
+          const trail = this.add.circle(
+            fx + Math.cos(angle) * len * 0.65,
+            fy + Math.sin(angle) * len * 0.65,
+            4, 0x22d3ee, 0.85,
+          ).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+          this.tweens.add({ targets: trail, alpha: 0, scale: 0.2, duration: 220, onComplete: () => trail.destroy() });
         });
-        delay += 60;
+        delay += 55;
       }
-      this.time.delayedCall(600, () => {
-        this._spawnDamageBurst(damage, true, col);
-      });
+      this.time.delayedCall(520, () => this._spawnDamageBurst(damage, true, col));
 
     } else if (weaponTypeId === "shortsword") {
       // ── Kiếm Ngắn: Guardian Strike 🗡 ──────────────
@@ -1237,57 +1346,43 @@ export default class MainScene extends Phaser.Scene {
       });
 
     } else if (weaponTypeId === "greatsword") {
-      // ── Đại Kiếm: Earth Splitter ⚔ ──────────────────
+      const aim = Math.atan2(by - fy, bx - fx);
       const lineGfx = this.add.graphics().setDepth(43);
-      lineGfx.lineStyle(16, col, 0.95);
+      lineGfx.lineStyle(10, col, 0.7);
       lineGfx.beginPath();
       lineGfx.moveTo(fx, fy);
       lineGfx.lineTo(bx, by);
       lineGfx.strokePath();
+      this.tweens.add({ targets: lineGfx, alpha: 0, duration: 280, onComplete: () => lineGfx.destroy() });
 
-      this.tweens.add({
-        targets: lineGfx,
-        alpha: 0,
-        duration: 500,
-        onComplete: () => lineGfx.destroy()
+      this.time.delayedCall(220, () => {
+        const giantSlash = this.add.graphics().setDepth(45);
+        const perp = aim + Math.PI / 2;
+        giantSlash.lineStyle(22, 0xffbb33, 0.95);
+        giantSlash.beginPath();
+        giantSlash.moveTo(bx - Math.cos(perp) * 130, by - Math.sin(perp) * 130);
+        giantSlash.lineTo(bx + Math.cos(perp) * 130, by + Math.sin(perp) * 130);
+        giantSlash.strokePath();
+        this.tweens.add({ targets: giantSlash, alpha: 0, duration: 350, onComplete: () => giantSlash.destroy() });
+        this.cameras.main.shake(280, 0.02);
       });
 
-      const giantSlash = this.add.graphics().setDepth(45);
-      giantSlash.lineStyle(24, 0xffbb33, 1);
-      giantSlash.beginPath();
-      giantSlash.moveTo(bx - 120, by - 120);
-      giantSlash.lineTo(bx + 120, by + 120);
-      giantSlash.strokePath();
-
-      this.tweens.add({
-        targets: giantSlash,
-        scale: 1.3,
-        alpha: 0,
-        duration: 400,
-        onComplete: () => giantSlash.destroy()
-      });
-
-      this.cameras.main.flash(350, 249, 115, 22);
-      this.cameras.main.shake(500, 0.03);
-
-      for (let i = 0; i < 30; i++) {
-        const spAngle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;
-        const spSpeed = 150 + Math.random() * 300;
-        const lava = this.add.circle(bx, by, Math.random() * 6 + 4, 0xf97316, 0.9).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
-
-        this.tweens.add({
-          targets: lava,
-          x: bx + Math.cos(spAngle) * spSpeed,
-          y: by + Math.sin(spAngle) * spSpeed - 100,
-          scale: 0.1,
-          alpha: 0,
-          duration: 800 + Math.random() * 400,
-          ease: "quad.out",
-          onComplete: () => lava.destroy()
-        });
-      }
-
-      this.time.delayedCall(300, () => {
+      this.time.delayedCall(480, () => {
+        const crack = this.add.graphics().setDepth(44);
+        crack.fillStyle(0xf97316, 0.35);
+        crack.fillEllipse(bx, by + 20, 200, 50);
+        this.tweens.add({ targets: crack, alpha: 0, scaleY: 1.6, duration: 500, onComplete: () => crack.destroy() });
+        for (let i = 0; i < 18; i++) {
+          const spAngle = aim + Math.PI + (Math.random() - 0.5) * 1.2;
+          const lava = this.add.circle(bx, by, 4 + Math.random() * 4, 0xf97316, 0.9)
+            .setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
+          this.tweens.add({
+            targets: lava,
+            x: bx + Math.cos(spAngle) * (80 + Math.random() * 120),
+            y: by + Math.sin(spAngle) * (60 + Math.random() * 80),
+            alpha: 0, scale: 0.1, duration: 600, onComplete: () => lava.destroy(),
+          });
+        }
         this._spawnDamageBurst(damage, true, col);
       });
 
@@ -1312,7 +1407,6 @@ export default class MainScene extends Phaser.Scene {
       }
 
       this.time.delayedCall(400, () => {
-        this.cameras.main.flash(300, 74, 222, 128);
         this.cameras.main.shake(200, 0.01);
 
         const bloom = this.add.circle(fx, fy, 20, 0x4ade80, 0.25).setDepth(44).setBlendMode(Phaser.BlendModes.ADD);
@@ -1423,7 +1517,6 @@ export default class MainScene extends Phaser.Scene {
         ease: "bounce.out",
         onComplete: () => {
           giantAxe.destroy();
-          this.cameras.main.flash(300, 239, 68, 68);
           this.cameras.main.shake(300, 0.025);
 
           for (let i = 0; i < 20; i++) {
@@ -1460,33 +1553,112 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
-  _spawnUltimateEffect(specialName, windUpMs) {
-    this.cameras.main.shake(800, 0.02);
-    this.cameras.main.flash(400, 255, 80, 80);
+  _spawnUltimateEffect(specialName, windUpMs, color) {
     const vis = this.bossVisual;
-    const col = vis?.auraColors?.[2] || 0xff3d00;
-    for (let i = 0; i < 32; i++) {
-      const a = (i / 32) * Math.PI * 2, d = 80 + Math.random() * 250;
-      const par = this.add.circle(this.bossX, this.bossY, 5, col, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(13);
-      this.tweens.add({ targets: par, x: this.bossX + Math.cos(a) * d, y: this.bossY + Math.sin(a) * d, alpha: 0, scale: { from: 1.5, to: 0.2 }, duration: 900 + Math.random() * 400, ease: "cubic.out", onComplete: () => par.destroy() });
+    const col = color ?? vis?.auraColors?.[2] ?? 0xff3d00;
+    const hex = `#${col.toString(16).padStart(6, "0")}`;
+    this.cameras.main.shake(420, 0.014);
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2, d = 60 + Math.random() * 180;
+      const par = this.add.circle(this.bossX, this.bossY, 4, col, 0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(13);
+      this.tweens.add({
+        targets: par,
+        x: this.bossX + Math.cos(a) * d, y: this.bossY + Math.sin(a) * d,
+        alpha: 0, scale: 0.2, duration: 700 + Math.random() * 300,
+        onComplete: () => par.destroy(),
+      });
     }
-    this.overlayTxt.setColor("#ff3333").setFontSize(52).setText(`${specialName || "SPECIAL"}\nULTIMATE`).setVisible(true);
+    this._showFloatingText(`${specialName || "BOSS"} — ULTIMATE`, hex, 30);
     const showDuration = windUpMs ? windUpMs + 200 : 2200;
-    this.time.delayedCall(showDuration, () => { this.overlayTxt?.setVisible(false); this.subOverlayTxt?.setVisible(false); });
+    this.time.delayedCall(showDuration, () => {
+      if (this.bossPulse) this.tweens.add({ targets: this.bossCont, scale: 1, duration: 200 });
+    });
+  }
 
-    if (this.bossPulse) {
-      this.bossPulse.stop();
-      this.tweens.add({ targets: this.bossCont, scale: { from: 1, to: 1.14 }, duration: 550, yoyo: true, repeat: -1, ease: "sine.inOut" });
-    }
+  _showBossUltTelegraph({ x, y, radius, color, durationMs }) {
+    const ring = this.add.circle(x, y, radius, color || 0xff4444, 0)
+      .setStrokeStyle(3, color || 0xff4444, 0.85).setDepth(16);
+    this.tweens.add({
+      targets: ring, scale: 1.12, alpha: 0,
+      duration: durationMs || 500, onComplete: () => ring.destroy(),
+    });
+  }
+
+  _showBossUltLane(y, color) {
+    const g = this.add.graphics().setDepth(17);
+    g.fillStyle(color || 0xf97316, 0.2);
+    g.fillRect(0, y - 28, W, 56);
+    g.lineStyle(3, color || 0xf97316, 0.85);
+    g.strokeRect(0, y - 28, W, 56);
+    this.tweens.add({ targets: g, alpha: 0, duration: 500, onComplete: () => g.destroy() });
+    this.cameras.main.shake(140, 0.01);
+  }
+
+  _showBossUltSweep(y, color) {
+    const g = this.add.graphics().setDepth(17);
+    g.lineStyle(7, color || 0xa855f7, 0.9);
+    g.beginPath();
+    g.moveTo(0, y);
+    g.lineTo(W, y);
+    g.strokePath();
+    this.tweens.add({ targets: g, alpha: 0, duration: 420, onComplete: () => g.destroy() });
+    this.cameras.main.shake(120, 0.009);
+  }
+
+  _showBossUltCross(color) {
+    const g = this.add.graphics().setDepth(18);
+    g.lineStyle(6, color || 0x0ea5e9, 0.9);
+    g.beginPath();
+    g.moveTo(W / 2, 60);
+    g.lineTo(W / 2, H - 60);
+    g.moveTo(80, H / 2);
+    g.lineTo(W - 80, H / 2);
+    g.strokePath();
+    this.tweens.add({ targets: g, alpha: 0, duration: 380, onComplete: () => g.destroy() });
+    this.cameras.main.shake(200, 0.014);
+  }
+
+  _showBossUltDrain(bossX, bossY, charX, charY, color, durationMs) {
+    const beam = this.add.graphics().setDepth(17);
+    beam.lineStyle(4, color || 0x84cc16, 0.85);
+    beam.lineBetween(bossX, bossY, charX, charY);
+    const pulse = this.add.circle(charX, charY, 12, color || 0x84cc16, 0.35)
+      .setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+    this.tweens.add({
+      targets: [beam, pulse], alpha: 0, duration: durationMs || 2800,
+      onComplete: () => { beam.destroy(); pulse.destroy(); },
+    });
+  }
+
+  _showBossUltCrown(x, y, radius, color, shrinkMs) {
+    const ring = this.add.circle(x, y, radius, color || 0xff6600, 0)
+      .setStrokeStyle(4, color || 0xff6600, 0.9).setDepth(16).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: ring, scale: 0.35, alpha: 0,
+      duration: shrinkMs || 4000, ease: "sine.in",
+      onComplete: () => ring.destroy(),
+    });
   }
 
   // ── Weapon ────────────────────────────────────────────────────────────────
-  _drawWeaponGraphic(gfx, typeId) {
+  _drawWeaponGraphic(gfx, typeId, bookAlignment = null) {
     const weapon = getWeapon(typeId);
-    const col = parseInt(String(weapon.color).replace("#", ""), 16);
+    let col = parseInt(String(weapon.color).replace("#", ""), 16);
+    if (typeId === "animous_codex") {
+      if (bookAlignment === "holy") col = 0xfbbf24;
+      else if (bookAlignment === "demon") col = 0xef4444;
+    }
     gfx.clear();
     gfx.lineStyle(3, col, 1);
-    if (typeId === "greatsword") {
+    if (typeId === "animous_codex") {
+      gfx.fillStyle(col, 0.85);
+      gfx.fillRect(-14, -10, 28, 20);
+      gfx.lineStyle(2, col, 1);
+      gfx.strokeRect(-14, -10, 28, 20);
+      gfx.lineBetween(-10, -6, 10, -6);
+      gfx.lineBetween(-10, 0, 10, 0);
+      gfx.lineBetween(-10, 6, 10, 6);
+    } else if (typeId === "greatsword") {
       gfx.lineBetween(-4, 16, -4, -18);
       gfx.lineBetween(4, 14, 4, -14);
       gfx.lineBetween(-12, -4, 12, -4);
@@ -1871,14 +2043,13 @@ export default class MainScene extends Phaser.Scene {
     col.lineBetween(x - 32, 0, x - 32, H);
     col.lineBetween(x + 32, 0, x + 32, H);
 
-    // Blinking "INCOMING" label at bottom
     const label = this.add.text(x, H - 48, "⚠ DEPTH CHARGE", {
       fontFamily: FONT, fontSize: "14px", color: "#22d3ee", fontStyle: "bold",
       backgroundColor: "rgba(0,20,40,0.85)", padding: { x: 8, y: 4 },
     }).setOrigin(0.5).setDepth(18);
     this.tweens.add({
-      targets: label, alpha: { from: 1, to: 0.2 }, duration: 200,
-      yoyo: true, repeat: Math.floor(warnMs / 400),
+      targets: label, alpha: { from: 0.85, to: 0.45 }, duration: 450,
+      yoyo: true, repeat: -1,
     });
 
     // Rising "sonar ping" ring that climbs from bottom → impact zone
@@ -1902,11 +2073,60 @@ export default class MainScene extends Phaser.Scene {
     this.time.delayedCall(warnMs, () => {
       col.destroy(); label.destroy();
       ping.destroy(); impactFlash.destroy();
-      // Pop flash when it fires
-      this.cameras.main.flash(160, 0, 180, 220);
-      this.cameras.main.shake(200, 0.016);
-      this._showFloatingText("💧 DEPTH CHARGE!", "#22d3ee", 20);
+      this.cameras.main.shake(140, 0.012);
+      this._showFloatingText("💧 DEPTH CHARGE!", "#22d3ee", 18);
     });
+  }
+
+  _showWhirlpoolWarn(x, y, durationMs = 3500) {
+    const cx = x ?? W / 2;
+    const cy = y ?? 400;
+    const dur = durationMs || 3500;
+    const ring = this.add.circle(cx, cy, 40, 0x22d3ee, 0.08)
+      .setStrokeStyle(4, 0x38bdf8, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(15);
+    this.tweens.add({
+      targets: ring, scale: 2.8, alpha: { from: 0.85, to: 0.15 },
+      duration: dur, ease: "sine.inOut",
+      onComplete: () => ring.destroy(),
+    });
+    const spin = this.add.graphics().setDepth(14);
+    const drawSpiral = (rot) => {
+      spin.clear();
+      spin.lineStyle(3, 0x22d3ee, 0.55);
+      for (let i = 0; i < 3; i++) {
+        spin.beginPath();
+        spin.arc(cx, cy, 55 + i * 22, rot + i * 0.6, rot + i * 0.6 + Math.PI * 1.2);
+        spin.strokePath();
+      }
+    };
+    drawSpiral(0);
+    this.tweens.add({
+      targets: { rot: 0 },
+      rot: Math.PI * 2,
+      duration: dur,
+      repeat: -1,
+      onUpdate: (tw) => drawSpiral(tw.getValue()),
+      onComplete: () => spin.destroy(),
+    });
+    const label = this.add.text(cx, cy - 72, "🌀 WHIRLPOOL", {
+      fontFamily: FONT, fontSize: "16px", color: "#7dd3fc", fontStyle: "bold",
+      stroke: "#0c4a6e", strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(18);
+    this.tweens.add({ targets: label, alpha: 0, duration: dur, onComplete: () => label.destroy() });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const p = this.add.circle(cx, cy, 4, 0xe0f2fe, 0.85).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+      this.tweens.add({
+        targets: p,
+        x: cx + Math.cos(a) * 28,
+        y: cy + Math.sin(a) * 28,
+        duration: 400,
+        yoyo: true,
+        repeat: Math.floor(dur / 800),
+        onComplete: () => p.destroy(),
+      });
+    }
+    this._showFloatingText("PULL!", "#22d3ee", 18);
   }
 
   _showVoidZoneExplode(x, y) {
@@ -1980,6 +2200,8 @@ export default class MainScene extends Phaser.Scene {
     this._ev = {
       character_moved: ({ x, y }) => { this._syncCharFromServer(x, y); },
 
+      game_paused: ({ paused }) => { this.gamePaused = Boolean(paused); },
+
       game_state: (state) => {
         if (state.character) this._syncCharFromServer(state.character.x, state.character.y);
         if (state.boss) {
@@ -2025,10 +2247,15 @@ export default class MainScene extends Phaser.Scene {
         this.wordExpiresAt = state.wordExpiresAt || 0;
         this.streakText?.setVisible(this.weaponStreak >= 2 && getWeapon(this.weaponTypeId).streakDamage);
         if (this.streakText?.visible) this.streakText.setText(`CHUỖI ×${this.weaponStreak}`);
+        if (state.book) this._applyBookState(state.book);
+        if (state.paused != null) this.gamePaused = Boolean(state.paused);
         this.expectedWord = state.currentWord || "";
         this.localTypedProgress = state.typedProgress || 0;
         this._renderWord(this.expectedWord, this.localTypedProgress);
         this._drawRageBar(this.weaponRage, this.ultimateMode);
+        if (this.weaponTypeId === "animous_codex" && this.weaponGfx) {
+          this._drawWeaponGraphic(this.weaponGfx, "animous_codex", this.bookAlignment);
+        }
         this._setCharLabels(state.players || []);
         const localP = (state.players || []).find(p => p.socketId === this.localSocketId);
         if (state.gameMode) this.gameMode = state.gameMode;
@@ -2059,13 +2286,14 @@ export default class MainScene extends Phaser.Scene {
         this.projectileSprites.forEach((sp, id) => { if (!active.has(id)) { sp.destroy(); this.projectileSprites.delete(id); } });
       },
 
-      typing_progress: ({ currentWord, typedProgress, weaponStreak, wordExpiresAt, weaponTypeId, weaponRage, ultimateMode, currentWordPhase }) => {
+      typing_progress: ({ currentWord, typedProgress, weaponStreak, wordExpiresAt, weaponTypeId, weaponRage, ultimateMode, currentWordPhase, book }) => {
         this.expectedWord = currentWord || ""; this.localTypedProgress = typedProgress || 0;
         if (weaponStreak != null) this.weaponStreak = weaponStreak;
         if (wordExpiresAt != null) this.wordExpiresAt = wordExpiresAt;
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         if (weaponRage != null) this.weaponRage = weaponRage;
         if (ultimateMode != null) this.ultimateMode = ultimateMode;
+        if (book) this._applyBookState(book);
         this._renderWord(this.expectedWord, this.localTypedProgress);
         this._drawRageBar(this.weaponRage, this.ultimateMode);
         if (ultimateMode || currentWordPhase === "ultimate") {
@@ -2376,7 +2604,6 @@ export default class MainScene extends Phaser.Scene {
         if (weaponRage != null) this.weaponRage = weaponRage;
         this._drawRageBar(this.weaponRage, true);
         this._showFloatingText(`${name} — GÕ CÂU VÀNG!`, "#fbbf24", 30);
-        this.cameras.main.flash(280, 255, 200, 80, false);
         this.expectedWord = phrase;
         this.localTypedProgress = 0;
         this._renderWord(phrase, 0);
@@ -2408,15 +2635,16 @@ export default class MainScene extends Phaser.Scene {
         if (message) this._showFloatingText(message, "#22d3ee", 22);
       },
 
-      word_completed: ({ by, word, damage, minionKilled, pillarDestroyed, paralyzeCleared, windupCancelled, chainProgress, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName, weaponRage }) => {
+      word_completed: ({ by, word, damage, minionKilled, pillarDestroyed, paralyzeCleared, windupCancelled, chainProgress, stunBonus, healed, weaponTypeId, weaponStreak, ultimate, ultimateName, weaponRage, book, bookMeta }) => {
         if (weaponTypeId) this.weaponTypeId = weaponTypeId;
         if (weaponStreak != null) this.weaponStreak = weaponStreak;
         if (weaponRage != null) this.weaponRage = weaponRage;
+        if (book) this._applyBookState(book);
+        if (bookMeta?.transformed) this._playBookTransform(bookMeta.transformed);
         if (ultimate) this.ultimateMode = false;
         this._drawRageBar(this.weaponRage, this.ultimateMode);
         if (ultimate) {
           this._showFloatingText(`${ultimateName || "ULTIMATE"}! −${damage}`, "#fbbf24", 36);
-          this.cameras.main.flash(300, 255, 200, 80, false);
           this.cameras.main.shake(280, 0.015);
         }
         if (minionKilled) this._showFloatingText("MINION DOWN!", "#a3e635", 20);
@@ -2438,7 +2666,8 @@ export default class MainScene extends Phaser.Scene {
           this.flashTxt.y = 260;
           this.tweens.add({ targets: this.flashTxt, y: 220, alpha: 0, duration: 850, ease: "cubic.out" });
           if (ultimate) {
-            this._spawnWeaponUltimateAttack(weaponTypeId || this.weaponTypeId, damage);
+            const wid = weaponTypeId || this.weaponTypeId;
+            this._playUltimateCutscene(wid, damage, ultimateName);
           } else {
             this._spawnWeaponAttack(weaponTypeId || this.weaponTypeId, damage, Boolean(stunBonus));
           }
@@ -2498,7 +2727,46 @@ export default class MainScene extends Phaser.Scene {
       toxic_pool_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, "toxic"),
       slow_field_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, "slow"),
       delayed_marker:    ({ x, y, detonateMs }) => this._showDelayedMarker(x, y, detonateMs),
+      book_pair_offer: ({ good, evil, goodProgress, evilProgress }) => {
+        this.bookAlignment = "neutral";
+        this.bookCommitted = false;
+        this.bookOfferGood = good;
+        this.bookOfferEvil = evil;
+        this.bookGoodProgress = goodProgress ?? 0;
+        this.bookEvilProgress = evilProgress ?? 0;
+        this.expectedWord = "";
+        this.localTypedProgress = 0;
+        this._renderBookNeutralPair(0);
+      },
+      book_commit: ({ pool, currentWord, typedProgress }) => {
+        this.bookCommitted = true;
+        this.expectedWord = currentWord;
+        this.localTypedProgress = typedProgress || 0;
+        this._renderBookNeutralPair(this.localTypedProgress);
+      },
+      book_transform: ({ alignment, currentWord, temptation }) => {
+        this.bookAlignment = alignment;
+        this.bookCommitted = true;
+        this.expectedWord = currentWord || "";
+        this.localTypedProgress = 0;
+        this._playBookTransform(alignment);
+        this._renderWord(this.expectedWord, 0);
+        if (temptation) this._showFloatingText("SPACE×2 skip từ lạ!", "#94a3b8", 16);
+      },
+      book_fall_neutral: () => {
+        this._showFloatingText("TRUNG LẬP — chọn lại!", "#94a3b8", 28);
+        this.bookAlignment = "neutral";
+        this.bookCommitted = false;
+        this.bookGoodProgress = 0;
+        this.bookEvilProgress = 0;
+      },
+      book_aegis_block: () => this._showFloatingText("AEGIS!", "#fde68a", 22),
+      book_sanctuary_block: () => this._showFloatingText("SANCTUARY", "#fde68a", 24),
+      book_sanctuary_start: () => this._showFloatingText("SANCTUARY PSALM", "#fde68a", 30),
+      book_demon_typo: ({ damage }) => this._showFloatingText(`SELF -${damage}`, "#ef4444", 22),
+
       depth_charge_warn: ({ x, warnMs }) => this._showDepthChargeWarn(x, warnMs ?? 900),
+      whirlpool_start:   ({ x, y, durationMs }) => this._showWhirlpoolWarn(x, y, durationMs ?? 3500),
       tidal_sweep:       () => {
         [220, 400, 560, 720].forEach((ly) => {
           const g = this.add.graphics().setDepth(14);
@@ -2565,10 +2833,9 @@ export default class MainScene extends Phaser.Scene {
         this._showFloatingText("PULL!", "#ff3d9f", 20);
       },
       ultimate_blast: ({ x, y, radius, color }) => {
-        const blast = this.add.circle(x, y, radius, color || 0xff3d9f, 0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
-        this.tweens.add({ targets: blast, scale: 1.5, alpha: 0, duration: 500, onComplete: () => blast.destroy() });
-        this.cameras.main.flash(400, 200, 50, 200);
-        this.cameras.main.shake(400, 0.025);
+        const blast = this.add.circle(x, y, radius, color || 0xff3d9f, 0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+        this.tweens.add({ targets: blast, scale: 1.4, alpha: 0, duration: 450, onComplete: () => blast.destroy() });
+        this.cameras.main.shake(220, 0.014);
       },
       ultimate_minions: () => this._showFloatingText("MINIONS!", "#d946ef", 18),
 
@@ -2619,7 +2886,100 @@ export default class MainScene extends Phaser.Scene {
       singularity_burst: ({ x, y, count }) => this._showSingularityBurst(x, y, count),
       dark_pulse_fire:   ({ x, y, aim, spread }) => this._showDarkPulseWave(x, y, aim, spread),
 
-      boss_ultimate_start: ({ specialName, windUpMs }) => this._spawnUltimateEffect(specialName, windUpMs),
+      boss_ultimate_start: ({ specialName, windUpMs, color }) => this._spawnUltimateEffect(specialName, windUpMs, color),
+
+      boss_ult_reaper_start: ({ color }) => this._showFloatingText("HARVEST MOON", `#${(color || 0xa855f7).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_reaper_sweep: ({ y, color }) => this._showBossUltSweep(y, color),
+      boss_ult_reaper_telegraph: (d) => this._showBossUltTelegraph(d),
+
+      boss_ult_matron_start: ({ color }) => this._showFloatingText("ANVIL DESCENT", `#${(color || 0xb45309).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_matron_anvil: ({ x, y, color }) => {
+        const g = this.add.graphics().setDepth(17);
+        g.fillStyle(color || 0xb45309, 0.5);
+        g.fillRect(x - 40, y - 80, 80, 80);
+        this.tweens.add({ targets: g, alpha: 0, y: y + 30, duration: 400, onComplete: () => g.destroy() });
+        this.cameras.main.shake(160, 0.012);
+      },
+      boss_ult_matron_telegraph: (d) => this._showBossUltTelegraph(d),
+
+      boss_ult_serpent_start: ({ color }) => this._showFloatingText("SERPENT COIL", `#${(color || 0x6366f1).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_serpent_coil: ({ color }) => {
+        const ring = this.add.circle(W / 2, H / 2, 280, color || 0x6366f1, 0)
+          .setStrokeStyle(3, color || 0x6366f1, 0.7).setDepth(15);
+        this.tweens.add({ targets: ring, scale: 0.85, alpha: 0, duration: 1200, onComplete: () => ring.destroy() });
+      },
+
+      boss_ult_cinder_start: ({ color }) => this._showFloatingText("CROWN OF CINDERS", `#${(color || 0xff6600).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_cinder_crown: (d) => this._showBossUltCrown(d.x, d.y, d.radius, d.color, d.shrinkMs),
+      boss_ult_cinder_telegraph: (d) => this._showBossUltTelegraph(d),
+
+      boss_ult_glitch_start: ({ color }) => this._showFloatingText("KERNEL PANIC", `#${(color || 0xe879f9).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_glitch_bars: ({ color, durationMs }) => {
+        const g = this.add.graphics().setDepth(15);
+        g.fillStyle(color || 0xe879f9, 0.08);
+        g.fillRect(0, 0, W, H);
+        this.tweens.add({ targets: g, alpha: 0, duration: durationMs || 2800, onComplete: () => g.destroy() });
+      },
+      boss_ult_glitch_column_warn: ({ x, width, color, durationMs }) => this._showColumnWarning({ x, width: width || 70, color, durationMs }),
+      boss_ult_glitch_column_fire: ({ x, color }) => this._showColumnFire({ x, width: 70, color, durationMs: 280 }),
+
+      boss_ult_entity_start: ({ color }) => this._showFloatingText("REALITY TEAR", `#${(color || 0x22d3ee).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_entity_tear: ({ fromX, fromY, toX, toY, color, real }) => {
+        const g = this.add.graphics().setDepth(17);
+        g.lineStyle(real ? 8 : 3, color || 0x22d3ee, real ? 0.95 : 0.35);
+        g.lineBetween(fromX, fromY, toX, toY);
+        this.tweens.add({ targets: g, alpha: 0, duration: real ? 500 : 350, onComplete: () => g.destroy() });
+        if (real) this.cameras.main.shake(180, 0.012);
+      },
+      boss_ult_entity_telegraph: (d) => this._showBossUltTelegraph(d),
+
+      boss_ult_leech_start: ({ color }) => this._showFloatingText("BLOOD TITHE", `#${(color || 0x84cc16).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_leech_drain: (d) => this._showBossUltDrain(d.bossX, d.bossY, d.charX, d.charY, d.color, d.durationMs),
+
+      boss_ult_warden_start: ({ color }) => this._showFloatingText("WARD COLLAPSE", `#${(color || 0x0ea5e9).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_warden_laser: ({ color, durationMs }) => {
+        const ring = this.add.circle(this.bossX, this.bossY, 50, color || 0x0ea5e9, 0.25)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
+        this.tweens.add({ targets: ring, scale: 2.5, alpha: 0, duration: durationMs || 2000, onComplete: () => ring.destroy() });
+      },
+      boss_ult_warden_cross_warn: ({ color, durationMs }) => {
+        const g = this.add.graphics().setDepth(16);
+        g.lineStyle(3, color || 0x0ea5e9, 0.5);
+        g.beginPath();
+        g.moveTo(W / 2, 60); g.lineTo(W / 2, H - 60);
+        g.moveTo(80, H / 2); g.lineTo(W - 80, H / 2);
+        g.strokePath();
+        this.tweens.add({ targets: g, alpha: 0, duration: durationMs || 900, onComplete: () => g.destroy() });
+      },
+      boss_ult_warden_cross_fire: ({ color }) => this._showBossUltCross(color),
+
+      boss_ult_cataclysm_start: ({ color }) => this._showFloatingText("SEQUENTIAL SIEGE", `#${(color || 0xf97316).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_cataclysm_lane: ({ y, color }) => this._showBossUltLane(y, color),
+      boss_ult_cataclysm_telegraph: (d) => this._showBossUltTelegraph(d),
+
+      boss_ult_oblivion_start: ({ color }) => this._showFloatingText("ECHO FALL", `#${(color || 0x6366f1).toString(16).padStart(6, "0")}`, 26),
+      boss_ult_oblivion_echo: ({ x, y, color }) => {
+        const ghost = this.add.circle(x, y, 40, color || 0x6366f1, 0.25)
+          .setStrokeStyle(3, color || 0x6366f1, 0.8).setDepth(16).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: ghost, scale: 2.2, alpha: 0, duration: 900, onComplete: () => ghost.destroy() });
+      },
+      boss_ult_oblivion_telegraph: (d) => this._showBossUltTelegraph(d),
+
+      boss_ult_omega_start: ({ color }) => this._showFloatingText("NULL GENESIS", "#f8fafc", 28),
+      boss_ult_omega_safe: ({ x, y, radius, color }) => {
+        this._safeZoneGfx?.destroy();
+        this._safeZoneGfx = this.add.circle(x, y, radius, color || 0xf8fafc, 0.12)
+          .setStrokeStyle(4, color || 0xf8fafc, 0.85).setDepth(16);
+      },
+      boss_ult_omega_genesis: ({ color, safe }) => {
+        const blast = this.add.rectangle(W / 2, H / 2, W, H, color || 0xf8fafc, safe ? 0.04 : 0.22)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+        this.tweens.add({ targets: blast, alpha: 0, duration: 500, onComplete: () => blast.destroy() });
+        if (!safe) this.cameras.main.shake(320, 0.02);
+        else this._showFloatingText("SAFE!", "#4ade80", 24);
+        this._safeZoneGfx?.destroy();
+        this._safeZoneGfx = null;
+      },
 
       game_over: ({ winner, bossHP, killingAttack }) => {
         const won = winner === "players";
@@ -2704,7 +3064,7 @@ export default class MainScene extends Phaser.Scene {
     this._drawBossAura(dt);
 
     // Character — local mover uses prediction; others interpolate smoothly
-    const canMove = this.isSolo ? Boolean(this.cursors) : Boolean(this.isRunner && this.keys);
+    const canMove = !this.gamePaused && (this.isSolo ? Boolean(this.cursors) : Boolean(this.isRunner && this.keys));
     if (!canMove) {
       const smooth = 1 - Math.exp(-CHAR_SMOOTH_RATE * dt);
       this.charX = Phaser.Math.Linear(this.charX, this.charTargetX, smooth);

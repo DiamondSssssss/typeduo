@@ -213,11 +213,30 @@ const fireDepthCharge = (game, boss, char, phase, speed, cfg, now) => {
 const fireWhirlpool = (game, boss, char, phase, speed, cfg, now) => {
   if (boss.circleFired) return false;
   boss.circleFired = true;
-  if (cfg._io && cfg._roomCode) cfg._io.to(cfg._roomCode).emit("whirlpool_start", { x: char.x, y: char.y });
-  const count = 12 + phase * 4;
+  const cx = char.x;
+  const cy = char.y;
+  const pullMs = 3500;
+  if (cfg._io && cfg._roomCode) {
+    cfg._io.to(cfg._roomCode).emit("whirlpool_start", { x: cx, y: cy, durationMs: pullMs });
+  }
+  game._magnetActive = true;
+  game._magnetTarget = { x: cx, y: cy };
+  game._magnetUntil = now + pullMs;
+  game._whirlpoolHitUntil = now + 800;
+  const count = 10 + phase * 3;
+  const spawnR = 100;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2;
-    spawnProjectile(game, { x: char.x, y: char.y, vx: Math.cos(a) * speed * 0.5, vy: Math.sin(a) * speed * 0.5, type: "whirlpool", homing: true });
+    const px = cx + Math.cos(a) * spawnR;
+    const py = cy + Math.sin(a) * spawnR;
+    spawnProjectile(game, {
+      x: px,
+      y: py,
+      vx: Math.cos(a) * speed * 0.45,
+      vy: Math.sin(a) * speed * 0.45,
+      type: "whirlpool",
+      homing: true,
+    });
   }
   return true;
 };

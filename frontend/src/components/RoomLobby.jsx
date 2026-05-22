@@ -5,11 +5,12 @@ import WeaponPicker from "./WeaponPicker";
 import { DEFAULT_WEAPON_ID, getWeapon } from "../game/weapons";
 
 function DifficultyStars({ n }) {
-  const stars = Math.max(1, Math.min(DIFFICULTY_MAX_STARS, n || 1));
+  const tier = Math.max(0, Math.min(DIFFICULTY_MAX_STARS, n ?? 0));
+  if (tier === 0) return <span className="boss-diff boss-diff--training">☆ Training</span>;
   return (
     <span className="boss-diff">
-      {"★".repeat(stars)}
-      <span className="boss-diff__empty">{"☆".repeat(DIFFICULTY_MAX_STARS - stars)}</span>
+      {"★".repeat(tier)}
+      <span className="boss-diff__empty">{"☆".repeat(DIFFICULTY_MAX_STARS - tier)}</span>
     </span>
   );
 }

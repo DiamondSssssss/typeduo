@@ -35,6 +35,7 @@ const advanceBossLifecycle = (io, room, bossConfig, now) => {
     g.bossState   = "attack";
     g.stateEndsAt = 0;
     g.boss.lastFireAt = now;
+    if (!g.battleStartedAt) g.battleStartedAt = now;
     io.to(room.code).emit("battle_started", { roomCode: room.code });
     return;
   }
@@ -88,19 +89,25 @@ const tick = (io, room) => {
   const deltaSeconds = deltaMs / 1000;
   g.lastTickAt = now;
 
+  if (g.paused) {
+    emitGameState(io, room, bossConfig);
+    return;
+  }
+
   advanceBossLifecycle(io, room, bossConfig, now);
   tickTypingChallenges(io, room, now);
 
   const phase = getPhase(g.bossHP, g.bossMaxHP);
   maybeInitBossShield(g, bossConfig, phase);
 
-  if (g.bossState !== "countdown" && g.bossState !== "stunned") {
-    moveBoss(g, bossConfig, now, deltaSeconds, phase);
-  }
-
-  if (g.bossState === "attack") {
-    maybeFireSpecial(io, room, bossConfig, phase, now);
-    tickBossAttacks(io, room, bossConfig, phase, now, deltaMs);
+  if (!g.trainingMode) {
+    if (g.bossState !== "countdown" && g.bossState !== "stunned") {
+      moveBoss(g, bossConfig, now, deltaSeconds, phase);
+    }
+    if (g.bossState === "attack") {
+      maybeFireSpecial(io, room, bossConfig, phase, now);
+      tickBossAttacks(io, room, bossConfig, phase, now, deltaMs);
+    }
   }
 
   // ── Depth charge delayed spawn queue (Leviathan) ─────────────────────────
@@ -138,11 +145,23 @@ const tick = (io, room) => {
       g.weapon.pickupLockedUntil = 0;
       g.weaponStreak = 0;
       refreshWeaponWord(g);
-      io.to(room.code).emit("weapon_picked", {
+      const pickPayload = {
         x: g.weapon.x,
         y: g.weapon.y,
         weaponTypeId: g.weapon.typeId,
-      });
+        currentWord: g.currentWord,
+        typedProgress: g.typedProgress,
+        currentWordPhase: g.currentWordPhase,
+      };
+      if (g.weapon.typeId === "animous_codex") {
+        const { initBookState, emitBookPair, getBookPublicState } = require("./bookCombat");
+        initBookState(g);
+        if (g.book.alignment === "neutral") {
+          emitBookPair(io, room);
+        }
+        pickPayload.book = getBookPublicState(g);
+      }
+      io.to(room.code).emit("weapon_picked", pickPayload);
     }
   }
 
@@ -154,7 +173,13 @@ const tick = (io, room) => {
     const dx = char.x - p.x;
     const dy = char.y - p.y;
     if (dx * dx + dy * dy < HIT_RADIUS * HIT_RADIUS) {
-      takeDamage(io, room, projDmg, p.x, p.y, { source: p.type || 'normal' });
+      if (p.type === "whirlpool") {
+        if (g._whirlpoolLastHitAt && now - g._whirlpoolLastHitAt < 520) {
+          return false;
+        }
+        g._whirlpoolLastHitAt = now;
+      }
+      takeDamage(io, room, projDmg, p.x, p.y, { source: p.type || "normal" });
       return false;
     }
     return p.y <= 800 && p.x >= -100 && p.x <= 1380 && p.y >= -100;
@@ -167,14 +192,19 @@ const tick = (io, room) => {
     return;
   }
 
-  if (g.sharedHP <= 0 || g.bossHP <= 0) {
+  const bossDefeated = !g.trainingMode && g.bossHP <= 0;
+  const teamDown = g.sharedHP <= 0;
+  if (teamDown || bossDefeated) {
     room.status = "finished";
     room.players.forEach((p) => { p.wantsPlayAgain = false; });
     stopLoop(room.code);
     io.to(room.code).emit("game_over", {
       roomCode:       room.code,
       hostSocketId:   room.hostSocketId,
-      winner:         g.bossHP <= 0 ? "players" : "boss",
+      winner:         g.trainingMode
+        ? (teamDown ? "boss" : "training")
+        : (g.bossHP <= 0 ? "players" : "boss"),
+      trainingMode:   Boolean(g.trainingMode),
       sharedHP:       g.sharedHP,
       bossHP:         g.bossHP,
       bossShield:     g.bossShield || 0,

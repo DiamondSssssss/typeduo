@@ -20,7 +20,7 @@ module.exports = {
       { id: "boss_teleport",          weight: 14, minRange: 60 },
       { id: "shadow_runes",           weight: 12 },
       { id: "phantom_volley",         weight: 12, minRange: 90 },
-      { id: "void_orb",               weight: 10, minRange: 70 },
+      { id: "chain_cancel",           weight: 10 },
       { id: "melee_swipe",            weight: 10, maxRange: 200 },
     ],
     ultimate: { id: "glitch_ultimate", triggerHpPct: 0.55, name: "System Crash" },

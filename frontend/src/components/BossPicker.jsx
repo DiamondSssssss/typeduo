@@ -7,11 +7,14 @@ import {
 } from "../game/bosses/bossConfigs";
 
 function DifficultyStars({ n, max = DIFFICULTY_MAX_STARS }) {
-  const stars = Math.max(1, Math.min(max, n || 1));
+  const tier = Math.max(0, Math.min(max, n ?? 0));
+  if (tier === 0) {
+    return <span className="boss-diff boss-diff--training" aria-label="Training dummy">☆ Training</span>;
+  }
   return (
-    <span className="boss-diff" aria-label={`Difficulty ${stars} of ${max}`}>
-      {"★".repeat(stars)}
-      <span className="boss-diff__empty">{"☆".repeat(max - stars)}</span>
+    <span className="boss-diff" aria-label={`Difficulty ${tier} of ${max}`}>
+      {"★".repeat(tier)}
+      <span className="boss-diff__empty">{"☆".repeat(max - tier)}</span>
     </span>
   );
 }
@@ -42,6 +45,7 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
 
   const filters = [
     { id: "all", label: "All" },
+    { id: "0", label: "☆ Training" },
     ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => ({
       id: String(d),
       label: `${"★".repeat(d)} ${DIFFICULTY_LABELS[d]}`,
@@ -55,6 +59,7 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
 
   const formatHp = (boss) => {
     if (boss.comingSoon) return "—";
+    if (boss.trainingMode || boss.difficulty === 0) return "∞ HP";
     if (boss.twoForms) return `${boss.maxHP} HP (2 forms)`;
     return `${boss.maxHP} HP`;
   };
