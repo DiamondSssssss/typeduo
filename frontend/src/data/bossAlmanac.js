@@ -859,10 +859,10 @@ export const WEAPON_RAGE_GUIDE = {
   ],
   weapons: [
     { id: "swift_blade", name: "Kiếm Tốc", ultimate: "Storm Cut", phrase: "blade of the storm cuts deep", effect: "Bão kiếm hoành tráng + 12 nhát chém (20/nhát) + finale; làm mới timer." },
-    { id: "shortsword", name: "Kiếm Ngắn", ultimate: "Guardian Strike", phrase: "honor guards the fallen line", effect: "8 kiếm + xẻ màn bạc; damage + hồi đội." },
+    { id: "shortsword", name: "Kiếm Ngắn", ultimate: "Guardian Strike", phrase: "honor guards the fallen line", effect: "8 kiếm + tia bạc tại boss; damage + hồi đội." },
     { id: "greatsword", name: "Đại Kiếm", ultimate: "Earth Splitter", phrase: "the earth splits before my steel", effect: "Đại kiếm rơi — xẻ đất, damage khổng lồ." },
     { id: "lifestaff", name: "Gậy Hồi", ultimate: "Bloom of Life", phrase: "life blooms where shadows fall", effect: "Gậy đập + sóng hồi; damage + hồi máu lớn." },
-    { id: "fury_axe", name: "Rìu Cuồng", ultimate: "Consuming Rage", phrase: "rage consumes all who stand near", effect: "Cột lửa + rìu quật + xẻ màn đỏ; giữ chuỗi." },
+    { id: "fury_axe", name: "Rìu Cuồng", ultimate: "Consuming Rage", phrase: "rage consumes all who stand near", effect: "Cột lửa + rìu quật + vụ nổ tại boss; giữ chuỗi." },
     { id: "gatling_gun", name: "Súng Mãng", ultimate: "Lead Storm", phrase: "lead storm falls upon the dark throne", effect: "Ngắm + mưa 56 viên + finale nổ." },
   ],
 };

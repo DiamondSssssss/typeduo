@@ -1465,31 +1465,27 @@ export default class MainScene extends Phaser.Scene {
     this._spawnDamageBurst(damage, true, col);
   }
 
-  _finaleAnimousDemon(bx, by, damage) {
-    const col = 0xef4444;
-    this.cameras.main.shake(380, 0.032);
-    this.cameras.main.flash(260, 255, 50, 50, false);
-    const vortex = this.add.graphics().setDepth(48).setBlendMode(Phaser.BlendModes.ADD);
-    let spin = 0;
-    const timer = this.time.addEvent({
-      delay: 16, loop: true, callback: () => {
-        spin += 0.5;
-        vortex.clear();
-        vortex.lineStyle(3, col, 0.6);
-        for (let r = 0; r < 4; r++) {
-          const rad = 25 + r * 18;
-          vortex.beginPath();
-          vortex.arc(bx, by, rad, spin + r, spin + r + Math.PI * 1.2, false);
-          vortex.strokePath();
-        }
-      },
+  _drawEnergyBeam(gfx, x1, y1, x2, y2, outerW, outerCol, coreW, coreCol) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const nx = -dy / len;
+    const ny = dx / len;
+    const layers = [
+      { w: outerW, c: outerCol, a: 0.22 },
+      { w: outerW * 0.72, c: outerCol, a: 0.45 },
+      { w: coreW, c: coreCol, a: 0.95 },
+    ];
+    layers.forEach(({ w, c, a }) => {
+      gfx.lineStyle(w, c, a);
+      gfx.beginPath();
+      gfx.moveTo(x1 + nx * w * 0.5, y1 + ny * w * 0.5);
+      gfx.lineTo(x2 + nx * w * 0.5, y2 + ny * w * 0.5);
+      gfx.lineTo(x2 - nx * w * 0.5, y2 - ny * w * 0.5);
+      gfx.lineTo(x1 - nx * w * 0.5, y1 - ny * w * 0.5);
+      gfx.closePath();
+      gfx.fillPath();
     });
-    this.time.delayedCall(480, () => { timer.remove(false); vortex.destroy(); });
-    const implosion = this.add.circle(bx, by, 70, 0x000000, 0.55).setDepth(47);
-    this.tweens.add({ targets: implosion, scale: 0.2, alpha: 0, duration: 450, ease: "power2.in", onComplete: () => implosion.destroy() });
-    const burst = this.add.circle(bx, by, 15, col, 0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(50);
-    this.tweens.add({ targets: burst, scale: 3.5, alpha: 0, duration: 350, onComplete: () => burst.destroy() });
-    this._spawnDamageBurst(damage, true, col);
   }
 
   _spawnShortswordUltimate(damage, col = 0x94a3b8) {
@@ -1706,78 +1702,106 @@ export default class MainScene extends Phaser.Scene {
     const fx = this.charX, fy = this.charY;
     const col = 0xfbbf24;
     const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x1a1205, 0).setDepth(44);
-    this.tweens.add({ targets: dim, alpha: 0.48, duration: 200 });
-    this.cameras.main.flash(260, 255, 240, 180, false);
+    this.tweens.add({ targets: dim, alpha: 0.4, duration: 200 });
+    this.cameras.main.flash(220, 255, 240, 160, false);
 
     const dome = this.add.circle(fx, fy, 20, col, 0.15)
       .setStrokeStyle(5, 0xfde68a, 1).setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
-    this.tweens.add({ targets: dome, scale: 9, alpha: 0, duration: 900, ease: "sine.out", onComplete: () => dome.destroy() });
+    this.tweens.add({ targets: dome, scale: 7, alpha: 0, duration: 800, ease: "sine.out", onComplete: () => dome.destroy() });
 
-    for (let i = 0; i < 6; i++) {
-      const px = 120 + (i / 5) * (W - 240);
-      const beam = this.add.graphics().setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
-      beam.fillStyle(col, 0.12);
-      beam.fillRect(px - 18, 0, 36, H);
-      beam.lineStyle(2, 0xfde68a, 0.7);
-      beam.strokeRect(px - 18, 0, 36, H);
-      this.tweens.add({ targets: beam, alpha: 0, duration: 800, delay: 300 + i * 40, onComplete: () => beam.destroy() });
-    }
-
-    for (let i = 0; i < 20; i++) {
-      const a = (i / 20) * Math.PI * 2;
-      const sp = this.add.circle(bx + Math.cos(a) * 160, by - 80 + Math.sin(a) * 40, 4, 0xfde68a, 0.9)
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const dist = 100 + Math.random() * 80;
+      const sp = this.add.circle(fx + Math.cos(a) * dist * 0.4, fy + Math.sin(a) * dist * 0.3, 4, 0xfde68a, 0.85)
         .setDepth(48).setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({
-        targets: sp, x: bx, y: by, alpha: 0, duration: 500 + i * 20, delay: 350,
+        targets: sp, x: bx, y: by, alpha: 0, duration: 550 + i * 25, delay: 200 + i * 30,
         onComplete: () => sp.destroy(),
       });
     }
 
-    this.time.delayedCall(750, () => {
+    this.time.delayedCall(700, () => {
       this.tweens.add({ targets: dim, alpha: 0, duration: 450, onComplete: () => dim.destroy() });
       this._finaleAnimousHoly(bx, by, damage);
     });
   }
 
   _spawnAnimousDemonUltimate(damage) {
-    const bx = this.bossX, by = this.bossY;
+    const bx = this.bossX;
+    const by = this.bossY;
+    const fx = this.charX;
+    const fy = this.charY;
     const col = 0xef4444;
+    const coreCol = 0xfff1f2;
+    const beamMs = 1100;
+
     const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x0a0000, 0).setDepth(44);
-    this.tweens.add({ targets: dim, alpha: 0.58, duration: 180 });
-    this.cameras.main.flash(280, 255, 40, 40, false);
+    this.tweens.add({ targets: dim, alpha: 0.5, duration: 200 });
 
-    const portal = this.add.ellipse(bx, by + 30, 200, 50, 0x450a0a, 0.7).setDepth(45).setStrokeStyle(4, col, 1);
-    this.tweens.add({ targets: portal, scaleX: 1.4, scaleY: 0.6, alpha: 0, duration: 700, onComplete: () => portal.destroy() });
+    const charge = this.add.circle(fx, fy, 14, coreCol, 0.95)
+      .setBlendMode(Phaser.BlendModes.ADD).setDepth(48);
+    const chargeRing = this.add.circle(fx, fy, 22, col, 0)
+      .setStrokeStyle(4, 0xfca5a5, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(47);
+    this.tweens.add({ targets: charge, scale: 2.2, duration: 260, ease: "back.out" });
+    this.tweens.add({ targets: chargeRing, scale: 2.8, alpha: 0, duration: 320, ease: "sine.out" });
 
-    const bolt = this.add.graphics().setDepth(48).setBlendMode(Phaser.BlendModes.ADD);
-    bolt.lineStyle(24, col, 0.9);
-    bolt.beginPath();
-    bolt.moveTo(bx, -40);
-    bolt.lineTo(bx + 30, by - 40);
-    bolt.lineTo(bx - 20, by);
-    bolt.lineTo(bx + 40, by - 80);
-    bolt.lineTo(bx, by);
-    bolt.strokePath();
-    this.tweens.add({ targets: bolt, alpha: 0, duration: 500, delay: 200, onComplete: () => bolt.destroy() });
+    this.time.delayedCall(280, () => {
+      this.cameras.main.flash(180, 255, 80, 60, false);
+      const beamGfx = this.add.graphics().setDepth(49).setBlendMode(Phaser.BlendModes.ADD);
+      let pulse = 0;
+      let shakeAcc = 0;
 
-    const claw = this.add.graphics().setDepth(49);
-    claw.fillStyle(0x7f1d1d, 0.9);
-    claw.lineStyle(4, col, 1);
-    claw.beginPath();
-    claw.moveTo(bx - 90, by - 120);
-    claw.lineTo(bx - 20, by - 20);
-    claw.lineTo(bx + 30, by - 100);
-    claw.lineTo(bx + 10, by);
-    claw.lineTo(bx - 50, by - 60);
-    claw.closePath();
-    claw.fillPath();
-    claw.strokePath();
-    claw.setAlpha(0);
-    this.tweens.add({ targets: claw, alpha: 1, duration: 120, yoyo: true, hold: 200, onComplete: () => claw.destroy() });
+      const beamTimer = this.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          pulse += 0.2;
+          const outerW = 22 + Math.sin(pulse) * 8;
+          const coreW = 10 + Math.sin(pulse * 1.4) * 3;
+          beamGfx.clear();
+          this._drawEnergyBeam(beamGfx, fx, fy, bx, by, outerW, col, coreW, coreCol);
+        },
+      });
 
-    this.time.delayedCall(650, () => {
-      this.tweens.add({ targets: dim, alpha: 0, duration: 400, onComplete: () => dim.destroy() });
-      this._finaleAnimousDemon(bx, by, damage);
+      const particleTimer = this.time.addEvent({
+        delay: 28,
+        loop: true,
+        callback: () => {
+          const t = Math.random();
+          const px = Phaser.Math.Linear(fx, bx, t) + (Math.random() - 0.5) * 20;
+          const py = Phaser.Math.Linear(fy, by, t) + (Math.random() - 0.5) * 16;
+          const p = this.add.circle(px, py, 3 + Math.random() * 3, 0xfca5a5, 0.9)
+            .setBlendMode(Phaser.BlendModes.ADD).setDepth(50);
+          this.tweens.add({
+            targets: p,
+            x: px + (bx - fx) * 0.08,
+            y: py + (by - fy) * 0.08,
+            alpha: 0, scale: 0.2,
+            duration: 180 + Math.random() * 120,
+            onComplete: () => p.destroy(),
+          });
+          shakeAcc += 1;
+          if (shakeAcc % 4 === 0) this.cameras.main.shake(45, 0.006);
+        },
+      });
+
+      this.time.delayedCall(beamMs, () => {
+        beamTimer.remove(false);
+        particleTimer.remove(false);
+        beamGfx.destroy();
+        charge.destroy();
+        chargeRing.destroy();
+
+        const impact = this.add.circle(bx, by, 20, col, 0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(51);
+        this.tweens.add({
+          targets: impact, scale: 3.5, alpha: 0, duration: 380,
+          onComplete: () => impact.destroy(),
+        });
+        this.cameras.main.shake(420, 0.028);
+        this.cameras.main.flash(300, 255, 60, 40, false);
+        this.tweens.add({ targets: dim, alpha: 0, duration: 400, onComplete: () => dim.destroy() });
+        this._spawnDamageBurst(damage, true, col);
+      });
     });
   }
 
@@ -1869,19 +1893,23 @@ export default class MainScene extends Phaser.Scene {
     if (Math.random() < 0.12) this.cameras.main.shake(35, 0.002);
   }
 
-  _showGatlingRainBullet(spawnX, spawnY, bossX, bossY, damage, col) {
-    const shell = this.add.rectangle(spawnX, spawnY, 5, 12, col, 0.95)
+  _showGatlingRainBullet(spawnX, spawnY, bossX, bossY, col) {
+    const tracer = this.add.circle(spawnX, spawnY, 3, col, 0.85)
       .setBlendMode(Phaser.BlendModes.ADD).setDepth(48);
-    shell.setRotation(Math.PI / 2 + (Math.random() - 0.5) * 0.25);
     this.tweens.add({
-      targets: shell,
+      targets: tracer,
       x: bossX + (Math.random() - 0.5) * 36,
       y: bossY + (Math.random() - 0.5) * 28,
       duration: 85 + Math.random() * 55,
       ease: "power2.in",
       onComplete: () => {
-        shell.destroy();
-        this._spawnDamageBurst(damage, false, col);
+        tracer.destroy();
+        const spark = this.add.circle(bossX, bossY, 6, col, 0.5)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(48);
+        this.tweens.add({
+          targets: spark, scale: 1.8, alpha: 0, duration: 120,
+          onComplete: () => spark.destroy(),
+        });
       },
     });
   }
@@ -3239,7 +3267,7 @@ export default class MainScene extends Phaser.Scene {
         if (finale || h === t) {
           this._spawnGatlingLeadStormFinale(bx, by, (damage || 8) * t, col);
         } else {
-          this._showGatlingRainBullet(spawnX ?? W / 2, spawnY ?? 30, bx, by, damage || 8, col);
+          this._showGatlingRainBullet(spawnX ?? W / 2, spawnY ?? 30, bx, by, col);
           if (h % 8 === 0) this.cameras.main.shake(55, 0.004);
         }
       },

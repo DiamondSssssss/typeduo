@@ -14,7 +14,7 @@ export const WEAPON_TYPES = {
     tag: "Timer+",
     ultimateName: "Storm Cut",
     ultimatePhrase: "blade of the storm cuts deep",
-    ultimateEffect: "Bão kiếm + 12 nhát chém boss (20/nhát) + finale xẻ màn hình",
+    ultimateEffect: "Bão kiếm + 12 nhát chém boss (20/nhát) + nova tại boss.",
   },
   shortsword: {
     id: "shortsword",
@@ -29,7 +29,7 @@ export const WEAPON_TYPES = {
     tag: "Balanced",
     ultimateName: "Guardian Strike",
     ultimatePhrase: "honor guards the fallen line",
-    ultimateEffect: "8 kiếm lao vào + xẻ màn hình bạc hoành tráng.",
+    ultimateEffect: "8 kiếm lao vào + tia bạc tỏa tại boss.",
   },
   greatsword: {
     id: "greatsword",
@@ -76,7 +76,7 @@ export const WEAPON_TYPES = {
     tag: "Streak DMG",
     ultimateName: "Consuming Rage",
     ultimatePhrase: "rage consumes all who stand near",
-    ultimateEffect: "Cột lửa + rìu khổng lồ quật xuống + xẻ màn đỏ.",
+    ultimateEffect: "Cột lửa + rìu khổng lồ quật xuống + vụ nổ tại boss.",
   },
   animous_codex: {
     id: "animous_codex",

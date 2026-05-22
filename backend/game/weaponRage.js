@@ -292,14 +292,17 @@ const executeGatlingLeadStorm = (io, room, player, g, ult, stunMult) => {
       player.damageDealt += hitDmg;
       const spread = (i % 7) - 3;
       const isFinale = i === hits - 1;
+      // Pseudo-random spawn — avoid i % 5 bands that looked like 5 parallel screen slashes
+      const spawnX = 64 + ((i * 47 + spread * 13) % 1152);
+      const spawnY = 24 + ((i * 29 + spread * 11) % 100);
       io.to(room.code).emit("weapon_ult_gatling_rain", {
         hit: i + 1,
         totalHits: hits,
         damage: hitDmg,
         bossX: rg.boss.x,
         bossY: rg.boss.y,
-        spawnX: 80 + ((i * 47) % (1280 - 160)) + spread * 12,
-        spawnY: 40 + (i % 5) * 8,
+        spawnX,
+        spawnY,
         finale: isFinale,
       });
       emitGameState(io, room, resolveBossConfig(room));
