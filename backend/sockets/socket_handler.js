@@ -477,26 +477,41 @@ const registerSocketHandlers = (io) => {
         const book = g.book;
 
         if (book.alignment !== "neutral" && input === " ") {
-          const now = Date.now();
-          if (g._bookLastSpaceAt && now - g._bookLastSpaceAt < 450) {
-            if (trySkipTemptation(io, room)) {
-              g._bookLastSpaceAt = 0;
-              io.to(code).emit("typing_progress", {
-                currentWord: g.currentWord,
-                typedProgress: g.typedProgress,
-                weaponTypeId: g.weapon.typeId,
-                weaponRage: g.weaponRage || 0,
-                ultimateMode: Boolean(g._ultimateMode),
-                currentWordPhase: g.currentWordPhase,
-                book: getBookPublicState(g),
-              });
-              emitGameState(io, room, resolveBossConfig(room));
-              cb?.({ ok: true, skipped: true });
-              return;
+          const t = book.verse?.temptation;
+          // At temptation start the expected char is a letter, not space — first Space must not count as typo.
+          if (t && book.temptationActive && g.typedProgress === t.start) {
+            const now = Date.now();
+            if (g._bookLastSpaceAt && now - g._bookLastSpaceAt < 450) {
+              if (trySkipTemptation(io, room)) {
+                g._bookLastSpaceAt = 0;
+                io.to(code).emit("typing_progress", {
+                  currentWord: g.currentWord,
+                  typedProgress: g.typedProgress,
+                  weaponTypeId: g.weapon.typeId,
+                  weaponRage: g.weaponRage || 0,
+                  ultimateMode: Boolean(g._ultimateMode),
+                  currentWordPhase: g.currentWordPhase,
+                  book: getBookPublicState(g),
+                });
+                emitGameState(io, room, resolveBossConfig(room));
+                cb?.({ ok: true, skipped: true });
+                return;
+              }
             }
+            g._bookLastSpaceAt = now;
+            io.to(code).emit("typing_progress", {
+              currentWord: g.currentWord,
+              typedProgress: g.typedProgress,
+              weaponTypeId: g.weapon.typeId,
+              weaponRage: g.weaponRage || 0,
+              ultimateMode: Boolean(g._ultimateMode),
+              currentWordPhase: g.currentWordPhase,
+              book: getBookPublicState(g),
+            });
+            emitGameState(io, room, resolveBossConfig(room));
+            cb?.({ ok: true, bookSkipPending: true });
+            return;
           }
-          g._bookLastSpaceAt = now;
-        } else {
           g._bookLastSpaceAt = 0;
         }
 

@@ -103,6 +103,7 @@ export default class MainScene extends Phaser.Scene {
     this.bookNeutralPrefix = "";
     this.bookGoodProgress = 0;
     this.bookEvilProgress = 0;
+    this.bookTemptation = null;
     this.bookChoiceTxt = null;
     this.gamePaused = false;
     this._typoRestoreTimer = null;
@@ -872,6 +873,24 @@ export default class MainScene extends Phaser.Scene {
     this.typedTxt.setX(sx);
     this.remainTxt.setX(sx + this.typedTxt.width);
     this._applyWeaponTypingStyle();
+    this._updateBookSkipHint();
+  }
+
+  _updateBookSkipHint() {
+    if (!this._atBookTemptationSkipPoint()) {
+      this.bookSkipHintTxt?.setVisible(false);
+      return;
+    }
+    const label = this.bookAlignment === "demon" ? "từ thánh" : "từ ác";
+    if (!this.bookSkipHintTxt) {
+      this.bookSkipHintTxt = this.add.text(W / 2, 158, "", {
+        fontFamily: FONT, fontSize: "15px", color: "#fbbf24", fontStyle: "bold",
+        stroke: "#1e1b4b", strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(33);
+    }
+    this.bookSkipHintTxt
+      .setVisible(true)
+      .setText(`SPACE × 2  →  bỏ ${label} (không gõ chữ đó)`);
   }
 
   _renderGatlingBoard(letter) {
@@ -916,6 +935,15 @@ export default class MainScene extends Phaser.Scene {
     this.bookNeutralPrefix = book.neutralPrefix || "";
     this.bookGoodProgress = book.goodProgress ?? 0;
     this.bookEvilProgress = book.evilProgress ?? 0;
+    this.bookTemptation = book.temptation || null;
+  }
+
+  _atBookTemptationSkipPoint() {
+    const t = this.bookTemptation;
+    return this.weaponTypeId === "animous_codex"
+      && this.bookAlignment !== "neutral"
+      && t
+      && this.localTypedProgress === t.start;
   }
 
   _renderBookNeutralPair(progress = 0) {
@@ -1127,8 +1155,9 @@ export default class MainScene extends Phaser.Scene {
           || this.bookCommitted
         );
         if (canTypeWord && this.localTypedProgress < this.expectedWord.length) {
-          if (char === this.expectedWord[this.localTypedProgress]) {
-            this.localTypedProgress++;
+          const skipTemptSpace = char === " " && this._atBookTemptationSkipPoint();
+          if (skipTemptSpace || char === this.expectedWord[this.localTypedProgress]) {
+            if (!skipTemptSpace) this.localTypedProgress++;
             this._renderWord(this.expectedWord, this.localTypedProgress);
             const letterX = this.wordCont.x + this.typedTxt.x + this.typedTxt.width - 8;
             const letterY = this.wordCont.y;
@@ -3524,6 +3553,7 @@ export default class MainScene extends Phaser.Scene {
       delayed_marker:    ({ x, y, detonateMs }) => this._showDelayedMarker(x, y, detonateMs),
       book_pair_offer: ({ good, evil, goodProgress, evilProgress }) => {
         this.bookAlignment = "neutral";
+        this.bookTemptation = null;
         this.bookCommitted = false;
         this.bookNeutralPrefix = "";
         this.bookOfferGood = good;
@@ -3543,11 +3573,22 @@ export default class MainScene extends Phaser.Scene {
       book_transform: ({ alignment, currentWord, temptation }) => {
         this.bookAlignment = alignment;
         this.bookCommitted = true;
+        this.bookTemptation = temptation || null;
         this.expectedWord = currentWord || "";
         this.localTypedProgress = 0;
         this._playBookTransform(alignment);
         this._renderWord(this.expectedWord, 0);
-        if (temptation) this._showFloatingText("SPACE×2 skip từ lạ!", "#94a3b8", 16);
+        if (temptation) {
+          const hint = alignment === "demon" ? "từ thánh" : "từ ác";
+          this._showFloatingText(`SPACE×2 bỏ ${hint} khi gặp!`, "#94a3b8", 16);
+        }
+      },
+      book_temptation_skipped: ({ currentWord, typedProgress, book }) => {
+        this.expectedWord = currentWord || "";
+        this.localTypedProgress = typedProgress || 0;
+        if (book) this._applyBookState(book);
+        this._renderWord(this.expectedWord, this.localTypedProgress);
+        this._showFloatingText("Đã bỏ từ cám dỗ!", "#4ade80", 18);
       },
       book_fall_neutral: () => {
         this._showFloatingText("TRUNG LẬP — chọn lại!", "#94a3b8", 28);
@@ -3556,6 +3597,7 @@ export default class MainScene extends Phaser.Scene {
         this.bookNeutralPrefix = "";
         this.bookGoodProgress = 0;
         this.bookEvilProgress = 0;
+        this.bookTemptation = null;
       },
       book_aegis_block: () => this._showFloatingText("AEGIS!", "#fde68a", 22),
       book_sanctuary_block: () => this._showFloatingText("SANCTUARY", "#fde68a", 24),
