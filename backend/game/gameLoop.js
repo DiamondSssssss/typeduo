@@ -103,6 +103,16 @@ const tick = (io, room) => {
     tickBossAttacks(io, room, bossConfig, phase, now, deltaMs);
   }
 
+  // ── Depth charge delayed spawn queue (Leviathan) ─────────────────────────
+  if (g._depthChargeQueue && g._depthChargeQueue.length > 0) {
+    const { spawnProjectile } = require('./helpers');
+    g._depthChargeQueue = g._depthChargeQueue.filter((dc) => {
+      if (now < dc.fireAt) return true; // not yet
+      spawnProjectile(g, { x: dc.x, y: dc.y, vx: 0, vy: -dc.speed, type: 'depth_charge' });
+      return false;
+    });
+  }
+
   steerHomingProjectiles(g, bossConfig, deltaSeconds);
   tickStatusAndHazards(io, room, now, deltaSeconds);
 

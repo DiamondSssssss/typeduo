@@ -1611,17 +1611,32 @@ export default class MainScene extends Phaser.Scene {
 
   // ── Eruption burst visual (at character position) ──────────────────────────
   _showEruptionBurst(x, y) {
-    // Red shockwave ring at eruption origin
+    // Big danger flash so player knows it's firing HERE
+    this.cameras.main.flash(180, 255, 30, 100);
+    this.cameras.main.shake(200, 0.018);
+
+    // Large warning ring that quickly expands — gives ~300ms visual cue
+    const warn = this.add.circle(x, y, 55, 0xff3d9f, 0).setStrokeStyle(6, 0xff3d9f, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+    this.tweens.add({ targets: warn, scale: 2.2, alpha: 0, duration: 300, ease: "cubic.out", onComplete: () => warn.destroy() });
+
+    // Inner hot-white core flash
+    const core = this.add.circle(x, y, 22, 0xffffff, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(19);
+    this.tweens.add({ targets: core, scale: 3, alpha: 0, duration: 220, ease: "cubic.out", onComplete: () => core.destroy() });
+
+    // Expanding shockwave rings
     const ring = this.add.circle(x, y, 20, 0xff3d9f, 0).setStrokeStyle(4, 0xff3d9f, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
-    this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 500, ease: "cubic.out", onComplete: () => ring.destroy() });
+    this.tweens.add({ targets: ring, scale: 6, alpha: 0, duration: 600, ease: "cubic.out", onComplete: () => ring.destroy() });
     const ring2 = this.add.circle(x, y, 10, 0xff9f3d, 0).setStrokeStyle(2, 0xff9f3d, 0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
-    this.tweens.add({ targets: ring2, scale: 8, alpha: 0, duration: 700, ease: "cubic.out", onComplete: () => ring2.destroy() });
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2, d = 60 + Math.random() * 80;
-      const p = this.add.circle(x, y, 5, 0xff3d9f, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(16);
-      this.tweens.add({ targets: p, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0, scale: 0.3, duration: 400 + Math.random() * 150, ease: "cubic.out", onComplete: () => p.destroy() });
+    this.tweens.add({ targets: ring2, scale: 9, alpha: 0, duration: 800, ease: "cubic.out", onComplete: () => ring2.destroy() });
+
+    // Radial sparks
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2, d = 70 + Math.random() * 90;
+      const p = this.add.circle(x, y, 5, 0xff3d9f, 0.95).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+      this.tweens.add({ targets: p, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, alpha: 0, scale: 0.2, duration: 380 + Math.random() * 150, ease: "cubic.out", onComplete: () => p.destroy() });
     }
-    this.cameras.main.shake(130, 0.010);
+
+    this._showFloatingText("💥 ERUPTION!", "#ff3d9f", 22);
   }
 
   // ── Ground / boss attack telegraphs (Void Crawler) ─────────────────────────
@@ -1641,10 +1656,19 @@ export default class MainScene extends Phaser.Scene {
       this.groundTelegraphGfx.lineStyle(2, 0xff85c2, 0.55);
       this.groundTelegraphGfx.strokeCircle(x, y, 102);
     } else if (attackType === "eruption") {
-      this.groundTelegraphGfx.fillStyle(0xff3d9f, 0.2);
-      this.groundTelegraphGfx.fillCircle(x, y, 55);
-      this.groundTelegraphGfx.lineStyle(3, 0xff3d9f, 0.9);
-      this.groundTelegraphGfx.strokeCircle(x, y, 55);
+      // Pulsing danger zone — redrawn every frame so it tracks the player
+      const t = (Date.now() % 600) / 600; // 0→1 pulse cycle
+      const alpha = 0.18 + 0.22 * Math.sin(t * Math.PI * 2); // 0.18–0.40
+      this.groundTelegraphGfx.fillStyle(0xff3d9f, alpha);
+      this.groundTelegraphGfx.fillCircle(x, y, 58);
+      this.groundTelegraphGfx.lineStyle(4, 0xff3d9f, 0.95);
+      this.groundTelegraphGfx.strokeCircle(x, y, 58);
+      this.groundTelegraphGfx.lineStyle(2, 0xffffff, 0.35);
+      this.groundTelegraphGfx.strokeCircle(x, y, 70);
+      // Crosshair lines so it's unmissable
+      this.groundTelegraphGfx.lineStyle(2, 0xff3d9f, 0.7);
+      this.groundTelegraphGfx.lineBetween(x - 70, y, x + 70, y);
+      this.groundTelegraphGfx.lineBetween(x, y - 70, x, y + 70);
     }
   }
 
@@ -1834,6 +1858,55 @@ export default class MainScene extends Phaser.Scene {
     const ring = this.add.circle(x, y, 24, 0xfbbf24, 0).setStrokeStyle(4, 0xfbbf24, 1).setDepth(16);
     const txt = this.add.text(x, y, "!", { fontFamily: FONT, fontSize: "36px", color: "#fbbf24", fontStyle: "bold" }).setOrigin(0.5).setDepth(17);
     this.tweens.add({ targets: ring, scale: 4, alpha: 0, duration: detonateMs, ease: "cubic.in", onComplete: () => { ring.destroy(); txt.destroy(); } });
+  }
+
+  // ── Depth Charge warning (Leviathan) ───────────────────────────────────────
+  _showDepthChargeWarn(x, warnMs = 900) {
+    const H = 768;
+    // Full-height danger column showing where it will rise from
+    const col = this.add.graphics().setDepth(15);
+    col.fillStyle(0x22d3ee, 0.12);
+    col.fillRect(x - 32, 0, 64, H);
+    col.lineStyle(3, 0x22d3ee, 0.85);
+    col.lineBetween(x - 32, 0, x - 32, H);
+    col.lineBetween(x + 32, 0, x + 32, H);
+
+    // Blinking "INCOMING" label at bottom
+    const label = this.add.text(x, H - 48, "⚠ DEPTH CHARGE", {
+      fontFamily: FONT, fontSize: "14px", color: "#22d3ee", fontStyle: "bold",
+      backgroundColor: "rgba(0,20,40,0.85)", padding: { x: 8, y: 4 },
+    }).setOrigin(0.5).setDepth(18);
+    this.tweens.add({
+      targets: label, alpha: { from: 1, to: 0.2 }, duration: 200,
+      yoyo: true, repeat: Math.floor(warnMs / 400),
+    });
+
+    // Rising "sonar ping" ring that climbs from bottom → impact zone
+    const ping = this.add.circle(x, H - 20, 18, 0x22d3ee, 0)
+      .setStrokeStyle(4, 0x22d3ee, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+    this.tweens.add({
+      targets: ping, y: 300, scale: 1.6, alpha: { from: 0.9, to: 0 },
+      duration: warnMs, ease: "cubic.in",
+    });
+
+    // Flash + camera hint at impact X
+    const impactFlash = this.add.circle(x, 300, 28, 0x06b6d4, 0)
+      .setStrokeStyle(5, 0x22d3ee, 1).setBlendMode(Phaser.BlendModes.ADD).setDepth(17);
+    this.tweens.add({
+      targets: impactFlash,
+      scale: { from: 1, to: 2.5 }, alpha: { from: 0.8, to: 0 },
+      duration: warnMs, ease: "sine.out",
+    });
+
+    // Clean up everything when warn window ends
+    this.time.delayedCall(warnMs, () => {
+      col.destroy(); label.destroy();
+      ping.destroy(); impactFlash.destroy();
+      // Pop flash when it fires
+      this.cameras.main.flash(160, 0, 180, 220);
+      this.cameras.main.shake(200, 0.016);
+      this._showFloatingText("💧 DEPTH CHARGE!", "#22d3ee", 20);
+    });
   }
 
   _showVoidZoneExplode(x, y) {
@@ -2425,6 +2498,7 @@ export default class MainScene extends Phaser.Scene {
       toxic_pool_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, "toxic"),
       slow_field_placed: ({ x, y, radius, durationMs }) => this._showHazardZone(x, y, radius, durationMs, "slow"),
       delayed_marker:    ({ x, y, detonateMs }) => this._showDelayedMarker(x, y, detonateMs),
+      depth_charge_warn: ({ x, warnMs }) => this._showDepthChargeWarn(x, warnMs ?? 900),
       tidal_sweep:       () => {
         [220, 400, 560, 720].forEach((ly) => {
           const g = this.add.graphics().setDepth(14);

@@ -199,8 +199,14 @@ const fireDepthCharge = (game, boss, char, phase, speed, cfg, now) => {
   if (now - boss.lastFireAt < (cfg.fireIntervals.depth_charge?.[phase] ?? 500)) return false;
   boss.lastFireAt = now;
   const rx = Math.max(80, Math.min(880, char.x + (Math.random() - 0.5) * 200));
-  if (cfg._io && cfg._roomCode) cfg._io.to(cfg._roomCode).emit("depth_charge_warn", { x: rx, y: 580 });
-  spawnProjectile(game, { x: rx, y: 620, vx: 0, vy: -speed * 1.2, type: "depth_charge" });
+  // Emit warning FIRST, then delay the actual projectile spawn by 900ms
+  // so the player has time to read and react to the warning indicator.
+  const warnMs = 900;
+  if (cfg._io && cfg._roomCode) {
+    cfg._io.to(cfg._roomCode).emit("depth_charge_warn", { x: rx, y: 580, warnMs });
+  }
+  game._depthChargeQueue = game._depthChargeQueue || [];
+  game._depthChargeQueue.push({ x: rx, y: 620, fireAt: now + warnMs, speed: speed * 1.2 });
   return true;
 };
 
