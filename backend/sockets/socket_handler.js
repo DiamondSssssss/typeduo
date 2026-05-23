@@ -6,6 +6,7 @@ const {
   ROAR_DURATION_MS, SWAP_THRESHOLDS,
 } = require("../game/constants");
 const { getBoss, BOSS_LIST } = require("../game/bosses");
+const { assertSoloBossAllowed } = require("../game/soloProgress");
 const { WEAPON_LIST, DEFAULT_WEAPON_ID, getWeapon } = require("../game/weapons");
 const {
   bumpWordTimer,
@@ -192,9 +193,14 @@ const registerSocketHandlers = (io) => {
       io.to(code).emit("room_update", toPublicRoomState(room));
     });
 
-    socket.on("start_solo", ({ username, bossId, difficulty, weaponTypeId }, cb) => {
+    socket.on("start_solo", ({ username, bossId, difficulty, weaponTypeId, defeatedBossIds }, cb) => {
       if (!username) { cb?.({ ok: false, message: "Username required." }); return; }
       const boss = getBoss(bossId || DEFAULT_BOSS_ID);
+      const unlockCheck = assertSoloBossAllowed(boss.id, defeatedBossIds);
+      if (!unlockCheck.ok) {
+        cb?.({ ok: false, message: unlockCheck.message });
+        return;
+      }
       const weapon = getWeapon(weaponTypeId);
       const code = uniqueCode();
       const player = buildPlayer(socket.id, username, "solo");

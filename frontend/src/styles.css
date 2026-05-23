@@ -2156,6 +2156,32 @@ button {
   word-break: break-word;
 }
 
+.boss-picker__card--locked {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: grayscale(0.35);
+  pointer-events: none;
+}
+
+.boss-picker__card--locked:hover {
+  transform: none;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+}
+
+.boss-picker__card-lock {
+  color: #fbbf24;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.solo-lobby__progress-hint {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
 .boss-picker__card--soon {
   pointer-events: none;
   opacity: 0.55;

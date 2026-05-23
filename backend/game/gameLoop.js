@@ -201,6 +201,7 @@ const tick = (io, room) => {
     io.to(room.code).emit("game_over", {
       roomCode:       room.code,
       hostSocketId:   room.hostSocketId,
+      bossId:         room.selectedBoss,
       winner:         g.trainingMode
         ? (teamDown ? "boss" : "training")
         : (g.bossHP <= 0 ? "players" : "boss"),

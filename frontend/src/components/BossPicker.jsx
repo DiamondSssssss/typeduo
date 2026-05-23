@@ -29,8 +29,17 @@ const COMING_SOON_PLACEHOLDERS = COMING_SOON_DIFFICULTIES.map((d) => ({
   comingSoon: true,
 }));
 
-export default function BossPicker({ selectedId, onSelect, disabled = false }) {
+export default function BossPicker({
+  selectedId,
+  onSelect,
+  disabled = false,
+  lockedIds = null,
+}) {
   const [filter, setFilter] = useState("all");
+  const lockedSet = useMemo(
+    () => (lockedIds ? new Set(lockedIds) : null),
+    [lockedIds],
+  );
 
   const filtered = useMemo(() => {
     const d = Number(filter);
@@ -64,8 +73,8 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
     return `${boss.maxHP} HP`;
   };
 
-  return (
-    <div className="boss-picker">
+            return (
+              <motion.div className="boss-picker">
       <div className="boss-picker__toolbar">
         <p className="boss-picker__label">Choose your boss</p>
         <div className="boss-picker__filters" role="tablist" aria-label="Filter by difficulty">
@@ -103,7 +112,7 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
         {filtered.map((boss) => {
           if (boss.comingSoon) {
             return (
-              <div
+              <motion.div
                 key={boss.id}
                 className="boss-picker__card boss-picker__card--soon"
                 style={{ "--boss-color": boss.color }}
@@ -123,6 +132,29 @@ export default function BossPicker({ selectedId, onSelect, disabled = false }) {
             );
           }
           const isSelected = boss.id === selectedId;
+          const isLocked = lockedSet?.has(boss.id);
+          if (isLocked) {
+            return (
+              <div
+                key={boss.id}
+                className="boss-picker__card boss-picker__card--locked"
+                style={{ "--boss-color": boss.color }}
+                aria-disabled="true"
+                title="Defeat the previous boss to unlock"
+              >
+                <span className="boss-picker__card-accent" aria-hidden="true" />
+                <span className="boss-picker__card-top">
+                  <span className="boss-picker__card-name">{boss.name}</span>
+                  <DifficultyStars n={boss.difficulty} />
+                </span>
+                <span className="boss-picker__card-tag">{boss.tagline}</span>
+                <span className="boss-picker__card-foot">
+                  <span className="boss-picker__card-lock">🔒 Locked</span>
+                  <span>{formatHp(boss)}</span>
+                </span>
+              </div>
+            );
+          }
           return (
             <button
               key={boss.id}

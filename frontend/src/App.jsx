@@ -11,6 +11,7 @@ import { phaserConfig } from "./game/phaserConfig";
 import MainScene from "./game/MainScene";
 import TutorialScene from "./game/TutorialScene";
 import { RAGE_MAX } from "./game/weapons";
+import { recordSoloBossDefeat } from "./game/soloProgress";
 
 const STORED_USER_KEY = "typeduo_user";
 const ACTIVE_GAME_KEY = "typeduo_active_game";
@@ -182,6 +183,14 @@ function App() {
       clearActiveGame();
       setPlayAgainVotes(null);
       setPlayAgainPending(false);
+      if (
+        payload?.gameMode === "solo"
+        && payload?.winner === "players"
+        && payload?.bossId
+        && !payload?.trainingMode
+      ) {
+        recordSoloBossDefeat(payload.bossId, currentUser?.username || currentUser?.email);
+      }
       setGamePayload((prev) => ({
         ...(prev || {}),
         gameOver: payload,

@@ -1,8 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import BossPicker from "./BossPicker";
 import WeaponPicker from "./WeaponPicker";
 import { BOSS_LIST } from "../game/bosses/bossConfigs";
 import { DEFAULT_WEAPON_ID } from "../game/weapons";
+import {
+  getSoloLockedBossIds,
+  getSoloUnlockedBossIds,
+  isSoloBossUnlocked,
+  readSoloDefeatedBossIds,
+} from "../game/soloProgress";
 
 const ACTIVE_GAME_KEY = "typeduo_active_game";
 const clearStaleSession = () => {
@@ -16,16 +22,36 @@ const DIFFICULTY_INFO = {
 };
 
 export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }) {
-  const [selectedBoss, setSelectedBoss] = useState("training_dummy");
+  const username = currentUser?.username || currentUser?.email;
+  const [defeatedBossIds, setDefeatedBossIds] = useState(() => readSoloDefeatedBossIds(username));
+  const [selectedBoss, setSelectedBoss] = useState(() => {
+    const defeated = readSoloDefeatedBossIds(username);
+    if (isSoloBossUnlocked("iron_matron", defeated)) return "iron_matron";
+    return "training_dummy";
+  });
   const [weaponTypeId, setWeaponTypeId] = useState(DEFAULT_WEAPON_ID);
 
   useEffect(() => {
     clearStaleSession();
   }, []);
+
+  useEffect(() => {
+    const defeated = readSoloDefeatedBossIds(username);
+    setDefeatedBossIds(defeated);
+    setSelectedBoss((prev) => (isSoloBossUnlocked(prev, defeated) ? prev : "iron_matron"));
+  }, [username]);
+
+  const lockedBossIds = useMemo(
+    () => getSoloLockedBossIds(defeatedBossIds),
+    [defeatedBossIds],
+  );
+  const unlockedCount = useMemo(
+    () => getSoloUnlockedBossIds(defeatedBossIds).size - 1,
+    [defeatedBossIds],
+  );
   const [difficulty, setDifficulty] = useState("normal");
   const [starting, setStarting] = useState(false);
   const [status, setStatus] = useState("");
-  const username = currentUser?.username || currentUser?.email;
   const selected = BOSS_LIST.find((b) => b.id === selectedBoss);
 
   const startSolo = () => {
@@ -33,7 +59,13 @@ export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }
     clearStaleSession();
     setStarting(true);
     setStatus("");
-    socket.emit("start_solo", { username, bossId: selectedBoss, difficulty, weaponTypeId }, (res) => {
+    socket.emit("start_solo", {
+      username,
+      bossId: selectedBoss,
+      difficulty,
+      weaponTypeId,
+      defeatedBossIds,
+    }, (res) => {
       setStarting(false);
       if (!res?.ok) setStatus(res?.message || "Could not start solo game.");
     });
@@ -81,7 +113,15 @@ export default function SoloLobby({ socket, currentUser, onBack, onOpenAlmanac }
         </div>
 
         <div className="solo-lobby__column solo-lobby__column--boss">
-          <BossPicker selectedId={selectedBoss} onSelect={setSelectedBoss} disabled={starting} />
+          <p className="solo-lobby__progress-hint">
+            Đánh bại từng boss để mở khóa boss kế tiếp · {unlockedCount} boss đã mở
+          </p>
+          <BossPicker
+            selectedId={selectedBoss}
+            onSelect={setSelectedBoss}
+            disabled={starting}
+            lockedIds={lockedBossIds}
+          />
         </div>
       </div>
 
