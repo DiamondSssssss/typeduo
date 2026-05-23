@@ -73,8 +73,8 @@ export default function BossPicker({
     return `${boss.maxHP} HP`;
   };
 
-            return (
-              <motion.div className="boss-picker">
+  return (
+    <div className="boss-picker">
       <div className="boss-picker__toolbar">
         <p className="boss-picker__label">Choose your boss</p>
         <div className="boss-picker__filters" role="tablist" aria-label="Filter by difficulty">
@@ -112,7 +112,7 @@ export default function BossPicker({
         {filtered.map((boss) => {
           if (boss.comingSoon) {
             return (
-              <motion.div
+              <div
                 key={boss.id}
                 className="boss-picker__card boss-picker__card--soon"
                 style={{ "--boss-color": boss.color }}
